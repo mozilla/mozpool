@@ -68,7 +68,7 @@ log "Reading boot args."
 # check for URL of second stage
 if [ ${URL} ]
 then
-    log "second stage URL found."
+    log "second stage URL found: ${URL}"
 else
     panic "mobile-imaging-url boot arg not found!"
 fi 
@@ -88,12 +88,12 @@ fi
 
 chmod 755 ${DL_PATH}/second-stage.sh
 
-# exec mobile-init.sh
-log "exec mobile-init.sh"
+# exec second-stage.sh
+log "Executing second-stage.sh"
 MOBILE_INIT_OUTPUT=$("${DL_PATH}/second-stage.sh" 2>&1)
 if [ $? -ne 0 ]
 then
-    panic ${MOBILE_INIT_OUTPUT}
+    panic "second-stage.sh returned non-zero"
 fi
 
 exit 0
