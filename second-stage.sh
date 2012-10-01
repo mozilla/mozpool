@@ -7,17 +7,15 @@
 #
 #
 
-
-mkdir -p /opt/artifacts /opt/scripts /opt/mnt/boot /opt/mnt/system /opt/mnt/userdata
-
 log () {
-   logger -p local0.info -t "mobile-init.sh" "${1}"
+   logger -p local0.info -t "second-stage.sh" "${1}"
    echo ${1} >> /opt/log.txt
 }
 
-log "Beginning mobile-init.sh"
+log "Beginning second-stage.sh"
+mkdir -p /opt/artifacts /opt/scripts /opt/mnt/boot /opt/mnt/system /opt/mnt/userdata
 
-OUTPUT=$(ntpdate time.apple.com)
+OUTPUT=$(ntpdate ntp.build.mozilla.com)
 log "${OUTPUT}"
 
 WGET_OUTPUT=$(wget -nv --directory-prefix=/opt/artifacts/ http://192.168.224.6/panda-test/panda-jb-gcc47-tilt-stable-blob-12.08-release/system.tar.bz2 2>&1)
