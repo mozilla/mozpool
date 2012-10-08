@@ -9,6 +9,7 @@ setup(name='blackmobilemagic',
       author_email='ted@mielczarek.org',
       packages=[ 'bmm' ],
       install_requires=[
+          'requests',
           'web.py',
           # needs the git version for now; let's see if mcote can release 0.6 so we don't have to do this
           #'git+git://github.com/markrcote/templeton.git#egg=templeton'

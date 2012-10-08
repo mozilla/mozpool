@@ -6,8 +6,11 @@ import os
 import sys
 import unittest
 import json
+import hashlib
 import socket
+import requests
 import tempfile
+import mock
 from mock import patch
 from paste.fixture import TestApp
 
@@ -17,6 +20,7 @@ from bmm import server
 from bmm import data
 from bmm import relay
 from bmm import testing
+from bmm import invsync
 from bmm.testing import add_server, add_board, add_bootimage
 
 class ConfigMixin(object):
@@ -176,6 +180,155 @@ class TestBoardRedirects(ConfigMixin, unittest.TestCase):
         self.assertEqual(302, r.status)
         self.assertEqual("http://server2/api/board/board2/status/",
                          r.header("Location"))
+
+class TestInvSyncMerge(unittest.TestCase):
+
+    def setUp(self):
+        self.panda1_inv = dict(
+            name='panda-0001',
+            fqdn='panda-0001.r402-4.scl3.mozilla.com',
+            inventory_id=201,
+            mac_address='aabbccddeeff',
+            imaging_server='mobile-services1',
+            relay_info="relay-1:bank1:relay1")
+        self.panda1_db = self.panda1_inv.copy()
+        self.panda1_db['id'] = 401
+
+        self.panda2_inv = dict(
+            name='panda-0002',
+            fqdn='panda-0002.r402-4.scl3.mozilla.com',
+            inventory_id=202,
+            mac_address='112233445566',
+            imaging_server='mobile-services2',
+            relay_info="relay-1:bank2:relay2")
+        self.panda2_db = self.panda2_inv.copy()
+        self.panda2_db['id'] = 402
+
+    def test_merge_hosts_no_change(self):
+        commands = list(invsync.merge_hosts(
+            [self.panda1_db, self.panda2_db],
+            [self.panda1_inv, self.panda2_inv]))
+        self.assertEqual(commands, [])
+
+    def test_merge_hosts_insert(self):
+        commands = list(invsync.merge_hosts(
+            [self.panda1_db],
+            [self.panda1_inv, self.panda2_inv]))
+        self.assertEqual(commands, [
+            ('insert', self.panda2_inv),
+        ])
+
+    def test_merge_hosts_delete(self):
+        commands = list(invsync.merge_hosts(
+            [self.panda1_db, self.panda2_db],
+            [self.panda2_inv]))
+        self.assertEqual(sorted(commands), [
+            ('delete', 401), ## panda1's db id
+        ])
+
+    def test_merge_hosts_update(self):
+        self.panda2_inv['mac_address'] = '1a2b3c4d5e6f'
+        commands = list(invsync.merge_hosts(
+            [self.panda1_db, self.panda2_db],
+            [self.panda1_inv, self.panda2_inv]))
+        self.assertEqual(sorted(commands), [
+            ('update', 402, self.panda2_inv),
+        ])
+
+    def test_merge_hosts_combo(self):
+        self.panda2_inv['mac_address'] = '1a2b3c4d5e6f'
+        commands = list(invsync.merge_hosts(
+            [self.panda1_db, self.panda2_db],
+            [self.panda2_inv]))
+        self.assertEqual(sorted(commands), [
+            ('delete', 401),
+            ('update', 402, self.panda2_inv),
+        ])
+
+@patch('requests.get')
+class TestInvSyncGet(unittest.TestCase):
+
+    def set_responses(self, chunks):
+        # patch out requests.get to keep the urls it was called with,
+        # and to return responses of hosts as set with addChunk
+        paths = [ '/path%d' % i for i in range(len(chunks)) ]
+        def get(url, auth):
+            chunk = chunks.pop(0)
+            paths.pop(0)
+            r = mock.Mock(spec=requests.Response)
+            r.status_code = 200
+            r.json = dict(
+                meta=dict(next=paths[0] if paths else None),
+                objects=chunk)
+            return r
+        requests.get.configure_mock(side_effect=get)
+
+    def make_host(self, name, mac_address=True, imaging_server=True, relay_info=True):
+        # make deterministic values
+        fqdn = '%s.vlan.dc.mozilla.com' % name
+        inventory_id = hash(fqdn) % 100
+        kv = []
+        if mac_address:
+            mac_address = hashlib.md5(fqdn).digest()[:6]
+            mac_address = ':'.join([ '%02x' % ord(b) for b in mac_address ])
+            kv.append(dict(key='nic.0.mac_address.0', value=mac_address))
+        if imaging_server:
+            imaging_server = 'img%d' % ((hash(fqdn) / 100) % 10)
+            kv.append(dict(key='system.imaging_server.0', value=imaging_server))
+        if relay_info:
+            relay_info = 'relay%d' % ((hash(fqdn) / 1000) % 10)
+            kv.append(dict(key='system.relay.0', value=relay_info))
+        return dict(
+            hostname=fqdn,
+            id=inventory_id,
+            key_value=kv)
+
+    def test_one_response(self, get):
+        self.set_responses([
+            [ self.make_host('panda-001'), self.make_host('panda-002') ],
+        ])
+        hosts = list(invsync.get_hosts('filter', 'me', 'pass'))
+        self.assertEqual(hosts, [
+            {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
+             'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
+             'fqdn': 'panda-001.vlan.dc.mozilla.com'},
+            {'inventory_id': 97, 'relay_info': 'relay9', 'name': 'panda-002',
+             'imaging_server': 'img1', 'mac_address': '86a1c8ce6ea2',
+             'fqdn': 'panda-002.vlan.dc.mozilla.com'},
+        ])
+        self.assertEqual(requests.get.call_args_list, [
+            mock.call('https://inventory.mozilla.org/en-US/tasty/v3/system/?filter', auth=('me', 'pass')),
+        ])
+
+    def test_loop_and_filtering(self, get):
+        self.set_responses([
+            [ self.make_host('panda-001'), self.make_host('panda-002', imaging_server=False) ],
+            [ self.make_host('panda-003'), self.make_host('panda-004', relay_info=False) ],
+            [ self.make_host('panda-005'), self.make_host('panda-006', mac_address=False) ],
+        ])
+        hosts = list(invsync.get_hosts('filter', 'me', 'pass'))
+        self.assertEqual(hosts, [
+            {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
+             'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
+             'fqdn': 'panda-001.vlan.dc.mozilla.com'},
+            # panda-002 is here, with imaging_server='UNKNOWN'
+            {'inventory_id': 97, 'relay_info': 'relay9', 'name': 'panda-002',
+             'imaging_server': 'UNKNOWN', 'mac_address': '86a1c8ce6ea2',
+             'fqdn': 'panda-002.vlan.dc.mozilla.com'},
+            {'inventory_id': 52, 'relay_info': 'relay4', 'name': 'panda-003',
+             'imaging_server': 'img9', 'mac_address': 'aec31326594a',
+             'fqdn': 'panda-003.vlan.dc.mozilla.com'},
+            # panda-004 was skipped
+            {'inventory_id': 6, 'relay_info': 'relay9', 'name': 'panda-005',
+             'imaging_server': 'img3', 'mac_address': 'c19b00f9644b',
+             'fqdn': 'panda-005.vlan.dc.mozilla.com'}
+            # panda-006 was skipped
+        ])
+        self.assertEqual(requests.get.call_args_list, [
+            mock.call('https://inventory.mozilla.org/en-US/tasty/v3/system/?filter', auth=('me', 'pass')),
+            mock.call('https://inventory.mozilla.org/path1', auth=('me', 'pass')),
+            mock.call('https://inventory.mozilla.org/path2', auth=('me', 'pass')),
+        ])
 
 if __name__ == "__main__":
     unittest.main()
