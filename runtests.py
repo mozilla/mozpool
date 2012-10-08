@@ -52,6 +52,9 @@ class TestBoardList(ConfigMixin, unittest.TestCase):
         add_board("board4", server="server2")
 
     def testBoardList(self, Mock):
+        """
+        /board/list/ should list all boards for all servers.
+        """
         Mock.return_value = "server1"
         r = self.app.get("/api/board/list/")
         self.assertEqual(200, r.status)
@@ -59,12 +62,16 @@ class TestBoardList(ConfigMixin, unittest.TestCase):
         self.assertTrue("boards" in body)
         self.assertTrue("board1" in body["boards"])
         self.assertTrue("board2" in body["boards"])
+        self.assertTrue("board3" in body["boards"])
+        self.assertTrue("board4" in body["boards"])
 
         Mock.return_value = "server2"
         r = self.app.get("/api/board/list/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertTrue("boards" in body)
+        self.assertTrue("board1" in body["boards"])
+        self.assertTrue("board2" in body["boards"])
         self.assertTrue("board3" in body["boards"])
         self.assertTrue("board4" in body["boards"])
 
@@ -74,8 +81,13 @@ class TestBoardStatus(ConfigMixin, unittest.TestCase):
         add_server("server1")
         add_board("board1", server="server1", state="running")
         add_board("board2", server="server1", state="freaking_out")
+        add_server("server2")
+        add_board("board3", server="server2", state="running")
 
     def testBoardStatus(self):
+        """
+        /board/status/ should work for any board on any server.
+        """
         r = self.app.get("/api/board/board1/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
@@ -85,6 +97,11 @@ class TestBoardStatus(ConfigMixin, unittest.TestCase):
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertEquals("freaking_out", body["state"])
+
+        r = self.app.get("/api/board/board3/status/")
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEquals("running", body["state"])
 
     def testSetBoardStatus(self):
         r = self.app.get("/api/board/board1/status/")
@@ -152,17 +169,28 @@ class TestBoardReboot(ConfigMixin, unittest.TestCase):
         self.assertEquals("rebooting", body["state"])
 
 class TestBoardRedirects(ConfigMixin, unittest.TestCase):
+    """
+    The /boot/ and /reboot/ commands should 302 redirect to the
+    correct server if the current server isn't the server that
+    controls the board in question.
+    """
     def setUp(self):
         super(TestBoardRedirects, self).setUp()
         add_server("server1")
         add_server("server2")
         add_board("board1", server="server1")
         add_board("board2", server="server2")
+        add_bootimage("image1")
 
     def testRedirectBoard(self):
-        r = self.app.get("/api/board/board2/status/")
+        r = self.app.post("/api/board/board2/reboot/")
         self.assertEqual(302, r.status)
-        self.assertEqual("http://server2/api/board/board2/status/",
+        self.assertEqual("http://server2/api/board/board2/reboot/",
+                         r.header("Location"))
+
+        r = self.app.post("/api/board/board2/boot/image1/")
+        self.assertEqual(302, r.status)
+        self.assertEqual("http://server2/api/board/board2/boot/image1/",
                          r.header("Location"))
 
 if __name__ == "__main__":

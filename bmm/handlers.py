@@ -26,18 +26,13 @@ urls = (
 class board_list:
     @templeton.handlers.json_response
     def GET(self):
-        try:
-            return data.list_boards_for_imaging_server(config.server_fqdn())
-        except data.NotFound:
-            return {'boards':{}}
+        return data.list_boards()
 
 class board_status:
-    @boardredirect
     @templeton.handlers.json_response
     def GET(self, id):
         return data.board_status(id)
 
-    @boardredirect
     @templeton.handlers.json_response
     def POST(self, id):
         args, body = templeton.handlers.get_request_parms()
@@ -59,7 +54,6 @@ class board_reboot:
         raise web.webapi._status_code("204 No Content")
 
 class board_config:
-    @boardredirect
     @templeton.handlers.json_response
     def GET(self, id):
         return data.board_config(id)

@@ -39,18 +39,13 @@ def row_to_dict(row, table, omit_cols=[]):
         result[col.name] = coldata
     return result
 
-def list_boards_for_imaging_server(server):
+def list_boards():
     """
-    Get the list of boards associated with an imaging server.
+    Get the list of all boards known to the system.
     Returns a dict whose 'boards' entry is the list of boards.
     """
     conn = get_conn()
-    res = conn.execute(select([model.imaging_servers],
-                              model.imaging_servers.c.fqdn==server))
-    if res.fetchone() is None:
-        raise NotFound
-    res = conn.execute(select([model.boards.c.name],
-                              from_obj=[model.boards.join(model.imaging_servers, model.imaging_servers.c.fqdn == server)]))
+    res = conn.execute(select([model.boards.c.name]))
     return {'boards': [row[0].encode('utf-8') for row in res]}
 
 def get_server_for_board(board):
