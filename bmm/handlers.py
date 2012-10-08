@@ -48,7 +48,8 @@ class board_boot:
     def POST(self, id, image):
         args, body = templeton.handlers.get_request_parms()
         board.boot(id, image, body)
-        return "" #XXX: should we return something here?
+        #XXX: should we return something here?
+        raise web.webapi._status_code("204 No Content")
 
 class board_reboot:
     @boardredirect

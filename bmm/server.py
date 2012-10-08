@@ -11,18 +11,18 @@ from bmm import handlers, data
 
 templeton.middleware.patch_middleware()
 
+def get_app():
+    urls = templeton.handlers.load_urls(handlers.urls)
+    return web.application(urls, handlers.__dict__)
+
 def main():
     # load test data
-    # TODO: this should probably come from the config
     if len(sys.argv) > 1:
         # load the data from argv[1]
-        globals = {}
-        execfile(sys.argv[1], globals)
-        data.servers = globals['data']
-        del sys.argv[0]
+        execfile(sys.argv[1])
+        del sys.argv[1]
 
-    urls = templeton.handlers.load_urls(handlers.urls)
-    app = web.application(urls, handlers.__dict__)
+    app = get_app()
     app.run()
 
 if __name__ == '__main__':

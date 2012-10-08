@@ -3,13 +3,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-# load this with 'bmm-server testdata.py'
+"""
+Put some fake data into a sqlite database. Useful for testing.
+"""
 
-data = {'eye7': {'board1': {'server':'eye7',
-                           'state':'offline',
-                           'log': [],
-                           'config': {'foo': 1},
-                           'relay-info': 'relay-1:bank1:relay1',
-                           }
-                }
-       }
+import socket
+from bmm import testing
+
+fqdn=socket.getfqdn()
+testing.create_sqlite_db("/tmp/imaging-testserver.sqlite")
+testing.add_server(fqdn)
+testing.add_board("board1", server=fqdn)
+testing.add_bootimage("image1")

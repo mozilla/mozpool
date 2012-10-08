@@ -7,6 +7,7 @@ import sys
 import unittest
 import json
 import socket
+import tempfile
 from mock import patch
 from paste.fixture import TestApp
 
@@ -15,32 +16,26 @@ sys.path.append(os.path.join(os.getcwd(), "server"))
 from bmm import server
 from bmm import data
 from bmm import relay
+from bmm import testing
+from bmm.testing import add_server, add_board, add_bootimage
 
-#TODO: make these mock out a DB
-def add_server(hostname):
-    """
-    Configure data for a server running at |hostname|.
-    """
-    data.servers[hostname] = {}
-
-def add_board(board, server="server", state="offline",
-              log=[], config={}, relayinfo=""):
-    data.servers[server][board]= {"server": server, "state": state, "log": log,
-                                  "config": config,
-                                  "relay-info": relayinfo}
-
-def add_bootimage(name):
-    data.bootimages[name] = {}
-
-@patch("socket.getfqdn")
-class TestData(unittest.TestCase):
+class ConfigMixin(object):
     def setUp(self):
-        add_server("server1")
-        add_board("board1", server="server1", relayinfo="relay-1:bank1:relay1")
-        self.app = TestApp(server.app.wsgifunc())
+        self.dbfile = tempfile.NamedTemporaryFile()
+        testing.create_sqlite_db(self.dbfile.name, schema=True)
+        self.app = TestApp(server.get_app().wsgifunc())
 
     def tearDown(self):
-        data.servers = {}
+        data.get_conn().close()
+        del self.dbfile
+        data.engine = None
+
+@patch("socket.getfqdn")
+class TestData(ConfigMixin, unittest.TestCase):
+    def setUp(self):
+        super(TestData, self).setUp()
+        add_server("server1")
+        add_board("board1", server="server1", relayinfo="relay-1:bank1:relay1")
 
     def testRelayInfo(self, Mock):
         Mock.return_value = "server1"
@@ -48,18 +43,15 @@ class TestData(unittest.TestCase):
                           data.board_relay_info("board1"))
 
 @patch("socket.getfqdn")
-class TestBoardList(unittest.TestCase):
+class TestBoardList(ConfigMixin, unittest.TestCase):
     def setUp(self):
+        super(TestBoardList, self).setUp()
         add_server("server1")
         add_board("board1", server="server1")
         add_board("board2", server="server1")
         add_server("server2")
         add_board("board3", server="server2")
         add_board("board4", server="server2")
-        self.app = TestApp(server.app.wsgifunc())
-
-    def tearDown(self):
-        data.servers = {}
 
     def testBoardList(self, Mock):
         Mock.return_value = "server1"
@@ -79,15 +71,12 @@ class TestBoardList(unittest.TestCase):
         self.assertTrue("board4" in body["boards"])
 
 @patch("socket.getfqdn")
-class TestBoardStatus(unittest.TestCase):
+class TestBoardStatus(ConfigMixin, unittest.TestCase):
     def setUp(self):
+        super(TestBoardStatus, self).setUp()
         add_server("server1")
         add_board("board1", server="server1", state="running")
         add_board("board2", server="server1", state="freaking_out")
-        self.app = TestApp(server.app.wsgifunc())
-
-    def tearDown(self):
-        data.servers = {}
 
     def testBoardStatus(self, Mock):
         Mock.return_value = "server1"
@@ -116,14 +105,11 @@ class TestBoardStatus(unittest.TestCase):
         self.assertEquals("offline", body["state"])
 
 @patch("socket.getfqdn")
-class TestBoardConfig(unittest.TestCase):
+class TestBoardConfig(ConfigMixin, unittest.TestCase):
     def setUp(self):
+        super(TestBoardConfig, self).setUp()
         add_server("server1")
         add_board("board1", server="server1", config={"abc": "xyz"})
-        self.app = TestApp(server.app.wsgifunc())
-
-    def tearDown(self):
-        data.servers = {}
 
     def testBoardConfig(self, Mock):
         Mock.return_value = "server1"
@@ -133,15 +119,12 @@ class TestBoardConfig(unittest.TestCase):
         self.assertEquals({"abc": "xyz"}, body["config"])
 
 @patch("socket.getfqdn")
-class TestBoardBoot(unittest.TestCase):
+class TestBoardBoot(ConfigMixin, unittest.TestCase):
     def setUp(self):
+        super(TestBoardBoot, self).setUp()
         add_server("server1")
         add_board("board1", server="server1")
         add_board("board2", server="server1")
-        self.app = TestApp(server.app.wsgifunc())
-
-    def tearDown(self):
-        data.servers = {}
 
     def testBoardBoot(self, Mock):
         #TODO
@@ -149,15 +132,12 @@ class TestBoardBoot(unittest.TestCase):
 
 @patch("socket.socket")
 @patch("socket.getfqdn")
-class TestBoardReboot(unittest.TestCase):
+class TestBoardReboot(ConfigMixin, unittest.TestCase):
     def setUp(self):
+        super(TestBoardReboot, self).setUp()
         add_server("server1")
         add_board("board1", server="server1", state="running",
                   relayinfo="relay-1:bank1:relay1")
-        self.app = TestApp(server.app.wsgifunc())
-
-    def tearDown(self):
-        data.servers = {}
 
     def testBoardReboot(self, Mockfqdn, MockSocket):
         Mockfqdn.return_value = "server1"
@@ -180,18 +160,14 @@ class TestBoardReboot(unittest.TestCase):
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertEquals("rebooting", body["state"])
-        #TODO: verify socket data via mock
 
-class TestBoardRedirects(unittest.TestCase):
+class TestBoardRedirects(ConfigMixin, unittest.TestCase):
     def setUp(self):
+        super(TestBoardRedirects, self).setUp()
         add_server("server1")
         add_server("server2")
         add_board("board1", server="server1")
         add_board("board2", server="server2")
-        self. app = TestApp(server.app.wsgifunc())
-
-    def tearDown(self):
-        data.servers = {}
 
     @patch("socket.getfqdn")
     def testRedirectBoard(self, Mock):

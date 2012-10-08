@@ -1,0 +1,6 @@
+# Sample configuration file. Copy to config.ini and edit
+# settings appropriately.
+[database]
+# This is a SQLalchemy engine URL, see
+# http://docs.sqlalchemy.org/en/rel_0_7/core/engines.html#engine-creation-api
+engine = sqlite:////tmp/test.sqlite

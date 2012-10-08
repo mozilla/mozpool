@@ -6,7 +6,7 @@ setup(name='blackmobilemagic',
       version='1.0',
       description='Frontend for the BMM Boot and Imaging Service',
       author='Ted Mielczarek',
-      author_email='tmielczarek@mozilla.com',
+      author_email='ted@mielczarek.org',
       packages=[ 'bmm' ],
       install_requires=[
           'web.py',

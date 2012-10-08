@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 import sqlalchemy as sa
 
 metadata = sa.MetaData()
@@ -18,7 +22,7 @@ boards = sa.Table('boards', metadata,
 
 imaging_servers = sa.Table('imaging_servers', metadata,
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
-    sa.Column('fqdn', sa.String(256), primary_key=True, nullable=False),
+    sa.Column('fqdn', sa.String(256), nullable=False),
 )
 
 images = sa.Table('images', metadata,
