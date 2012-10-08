@@ -122,7 +122,7 @@ def powercycle(relay_hostname, bank, relay):
             return False
     return True
 
-if __name__ == '__main__':
+def main():
     # Basic commandline interface for testing.
     def usage():
         print "Usage: %s [powercycle|status|turnon|turnoff] <hostname> <bank> <relay>" % sys.argv[0]
@@ -149,3 +149,6 @@ if __name__ == '__main__':
     else:
         usage()
     sys.exit(0)
+
+if __name__ == '__main__':
+    main()
