@@ -116,7 +116,7 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
         r = self.app.get("/api/board/board1/config/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals({"abc": "xyz"}, body["config"])
+        self.assertEquals({"abc": "xyz"}, json.loads(body["config"]))
 
 @patch("socket.getfqdn")
 class TestBoardBoot(ConfigMixin, unittest.TestCase):

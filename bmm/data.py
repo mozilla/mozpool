@@ -91,14 +91,22 @@ def board_config(board):
     """
     Get the config parameters passed to the /boot/ API for board.
     """
-    #TODO: database query
-    return {'config': ''}
+    res = get_conn().execute(select([model.boards.c.boot_config],
+                                    model.boards.c.name==board))
+    row = res.fetchone()
+    config = {}
+    if row:
+        config = row['boot_config'].encode('utf-8')
+    return {'config': config}
 
 def set_board_config(board, config):
     """
     Set the config parameters for the /boot/ API for board.
     """
-    pass
+    get_conn().execute(model.boards.update().
+                       where(model.boards.c.name==board).
+                       values(boot_config=json.dumps(config)))
+    return config
 
 def board_relay_info(board):
     res = get_conn().execute(select([model.boards.c.relay_info],

@@ -8,6 +8,7 @@ manual testing.
 
 import os
 import sqlalchemy
+import json
 from sqlalchemy.sql import select
 from bmm import model
 from bmm import data
@@ -38,13 +39,14 @@ def add_board(board, server="server", state="offline",
     if id is None:
         raise data.NotFound
     conn.execute(model.boards.insert(),
-                            name=board,
-                            fqdn=board, #XXX
-                            inventory_id=inventory_id,
-                            status=state,
-                            mac_address='00:00:00:00:00:00',
-                            imaging_server_id=id,
-                            relay_info=relayinfo)
+                 name=board,
+                 fqdn=board, #XXX
+                 inventory_id=inventory_id,
+                 status=state,
+                 mac_address='00:00:00:00:00:00',
+                 imaging_server_id=id,
+                 relay_info=relayinfo,
+                 boot_config=json.dumps(config))
     inventory_id += 1
 
 def add_bootimage(name, version=1, description="Boot image",
