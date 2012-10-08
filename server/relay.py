@@ -23,7 +23,7 @@ from contextlib import contextmanager
 
 __all__ = ['get_status',
            'set_status',
-           'powercycle'
+           'powercycle',
            'COMMAND_OK']
 
 PORT = 2101
