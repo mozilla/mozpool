@@ -5,8 +5,8 @@
 
 # just a server with some crummy mocked-up data for initial testing
 
-import server
-import data
+from bmm import server
+from bmm import data
 
 data.servers = {'eye7': {'board1': {'server':'eye7',
                                     'state':'offline',

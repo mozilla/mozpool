@@ -3,7 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import socket
-import web
 
 # Hard-coded data for now
 servers = {}

@@ -4,8 +4,8 @@
 
 import socket
 import web
-import data
-import relay
+from bmm import data
+from bmm import relay
 
 def boardredirect(function):
     """

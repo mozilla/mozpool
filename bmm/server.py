@@ -5,8 +5,8 @@
 
 import templeton.handlers
 import templeton.middleware
-import handlers
 import web
+from bmm import handlers
 
 templeton.middleware.patch_middleware()
 

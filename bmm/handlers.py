@@ -5,9 +5,9 @@
 import socket
 import templeton
 import web
-import data
-import board
-from board import boardredirect
+from bmm import data
+from bmm import board
+from bmm.board import boardredirect
 
 # URLs go here. "/api/" will be automatically prepended to each.
 urls = (

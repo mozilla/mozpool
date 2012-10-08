@@ -5,18 +5,16 @@
 import os
 import sys
 import unittest
-import web
 import json
 import socket
-import mock
 from mock import patch
 from paste.fixture import TestApp
 
 sys.path.append(os.path.join(os.getcwd(), "server"))
 
-import server
-import data
-import relay
+from bmm import server
+from bmm import data
+from bmm import relay
 
 #TODO: make these mock out a DB
 def add_server(hostname):
