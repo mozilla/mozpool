@@ -15,7 +15,9 @@ CREATE TABLE boards (
   imaging_server_id integer unsigned not null,
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
   -- path to the board's power relay; format TBD; NULL=no control
-  relay_info text
+  relay_info text,
+  -- config the board will use on its next boot (JSON blob)
+  boot_config text
 );
 
 DROP TABLE IF EXISTS imaging_servers;

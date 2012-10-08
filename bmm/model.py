@@ -13,6 +13,7 @@ boards = sa.Table('boards', metadata,
         sa.ForeignKey('imaging_servers.id', ondelete='RESTRICT'),
         nullable=False),
     sa.Column('relay_info', sa.Text),
+    sa.Column('boot_config', sa.Text),
 )
 
 imaging_servers = sa.Table('imaging_servers', metadata,
