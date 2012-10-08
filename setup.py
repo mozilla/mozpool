@@ -15,7 +15,8 @@ setup(name='blackmobilemagic',
       ],
       entry_points={
           'console_scripts': [
-              'bmm-relay = bmm.relay:main'
+              'bmm-relay = bmm.relay:main',
+              'bmm-server = bmm.server:main',
           ]
       }
 )
