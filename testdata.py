@@ -11,7 +11,8 @@ import socket
 from bmm import testing
 
 fqdn=socket.getfqdn()
-testing.create_sqlite_db("/tmp/imaging-testserver.sqlite")
+testing.set_config(sqlite_db="/tmp/imaging-testserver.sqlite",
+                   server_fqdn=fqdn)
 testing.add_server(fqdn)
 testing.add_board("board1", server=fqdn)
 testing.add_bootimage("image1")

@@ -2,11 +2,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import socket
 import templeton
 import web
 from bmm import data
 from bmm import board
+from bmm import config
 from bmm.board import boardredirect
 
 # URLs go here. "/api/" will be automatically prepended to each.
@@ -27,7 +27,7 @@ class board_list:
     @templeton.handlers.json_response
     def GET(self):
         try:
-            return data.list_boards_for_imaging_server(socket.getfqdn())
+            return data.list_boards_for_imaging_server(config.server_fqdn())
         except data.NotFound:
             return {'boards':{}}
 

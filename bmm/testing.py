@@ -9,14 +9,16 @@ manual testing.
 import os
 import sqlalchemy
 import json
+import socket
 from sqlalchemy.sql import select
 from bmm import model
 from bmm import data
 from bmm import config
 
-def create_sqlite_db(path, schema=False):
-    config.set_config(db_engine = "sqlite:///" + path)
-    if not os.path.isfile(path) or schema:
+def set_config(sqlite_db, server_fqdn, create_db=False):
+    config.set_config(db_engine = "sqlite:///" + sqlite_db,
+                      server_fqdn = server_fqdn)
+    if not os.path.isfile(sqlite_db) or create_db:
         create_db_schema()
 
 def create_db_schema():

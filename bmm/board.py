@@ -4,6 +4,7 @@
 
 import socket
 import web
+from bmm import config
 from bmm import data
 from bmm import relay
 
@@ -17,7 +18,7 @@ def boardredirect(function):
             server = data.get_server_for_board(id)
         except data.NotFound:
             raise web.notfound()
-        if server != socket.getfqdn():
+        if server != config.server_fqdn():
             raise web.found("http://%s%s" % (server, web.ctx.path))
         return function(self, id, *args)
     return wrapped

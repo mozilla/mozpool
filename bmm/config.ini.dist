@@ -4,3 +4,7 @@
 # This is a SQLalchemy engine URL, see
 # http://docs.sqlalchemy.org/en/rel_0_7/core/engines.html#engine-creation-api
 engine = sqlite:////tmp/test.sqlite
+
+[server]
+# Defaults to socket.getfqdn
+#fqdn =
