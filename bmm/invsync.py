@@ -52,7 +52,7 @@ def get_boards(url, filter, username, password, verbose=False):
                 relay_info=kv['system.relay.0'])
 
             if verbose: print hostname, 'downloaded.'
-        
+
         # go on to the next set of hosts
         path = r.json['meta']['next']
 
@@ -60,7 +60,7 @@ def merge_boards(from_db, from_inv):
     """
     Merge a list of hosts in the DB with those in inventory.  This yields a
     list of instructions of the form ('insert', dict), ('delete', id), or
-    (update, id, dict).
+    ('update', id, dict).
     """
 
     # first, key everything by inventory ID
