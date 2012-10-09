@@ -7,6 +7,7 @@ import sys
 import unittest
 import json
 import hashlib
+import shutil
 import socket
 import requests
 import tempfile
@@ -14,8 +15,7 @@ import mock
 from mock import patch
 from paste.fixture import TestApp
 
-sys.path.append(os.path.join(os.getcwd(), "server"))
-
+from bmm import config
 from bmm import server
 from bmm import data
 from bmm import model
@@ -27,35 +27,42 @@ from bmm.testing import add_server, add_board, add_bootimage
 
 class ConfigMixin(object):
     def setUp(self):
-        self.dbfile = tempfile.NamedTemporaryFile()
-        testing.create_sqlite_db(self.dbfile.name, schema=True)
+        self.tempdir = tempfile.mkdtemp()
+        self.dbfile = os.path.join(self.tempdir, "sqlite.db")
+        tftp_root = os.path.join(self.tempdir, "tftp")
+        os.mkdir(tftp_root)
+        image_store = os.path.join(self.tempdir, "images")
+        os.mkdir(image_store)
+        testing.set_config(sqlite_db=self.dbfile,
+                           server_fqdn="server1",
+                           tftp_root=tftp_root,
+                           image_store=image_store,
+                           create_db=True)
         self.app = TestApp(server.get_app().wsgifunc())
 
     def tearDown(self):
         data.get_conn().close()
-        del self.dbfile
         data.engine = None
+        shutil.rmtree(self.tempdir)
 
-@patch("socket.getfqdn")
 class TestData(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestData, self).setUp()
         add_server("server1")
         add_board("board1", server="server1", relayinfo="relay-1:bank1:relay1")
 
-    def testRelayInfo(self, Mock):
-        Mock.return_value = "server1"
+    def testRelayInfo(self):
         self.assertEquals(("relay-1", 1, 1),
                           data.board_relay_info("board1"))
 
-    def testDumpBoards(self, Mock):
+    def testDumpBoards(self):
         self.assertEquals([
             dict(id=1, name='board1', fqdn='board1', inventory_id=1, mac_address='000000000000',
                 imaging_server='server1', relay_info='relay-1:bank1:relay1'),
             ],
             data.dump_boards())
 
-    def testInsertBoard(self, Mock):
+    def testInsertBoard(self):
         data.insert_board(dict(name='board2', fqdn='board2.fqdn', inventory_id=23,
             mac_address='aabbccddeeff', imaging_server='server2',
                 relay_info='relay-2:bank2:relay2'))
@@ -78,13 +85,13 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'boot_config': u'{}', u'mac_address': u'000000000000', u'id': 1},
             ]))
 
-    def testDeleteBoard(self, Mock):
+    def testDeleteBoard(self):
         conn = data.get_conn()
         data.delete_board(1)
         res = conn.execute(model.boards.select())
         self.assertEquals(res.fetchall(), [])
 
-    def testUpdateBoard(self, Mock):
+    def testUpdateBoard(self):
         conn = data.get_conn()
         data.update_board(1, dict(fqdn='board1.fqdn', imaging_server='server9', mac_address='aabbccddeeff'))
         res = conn.execute(model.boards.select())
@@ -94,7 +101,7 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1},
         ])
 
-@patch("socket.getfqdn")
+@patch("bmm.config.server_fqdn")
 class TestBoardList(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardList, self).setUp()
@@ -106,6 +113,9 @@ class TestBoardList(ConfigMixin, unittest.TestCase):
         add_board("board4", server="server2")
 
     def testBoardList(self, Mock):
+        """
+        /board/list/ should list all boards for all servers.
+        """
         Mock.return_value = "server1"
         r = self.app.get("/api/board/list/")
         self.assertEqual(200, r.status)
@@ -113,25 +123,32 @@ class TestBoardList(ConfigMixin, unittest.TestCase):
         self.assertTrue("boards" in body)
         self.assertTrue("board1" in body["boards"])
         self.assertTrue("board2" in body["boards"])
+        self.assertTrue("board3" in body["boards"])
+        self.assertTrue("board4" in body["boards"])
 
         Mock.return_value = "server2"
         r = self.app.get("/api/board/list/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertTrue("boards" in body)
+        self.assertTrue("board1" in body["boards"])
+        self.assertTrue("board2" in body["boards"])
         self.assertTrue("board3" in body["boards"])
         self.assertTrue("board4" in body["boards"])
 
-@patch("socket.getfqdn")
 class TestBoardStatus(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardStatus, self).setUp()
         add_server("server1")
         add_board("board1", server="server1", state="running")
         add_board("board2", server="server1", state="freaking_out")
+        add_server("server2")
+        add_board("board3", server="server2", state="running")
 
-    def testBoardStatus(self, Mock):
-        Mock.return_value = "server1"
+    def testBoardStatus(self):
+        """
+        /board/status/ should work for any board on any server.
+        """
         r = self.app.get("/api/board/board1/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
@@ -142,8 +159,12 @@ class TestBoardStatus(ConfigMixin, unittest.TestCase):
         body = json.loads(r.body)
         self.assertEquals("freaking_out", body["state"])
 
-    def testSetBoardStatus(self, Mock):
-        Mock.return_value = "server1"
+        r = self.app.get("/api/board/board3/status/")
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEquals("running", body["state"])
+
+    def testSetBoardStatus(self):
         r = self.app.get("/api/board/board1/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
@@ -156,34 +177,75 @@ class TestBoardStatus(ConfigMixin, unittest.TestCase):
         body = json.loads(r.body)
         self.assertEquals("offline", body["state"])
 
-@patch("socket.getfqdn")
 class TestBoardConfig(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardConfig, self).setUp()
         add_server("server1")
         add_board("board1", server="server1", config={"abc": "xyz"})
 
-    def testBoardConfig(self, Mock):
-        Mock.return_value = "server1"
+    def testBoardConfig(self):
         r = self.app.get("/api/board/board1/config/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals({"abc": "xyz"}, json.loads(body["config"]))
+        self.assertEquals({"abc": "xyz"}, body["config"])
 
-@patch("socket.getfqdn")
+@patch("socket.socket")
 class TestBoardBoot(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardBoot, self).setUp()
         add_server("server1")
-        add_board("board1", server="server1")
-        add_board("board2", server="server1")
+        self.board_mac = "001122334455"
+        add_board("board1", server="server1", state="running",
+                  mac_address=self.board_mac,
+                  relayinfo="relay-1:bank1:relay1")
+        self.pxefile = "image1"
+        # create a file for the boot image.
+        open(os.path.join(config.image_store(), self.pxefile), "w").write("abc")
+        add_bootimage("image1", pxe_config_filename=self.pxefile)
 
-    def testBoardBoot(self, Mock):
-        #TODO
-        pass
+    def testBoardBoot(self, MockSocket):
+        MockSocketRecv = MockSocket.return_value.recv
+        # reboot will do two sets, each followed by a get, so mock
+        # the responses it would receive from the relay board
+        MockSocketRecv.side_effect = [relay.COMMAND_OK,
+                                      chr(1),
+                                      relay.COMMAND_OK,
+                                      chr(0)]
+
+        config_data = {"foo":"bar"}
+        r = self.app.post("/api/board/board1/boot/image1/",
+                          headers={"Content-Type": "application/json"},
+                          params=json.dumps(config_data))
+        self.assertEqual(204, r.status)
+        # Nothing in the response body currently
+
+        # Verify that it got put into the boot-initiated state
+        r = self.app.get("/api/board/board1/status/")
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEquals("boot-initiated", body["state"])
+
+        # Verify that the config data was set properly.
+        r = self.app.get("/api/board/board1/config/")
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEquals(config_data, body["config"])
+
+        # Verify that the symlink was created in tftp_root
+        mac = data.mac_with_dashes(self.board_mac)
+        tftp_link = os.path.join(config.tftp_root(), "pxelinux.cfg",
+                                 "01-" + mac)
+        self.assertTrue(os.path.islink(tftp_link))
+
+        # Verify that it links to the right PXE image.
+        self.assertEqual(self.pxefile, os.path.basename(os.readlink(tftp_link)))
+
+        self.assertNotEqual(None, MockSocket.return_value.connect.call_args)
+        self.assertEqual("relay-1",
+                         MockSocket.return_value.connect.call_args[0][0][0])
+        self.assertEqual(4, MockSocketRecv.call_count)
 
 @patch("socket.socket")
-@patch("socket.getfqdn")
 class TestBoardReboot(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardReboot, self).setUp()
@@ -191,8 +253,7 @@ class TestBoardReboot(ConfigMixin, unittest.TestCase):
         add_board("board1", server="server1", state="running",
                   relayinfo="relay-1:bank1:relay1")
 
-    def testBoardReboot(self, Mockfqdn, MockSocket):
-        Mockfqdn.return_value = "server1"
+    def testBoardReboot(self, MockSocket):
         MockSocketRecv = MockSocket.return_value.recv
         # reboot will do two sets, each followed by a get, so mock
         # the responses it would receive from the relay board
@@ -214,19 +275,28 @@ class TestBoardReboot(ConfigMixin, unittest.TestCase):
         self.assertEquals("rebooting", body["state"])
 
 class TestBoardRedirects(ConfigMixin, unittest.TestCase):
+    """
+    The /boot/ and /reboot/ commands should 302 redirect to the
+    correct server if the current server isn't the server that
+    controls the board in question.
+    """
     def setUp(self):
         super(TestBoardRedirects, self).setUp()
         add_server("server1")
         add_server("server2")
         add_board("board1", server="server1")
         add_board("board2", server="server2")
+        add_bootimage("image1")
 
-    @patch("socket.getfqdn")
-    def testRedirectBoard(self, Mock):
-        Mock.return_value = "server1"
-        r = self.app.get("/api/board/board2/status/")
+    def testRedirectBoard(self):
+        r = self.app.post("/api/board/board2/reboot/")
         self.assertEqual(302, r.status)
-        self.assertEqual("http://server2/api/board/board2/status/",
+        self.assertEqual("http://server2/api/board/board2/reboot/",
+                         r.header("Location"))
+
+        r = self.app.post("/api/board/board2/boot/image1/")
+        self.assertEqual(302, r.status)
+        self.assertEqual("http://server2/api/board/board2/boot/image1/",
                          r.header("Location"))
 
 class TestInvSyncMerge(unittest.TestCase):

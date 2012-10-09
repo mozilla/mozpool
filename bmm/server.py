@@ -12,6 +12,7 @@ from bmm import handlers, data
 templeton.middleware.patch_middleware()
 
 def get_app():
+    web.config.debug = False
     urls = templeton.handlers.load_urls(handlers.urls)
     return web.application(urls, handlers.__dict__)
 
