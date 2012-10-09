@@ -311,19 +311,19 @@ class TestInvSyncGet(unittest.TestCase):
             return r
         requests.get.configure_mock(side_effect=get)
 
-    def make_host(self, name, mac_address=True, imaging_server=True, relay_info=True):
+    def make_host(self, name, want_mac_address=True, want_imaging_server=True, want_relay_info=True):
         # make deterministic values
         fqdn = '%s.vlan.dc.mozilla.com' % name
         inventory_id = hash(fqdn) % 100
         kv = []
-        if mac_address:
+        if want_mac_address:
             mac_address = hashlib.md5(fqdn).digest()[:6]
             mac_address = ':'.join([ '%02x' % ord(b) for b in mac_address ])
             kv.append(dict(key='nic.0.mac_address.0', value=mac_address))
-        if imaging_server:
+        if want_imaging_server:
             imaging_server = 'img%d' % ((hash(fqdn) / 100) % 10)
             kv.append(dict(key='system.imaging_server.0', value=imaging_server))
-        if relay_info:
+        if want_relay_info:
             relay_info = 'relay%d' % ((hash(fqdn) / 1000) % 10)
             kv.append(dict(key='system.relay.0', value=relay_info))
         return dict(
@@ -350,9 +350,9 @@ class TestInvSyncGet(unittest.TestCase):
 
     def test_loop_and_filtering(self, get):
         self.set_responses([
-            [ self.make_host('panda-001'), self.make_host('panda-002', imaging_server=False) ],
-            [ self.make_host('panda-003'), self.make_host('panda-004', relay_info=False) ],
-            [ self.make_host('panda-005'), self.make_host('panda-006', mac_address=False) ],
+            [ self.make_host('panda-001'), self.make_host('panda-002', want_imaging_server=False) ],
+            [ self.make_host('panda-003'), self.make_host('panda-004', want_relay_info=False) ],
+            [ self.make_host('panda-005'), self.make_host('panda-006', want_mac_address=False) ],
         ])
         hosts = list(invsync.get_boards('https://inv', 'filter', 'me', 'pass'))
         self.assertEqual(hosts, [
