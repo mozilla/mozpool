@@ -25,27 +25,16 @@ def boardredirect(function):
         return function(self, id, *args)
     return wrapped
 
-def boot_thread(board, tftp_symlink, pxe_config_filename):
-    """
-    Run on a background thread to perform the long-running work of
-    actually rebooting a board into a boot image.
-    """
-    # First, reboot the board.
-    relay_hostname, bank_num, relay_num = data.board_relay_info(board)
-    relay.powercycle(relay_hostname, bank_num, relay_num)
-    # Second, watch TFTP logs to see that the image was requested
-    #   by the board.
-    pass
-
 def boot(board, image, config_data):
+    """
+    Boot board into image and set config_data for it to use
+    as part of the boot process.
+    """
     # board has already been checked by @boardredirect.
     # bootimage_details will raise for a nonexistent image.
     image_details = data.bootimage_details(image)['details']
 
-    # The split of work between this method and the boot_thread
-    # is somewhat arbitrary. Prefer to do all the simple database and file
-    # work here before launching the thread to do the powercycle and
-    # log-watching.
+    # Set a few things in the database before writing to disk.
     data.set_board_config(board, config_data)
     data.set_board_status(board, "boot-initiated")
     data.add_log(board, "Attempting to boot into image %s" % image)
@@ -55,14 +44,16 @@ def boot(board, image, config_data):
     mac_address = data.board_mac_address(board)
     #FIXME: 'pxelinux.cfg/01-2a-40-fe-d5-3b-0a'
     tftp_symlink = os.path.join(config.tftp_root(), mac_address)
-    print "Linking %s -> %s" % (image_fullpath, tftp_symlink)
+    #print "Linking %s -> %s" % (image_fullpath, tftp_symlink)
     os.symlink(image_fullpath, tftp_symlink)
-    t = threading.Thread(target=boot_thread, args=(board,
-                                                   tftp_symlink,
-                                                   image_fullpath))
-    t.start()
+    # Now actually reboot the board.
+    relay_hostname, bank_num, relay_num = data.board_relay_info(board)
+    return relay.powercycle(relay_hostname, bank_num, relay_num)
 
 def reboot(board):
+    """
+    Powercycle board using the relay controller that controls its power.
+    """
     relay_hostname, bank_num, relay_num = data.board_relay_info(board)
     data.set_board_status(board, "rebooting")
     data.add_log(board, "Rebooted by /reboot command")

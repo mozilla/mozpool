@@ -135,7 +135,7 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
         r = self.app.get("/api/board/board1/config/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals({"abc": "xyz"}, json.loads(body["config"]))
+        self.assertEquals({"abc": "xyz"}, body["config"])
 
 @patch("socket.socket")
 class TestBoardBoot(ConfigMixin, unittest.TestCase):
@@ -155,18 +155,15 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         MockSocketRecv = MockSocket.return_value.recv
         # reboot will do two sets, each followed by a get, so mock
         # the responses it would receive from the relay board
-        mock_data = [relay.COMMAND_OK,
-                     chr(1),
-                     relay.COMMAND_OK,
-                     chr(0)]
-        self.done = False
-        def mock_recv(*args):
-            ret = mock_data.pop(0)
-            if not mock_data:
-                self.done = True
-            return ret
-        MockSocketRecv.side_effect = mock_recv
-        r = self.app.post("/api/board/board1/boot/image1/")
+        MockSocketRecv.side_effect = [relay.COMMAND_OK,
+                                      chr(1),
+                                      relay.COMMAND_OK,
+                                      chr(0)]
+
+        config_data = {"foo":"bar"}
+        r = self.app.post("/api/board/board1/boot/image1/",
+                          headers={"Content-Type": "application/json"},
+                          params=json.dumps(config_data))
         self.assertEqual(204, r.status)
         # Nothing in the response body currently
 
@@ -176,6 +173,12 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         body = json.loads(r.body)
         self.assertEquals("boot-initiated", body["state"])
 
+        # Verify that the config data was set properly.
+        r = self.app.get("/api/board/board1/config/")
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEquals(config_data, body["config"])
+
         # Verify that the symlink was created in tftp_root
         tftp_link = os.path.join(config.tftp_root(), self.board_mac)
         self.assertTrue(os.path.islink(tftp_link))
@@ -183,14 +186,10 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         # Verify that it links to the right PXE image.
         self.assertEqual(self.pxefile, os.path.basename(os.readlink(tftp_link)))
 
-        #TODO: fake TFTP log for background thread to see.
-        # Wait for the reboot command to complete in the background.
-        while not self.done:
-            pass
-
         self.assertNotEqual(None, MockSocket.return_value.connect.call_args)
         self.assertEqual("relay-1",
                          MockSocket.return_value.connect.call_args[0][0][0])
+        self.assertEqual(4, MockSocketRecv.call_count)
 
 @patch("socket.socket")
 class TestBoardReboot(ConfigMixin, unittest.TestCase):

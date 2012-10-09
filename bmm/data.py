@@ -91,7 +91,7 @@ def board_config(board):
     row = res.fetchone()
     config_data = {}
     if row:
-        config_data = row['boot_config'].encode('utf-8')
+        config_data = json.loads(row['boot_config'].encode('utf-8'))
     return {'config': config_data}
 
 def set_board_config(board, config_data):
