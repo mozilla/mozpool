@@ -58,12 +58,13 @@ def list_boards_for_imaging_server(server):
 def dump_boards():
     """Dump all boards for inventory sync."""
     conn = get_conn()
-    j = model.boards.join(model.imaging_servers)
-    res = conn.execute(j.select(use_labels=True))
-    return [ dict(id=row.boards_id, name=row.boards_name, fqdn=row.boards_fqdn,
-                  inventory_id=row.boards_inventory_id, mac_address=row.boards_mac_address,
-                  imaging_server=row.imaging_servers_fqdn, relay_info=row.boards_relay_info)
-             for row in res ]
+    boards = model.boards
+    img_svrs = model.imaging_servers
+    res = conn.execute(sqlalchemy.select(
+        [ boards.c.id, boards.c.name, boards.c.fqdn, boards.c.inventory_id, boards.c.mac_address,
+          img_svrs.c.fqdn.label('imaging_server'), boards.c.relay_info ],
+        from_obj=[boards, img_svrs]))
+    return [ dict(row) for row in res ]
 
 def find_imaging_server_id(name):
     """Given an imaging server name, either return the existing ID, or a new ID."""
