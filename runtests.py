@@ -359,10 +359,7 @@ class TestInvSyncGet(unittest.TestCase):
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
              'fqdn': 'panda-001.vlan.dc.mozilla.com'},
-            # panda-002 is here, with imaging_server='UNKNOWN'
-            {'inventory_id': 97, 'relay_info': 'relay9', 'name': 'panda-002',
-             'imaging_server': 'UNKNOWN', 'mac_address': '86a1c8ce6ea2',
-             'fqdn': 'panda-002.vlan.dc.mozilla.com'},
+            # panda-002 was skipped
             {'inventory_id': 52, 'relay_info': 'relay4', 'name': 'panda-003',
              'imaging_server': 'img9', 'mac_address': 'aec31326594a',
              'fqdn': 'panda-003.vlan.dc.mozilla.com'},

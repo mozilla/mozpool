@@ -35,7 +35,7 @@ def get_boards(url, filter, username, password, verbose=False):
             hostname = o['hostname']
 
             kv = dict([ (kv['key'], kv['value']) for kv in o['key_value'] ])
-            required_keys = 'system.relay.0', 'nic.0.mac_address.0'
+            required_keys = 'system.relay.0', 'nic.0.mac_address.0', 'system.imaging_server.0'
             missing = [ k for k in required_keys if k not in kv ]
             if missing:
                 if verbose: print hostname, 'SKIPPED - missing k/v value(s)', ' '.join(missing)
@@ -48,7 +48,7 @@ def get_boards(url, filter, username, password, verbose=False):
                 fqdn=hostname,
                 inventory_id=o['id'],
                 mac_address=mac_address,
-                imaging_server=kv.get('system.imaging_server.0', 'UNKNOWN'),
+                imaging_server=kv['system.imaging_server.0'],
                 relay_info=kv['system.relay.0'])
 
             if verbose: print hostname, 'downloaded.'
