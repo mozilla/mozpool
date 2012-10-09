@@ -90,14 +90,11 @@ def insert_board(values):
     values['imaging_server_id'] = find_imaging_server_id(values.pop('imaging_server'))
     values['status'] = 'new'
 
-    conn = get_conn()
-    conn.execute(model.boards.insert(), [ values ])
+    get_conn().execute(model.boards.insert(), [ values ])
 
 def delete_board(id):
     """Delete the board with the given ID"""
-    conn = get_conn()
-
-    conn.execute(model.boards.delete(), whereclause=(model.boards.c.id==id))
+    get_conn().execute(model.boards.delete(), whereclause=(model.boards.c.id==id))
 
 def update_board(id, values):
     """Update an existing board with id ID into the DB.  VALUES should be in
@@ -109,8 +106,7 @@ def update_board(id, values):
     if 'id' in values:
         values.pop('id')
 
-    conn = get_conn()
-    conn.execute(model.boards.update(whereclause=(model.boards.c.id==id)), **values)
+    get_conn().execute(model.boards.update(whereclause=(model.boards.c.id==id)), **values)
 
 def get_server_for_board(board):
     """
