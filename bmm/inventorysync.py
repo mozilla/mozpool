@@ -17,9 +17,6 @@ from bmm import config
 #  - imaging_server (from system.imaging_server.0)
 #  - relay_info (from system.relay.0)
 
-# TODO: use a better filter that can look for k/v entries indicating systems
-# are managed by an imaging server
-
 def get_boards(url, filter, username, password, verbose=False):
     """
     Generate a list of hosts from inventory.  FILTER is a tastypie-style filter for
@@ -85,6 +82,8 @@ def sync(verbose=False):
     from_db = data.dump_boards()
     from_inv = get_boards(
             config.inventory_url(),
+            # TODO: use a better filter that can look for k/v entries indicating systems
+            # are managed by an imaging server
             'hostname__startswith=panda-',
             config.inventory_username(),
             config.inventory_password(),
