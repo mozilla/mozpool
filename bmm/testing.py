@@ -7,34 +7,23 @@ manual testing.
 """
 
 import os
-import sqlalchemy
 import json
-import socket
 from sqlalchemy.sql import select
 from bmm import model
 from bmm import data
-from bmm import config
 
 inventory_id = 1
 
-def set_config(sqlite_db,
-               server_fqdn,
-               tftp_root,
-               image_store,
-               create_db=False):
-    config.set_config(db_engine = "sqlite:///" + sqlite_db,
-                      server_fqdn = server_fqdn,
-                      tftp_root = tftp_root,
-                      image_store = image_store)
-    if not os.path.isfile(sqlite_db) or create_db:
-        create_db_schema()
+
+def setup_db(dbfile):
+    # blow away the db file so we know we're starting fresh
+    if os.path.exists(dbfile):
+        os.unlink(dbfile)
+    data.get_conn()
+    model.metadata.create_all(data.engine)
     # reset the local "fake" stuff too
     global inventory_id
     inventory_id = 1
-
-def create_db_schema():
-    data.get_conn()
-    model.metadata.create_all(data.engine)
 
 def add_server(hostname):
     """

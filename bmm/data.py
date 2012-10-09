@@ -22,7 +22,8 @@ def get_conn():
     """
     global engine
     if engine is None:
-        engine = sqlalchemy.create_engine(config.db_engine())
+        engine_url = config.get('database', 'engine')
+        engine = sqlalchemy.create_engine(engine_url)
     return engine.connect()
 
 def row_to_dict(row, table, omit_cols=[]):

@@ -3,12 +3,10 @@
 # http://creativecommons.org/publicdomain/zero/1.0/
 
 import os
-import sys
 import unittest
 import json
 import hashlib
 import shutil
-import socket
 import requests
 import tempfile
 import mock
@@ -22,7 +20,6 @@ from bmm import model
 from bmm import relay
 from bmm import testing
 from bmm import inventorysync
-from bmm import config
 from bmm.testing import add_server, add_board, add_bootimage
 
 class ConfigMixin(object):
@@ -33,11 +30,14 @@ class ConfigMixin(object):
         os.mkdir(tftp_root)
         image_store = os.path.join(self.tempdir, "images")
         os.mkdir(image_store)
-        testing.set_config(sqlite_db=self.dbfile,
-                           server_fqdn="server1",
-                           tftp_root=tftp_root,
-                           image_store=image_store,
-                           create_db=True)
+        # set up the config with defaults
+        config.reset()
+        config.set('database', 'engine', 'sqlite:///' + self.dbfile)
+        config.set('server', 'fqdn', 'server1')
+        config.set('paths', 'tftp_root', tftp_root)
+        config.set('paths', 'image_store', image_store)
+        # set up the db
+        testing.setup_db(self.dbfile)
         self.app = TestApp(server.get_app().wsgifunc())
 
     def tearDown(self):
@@ -101,7 +101,6 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1},
         ])
 
-@patch("bmm.config.server_fqdn")
 class TestBoardList(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardList, self).setUp()
@@ -112,11 +111,10 @@ class TestBoardList(ConfigMixin, unittest.TestCase):
         add_board("board3", server="server2")
         add_board("board4", server="server2")
 
-    def testBoardList(self, Mock):
+    def testBoardList(self):
         """
         /board/list/ should list all boards for all servers.
         """
-        Mock.return_value = "server1"
         r = self.app.get("/api/board/list/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
@@ -126,7 +124,6 @@ class TestBoardList(ConfigMixin, unittest.TestCase):
         self.assertTrue("board3" in body["boards"])
         self.assertTrue("board4" in body["boards"])
 
-        Mock.return_value = "server2"
         r = self.app.get("/api/board/list/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
@@ -200,7 +197,7 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
                   relayinfo="relay-1:bank1:relay1")
         self.pxefile = "image1"
         # create a file for the boot image.
-        open(os.path.join(config.image_store(), self.pxefile), "w").write("abc")
+        open(os.path.join(config.get('paths', 'image_store'), self.pxefile), "w").write("abc")
         add_bootimage("image1", pxe_config_filename=self.pxefile)
 
     def testBoardBoot(self, MockSocket):
@@ -233,7 +230,7 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
 
         # Verify that the symlink was created in tftp_root
         mac = data.mac_with_dashes(self.board_mac)
-        tftp_link = os.path.join(config.tftp_root(), "pxelinux.cfg",
+        tftp_link = os.path.join(config.get('paths', 'tftp_root'), "pxelinux.cfg",
                                  "01-" + mac)
         self.assertTrue(os.path.islink(tftp_link))
 
@@ -455,7 +452,10 @@ class TestInvSyncSync(unittest.TestCase):
 
     def test_sync(self, merge_boards, get_boards, delete_board,
                         update_board, insert_board, dump_boards):
-        config.set_config(inventory_url='http://foo/', inventory_username='u', inventory_password='p')
+        config.reset()
+        config.set('inventory', 'url', 'http://foo/')
+        config.set('inventory', 'username', 'u')
+        config.set('inventory', 'password', 'p')
         dump_boards.return_value = 'dumped boards'
         get_boards.return_value = 'gotten boards'
         merge_boards.return_value = [

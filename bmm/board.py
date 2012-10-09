@@ -20,7 +20,7 @@ def boardredirect(function):
             server = data.get_server_for_board(id)
         except data.NotFound:
             raise web.notfound()
-        if server != config.server_fqdn():
+        if server != config.get('server', 'fqdn'):
             raise web.found("http://%s%s" % (server, web.ctx.path))
         return function(self, id, *args)
     return wrapped
@@ -38,11 +38,11 @@ def boot(board, image, config_data):
     data.set_board_config(board, config_data)
     data.set_board_status(board, "boot-initiated")
     data.add_log(board, "Attempting to boot into image %s" % image)
-    image_fullpath = os.path.join(config.image_store(),
+    image_fullpath = os.path.join(config.get('paths', 'image_store'),
                                   image_details["pxe_config_filename"])
     # Make the link to the PXE config in the proper location
     mac_address = data.mac_with_dashes(data.board_mac_address(board))
-    symlink_dir = os.path.join(config.tftp_root(), "pxelinux.cfg")
+    symlink_dir = os.path.join(config.get('paths', 'tftp_root'), "pxelinux.cfg")
     if not os.path.isdir(symlink_dir):
         try:
             os.mkdir(symlink_dir)

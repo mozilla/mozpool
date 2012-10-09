@@ -81,12 +81,12 @@ def merge_boards(from_db, from_inv):
 def sync(verbose=False):
     from_db = data.dump_boards()
     from_inv = get_boards(
-            config.inventory_url(),
+            config.get('inventory', 'url'),
             # TODO: use a better filter that can look for k/v entries indicating systems
             # are managed by an imaging server
             'hostname__startswith=panda-',
-            config.inventory_username(),
-            config.inventory_password(),
+            config.get('inventory', 'username'),
+            config.get('inventory', 'password'),
             verbose=verbose)
 
     for task in merge_boards(from_db, from_inv):
