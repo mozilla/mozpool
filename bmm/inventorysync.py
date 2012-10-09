@@ -56,7 +56,7 @@ def get_boards(url, filter, username, password, verbose=False):
 def merge_boards(from_db, from_inv):
     """
     Merge a list of hosts in the DB with those in inventory.  This yields a
-    list of instructions of the form ('insert', dict), ('delete', id), or
+    list of instructions of the form ('insert', dict), ('delete', id, dict), or
     ('update', id, dict).
     """
 
