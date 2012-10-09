@@ -19,7 +19,7 @@ setup(name='blackmobilemagic',
           'console_scripts': [
               'bmm-relay = bmm.relay:main',
               'bmm-server = bmm.server:main',
-              'bmm-invsync = bmm.invsync:main',
+              'bmm-inventorysync = bmm.inventorysync:main',
           ]
       }
 )

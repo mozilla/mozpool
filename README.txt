@@ -17,7 +17,7 @@ and follow the command-line usage description
 
 To synchronize the internal DB with inventory:
 
-  bmm-invsync
+  bmm-inventorysync
 
 (use --verbose to see what it's up to - note that it's not too fast)
 

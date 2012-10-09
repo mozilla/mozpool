@@ -21,7 +21,7 @@ from bmm import data
 from bmm import model
 from bmm import relay
 from bmm import testing
-from bmm import invsync
+from bmm import inventorysync
 from bmm import config
 from bmm.testing import add_server, add_board, add_bootimage
 
@@ -253,13 +253,13 @@ class TestInvSyncMerge(unittest.TestCase):
         self.panda2_db['id'] = 402
 
     def test_merge_boards_no_change(self):
-        commands = list(invsync.merge_boards(
+        commands = list(inventorysync.merge_boards(
             [self.panda1_db, self.panda2_db],
             [self.panda1_inv, self.panda2_inv]))
         self.assertEqual(commands, [])
 
     def test_merge_boards_insert(self):
-        commands = list(invsync.merge_boards(
+        commands = list(inventorysync.merge_boards(
             [self.panda1_db],
             [self.panda1_inv, self.panda2_inv]))
         self.assertEqual(commands, [
@@ -267,7 +267,7 @@ class TestInvSyncMerge(unittest.TestCase):
         ])
 
     def test_merge_boards_delete(self):
-        commands = list(invsync.merge_boards(
+        commands = list(inventorysync.merge_boards(
             [self.panda1_db, self.panda2_db],
             [self.panda2_inv]))
         self.assertEqual(sorted(commands), [
@@ -276,7 +276,7 @@ class TestInvSyncMerge(unittest.TestCase):
 
     def test_merge_boards_update(self):
         self.panda2_inv['mac_address'] = '1a2b3c4d5e6f'
-        commands = list(invsync.merge_boards(
+        commands = list(inventorysync.merge_boards(
             [self.panda1_db, self.panda2_db],
             [self.panda1_inv, self.panda2_inv]))
         self.assertEqual(sorted(commands), [
@@ -285,7 +285,7 @@ class TestInvSyncMerge(unittest.TestCase):
 
     def test_merge_boards_combo(self):
         self.panda2_inv['mac_address'] = '1a2b3c4d5e6f'
-        commands = list(invsync.merge_boards(
+        commands = list(inventorysync.merge_boards(
             [self.panda1_db, self.panda2_db],
             [self.panda2_inv]))
         self.assertEqual(sorted(commands), [
@@ -335,7 +335,7 @@ class TestInvSyncGet(unittest.TestCase):
         self.set_responses([
             [ self.make_host('panda-001'), self.make_host('panda-002') ],
         ])
-        hosts = list(invsync.get_boards('https://inv', 'filter', 'me', 'pass'))
+        hosts = list(inventorysync.get_boards('https://inv', 'filter', 'me', 'pass'))
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
@@ -354,7 +354,7 @@ class TestInvSyncGet(unittest.TestCase):
             [ self.make_host('panda-003'), self.make_host('panda-004', want_relay_info=False) ],
             [ self.make_host('panda-005'), self.make_host('panda-006', want_mac_address=False) ],
         ])
-        hosts = list(invsync.get_boards('https://inv', 'filter', 'me', 'pass'))
+        hosts = list(inventorysync.get_boards('https://inv', 'filter', 'me', 'pass'))
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
@@ -379,8 +379,8 @@ class TestInvSyncGet(unittest.TestCase):
 @patch('bmm.data.insert_board')
 @patch('bmm.data.update_board')
 @patch('bmm.data.delete_board')
-@patch('bmm.invsync.get_boards')
-@patch('bmm.invsync.merge_boards')
+@patch('bmm.inventorysync.get_boards')
+@patch('bmm.inventorysync.merge_boards')
 class TestInvSyncSync(unittest.TestCase):
 
     def test_sync(self, merge_boards, get_boards, delete_board,
@@ -393,7 +393,7 @@ class TestInvSyncSync(unittest.TestCase):
             ('delete', 10, dict(delete=2)),
             ('update', 11, dict(update=3)),
         ]
-        invsync.sync()
+        inventorysync.sync()
         dump_boards.assert_called_with()
         get_boards.assert_called_with('http://foo/', 'hostname__startswith=panda-', 'u', 'p', verbose=False)
         merge_boards.assert_called_with('dumped boards', 'gotten boards')

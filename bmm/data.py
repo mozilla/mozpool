@@ -82,7 +82,7 @@ def find_imaging_server_id(name):
 
 def insert_board(values):
     """Insert a new board into the DB.  VALUES should be in the dictionary
-    format used for invsync - see invsync.py"""
+    format used for inventorysync - see inventorysync.py"""
     values = values.copy()
 
     # convert imaging_server to its ID, and add a default status
@@ -100,7 +100,7 @@ def delete_board(id):
 
 def update_board(id, values):
     """Update an existing board with id ID into the DB.  VALUES should be in
-    the dictionary format used for invsync - see invsync.py"""
+    the dictionary format used for inventorysync - see inventorysync.py"""
     values = values.copy()
 
     # convert imaging_server to its ID, and add a default status
