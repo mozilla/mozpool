@@ -54,6 +54,62 @@ def list_boards_for_imaging_server(server):
                               from_obj=[model.boards.join(model.imaging_servers, model.imaging_servers.c.fqdn == server)]))
     return {'boards': [row[0].encode('utf-8') for row in res]}
 
+def dump_boards():
+    """Dump all boards for inventory sync."""
+    conn = get_conn()
+    j = model.boards.join(model.imaging_servers)
+    res = conn.execute(j.select(use_labels=True))
+    return [ dict(id=row.boards_id, name=row.boards_name, fqdn=row.boards_fqdn,
+                  inventory_id=row.boards_inventory_id, mac_address=row.boards_mac_address,
+                  imaging_server=row.imaging_servers_fqdn, relay_info=row.boards_relay_info)
+             for row in res ]
+
+def find_imaging_server_id(name):
+    """Given an imaging server name, either return the existing ID, or a new ID."""
+    conn = get_conn()
+
+    # try inserting, ignoring failures (most likely due to duplicate row)
+    try:
+        conn.execute(model.imaging_servers.insert(),
+            fqdn=name)
+    except sqlalchemy.exc.SQLAlchemyError:
+        pass # probably already exists
+
+    res = conn.execute(sqlalchemy.select([ model.imaging_servers.c.id ],
+                        whereclause=(model.imaging_servers.c.fqdn==name)))
+    return res.fetchall()[0].id
+
+def insert_board(values):
+    """Insert a new board into the DB.  VALUES should be in the dictionary
+    format used for invsync - see invsync.py"""
+    values = values.copy()
+
+    # convert imaging_server to its ID, and add a default status
+    values['imaging_server_id'] = find_imaging_server_id(values.pop('imaging_server'))
+    values['status'] = 'new'
+
+    conn = get_conn()
+    conn.execute(model.boards.insert(), [ values ])
+
+def delete_board(id):
+    """Delete the board with the given ID"""
+    conn = get_conn()
+
+    conn.execute(model.boards.delete(), whereclause=(model.boards.c.id==id))
+
+def update_board(id, values):
+    """Update an existing board with id ID into the DB.  VALUES should be in
+    the dictionary format used for invsync - see invsync.py"""
+    values = values.copy()
+
+    # convert imaging_server to its ID, and add a default status
+    values['imaging_server_id'] = find_imaging_server_id(values.pop('imaging_server'))
+    if 'id' in values:
+        values.pop('id')
+
+    conn = get_conn()
+    conn.execute(model.boards.update(whereclause=(model.boards.c.id==id)), **values)
+
 def get_server_for_board(board):
     """
     Get the name of the imaging server associated with this board.

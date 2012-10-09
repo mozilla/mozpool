@@ -18,6 +18,7 @@ sys.path.append(os.path.join(os.getcwd(), "server"))
 
 from bmm import server
 from bmm import data
+from bmm import model
 from bmm import relay
 from bmm import testing
 from bmm import invsync
@@ -45,6 +46,52 @@ class TestData(ConfigMixin, unittest.TestCase):
         Mock.return_value = "server1"
         self.assertEquals(("relay-1", 1, 1),
                           data.board_relay_info("board1"))
+
+    def testDumpBoards(self, Mock):
+        self.assertEquals([
+            dict(id=1, name='board1', fqdn='board1', inventory_id=1, mac_address='000000000000',
+                imaging_server='server1', relay_info='relay-1:bank1:relay1'),
+            ],
+            data.dump_boards())
+
+    def testInsertBoard(self, Mock):
+        data.insert_board(dict(name='board2', fqdn='board2.fqdn', inventory_id=23,
+            mac_address='aabbccddeeff', imaging_server='server2',
+                relay_info='relay-2:bank2:relay2'))
+        # board with existing imaging_server to test the insert-if-not-found behavior
+        data.insert_board(dict(name='board3', fqdn='board3.fqdn', inventory_id=24,
+            mac_address='aabbccddeeff', imaging_server='server1',
+                relay_info='relay-2:bank2:relay2'))
+        conn = data.get_conn()
+        res = conn.execute(model.boards.select())
+        self.assertEquals(sorted([ dict(r) for r in res.fetchall() ]),
+        sorted([
+            {u'status': u'new', u'relay_info': u'relay-2:bank2:relay2', u'name': u'board2',
+             u'fqdn': u'board2.fqdn', u'inventory_id': 23, u'imaging_server_id': 2,
+             u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 2},
+            {u'status': u'new', u'relay_info': u'relay-2:bank2:relay2', u'name': u'board3',
+             u'fqdn': u'board3.fqdn', u'inventory_id': 24, u'imaging_server_id': 1,
+             u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 3},
+            {u'status': u'offline', u'relay_info': u'relay-1:bank1:relay1', u'name': u'board1',
+             u'fqdn': u'board1', u'inventory_id': 1, u'imaging_server_id': 1,
+             u'boot_config': u'{}', u'mac_address': u'000000000000', u'id': 1},
+            ]))
+
+    def testDeleteBoard(self, Mock):
+        conn = data.get_conn()
+        data.delete_board(1)
+        res = conn.execute(model.boards.select())
+        self.assertEquals(res.fetchall(), [])
+
+    def testUpdateBoard(self, Mock):
+        conn = data.get_conn()
+        data.update_board(1, dict(fqdn='board1.fqdn', imaging_server='server9', mac_address='aabbccddeeff'))
+        res = conn.execute(model.boards.select())
+        self.assertEquals([ dict(r) for r in res.fetchall() ], [
+            {u'status': u'offline', u'relay_info': u'relay-1:bank1:relay1', u'name': u'board1',
+             u'fqdn': u'board1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
+             u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1},
+        ])
 
 @patch("socket.getfqdn")
 class TestBoardList(ConfigMixin, unittest.TestCase):

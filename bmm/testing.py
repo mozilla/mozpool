@@ -14,10 +14,15 @@ from bmm import model
 from bmm import data
 from bmm import config
 
+inventory_id = 1
+
 def create_sqlite_db(path, schema=False):
     config.set_config(db_engine = "sqlite:///" + path)
     if not os.path.isfile(path) or schema:
         create_db_schema()
+    # reset the local "fake" stuff too
+    global inventory_id
+    inventory_id = 1
 
 def create_db_schema():
     data.get_conn()
@@ -29,7 +34,6 @@ def add_server(hostname):
     """
     data.get_conn().execute(model.imaging_servers.insert(), fqdn=hostname)
 
-inventory_id = 1
 def add_board(board, server="server", state="offline",
               log=[], config={}, relayinfo=""):
     global inventory_id
@@ -43,7 +47,7 @@ def add_board(board, server="server", state="offline",
                  fqdn=board, #XXX
                  inventory_id=inventory_id,
                  status=state,
-                 mac_address='00:00:00:00:00:00',
+                 mac_address='000000000000',
                  imaging_server_id=id,
                  relay_info=relayinfo,
                  boot_config=json.dumps(config))
