@@ -105,8 +105,8 @@ def sync(verbose=False):
 def main():
     parser = argparse.ArgumentParser(description='Sync BMM with inventory.')
     parser.add_argument('--verbose', action='store_true',
-                               default=False,
-                               help='verbose output')
+                        default=False,
+                        help='verbose output')
     args = parser.parse_args()
 
     sync(verbose=args.verbose)
