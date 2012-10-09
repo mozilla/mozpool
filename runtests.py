@@ -142,7 +142,7 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardBoot, self).setUp()
         add_server("server1")
-        self.board_mac = "00:11:22:33:44:55"
+        self.board_mac = "001122334455"
         add_board("board1", server="server1", state="running",
                   mac_address=self.board_mac,
                   relayinfo="relay-1:bank1:relay1")
@@ -180,7 +180,9 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         self.assertEquals(config_data, body["config"])
 
         # Verify that the symlink was created in tftp_root
-        tftp_link = os.path.join(config.tftp_root(), self.board_mac)
+        mac = data.mac_with_dashes(self.board_mac)
+        tftp_link = os.path.join(config.tftp_root(), "pxelinux.cfg",
+                                 "01-" + mac)
         self.assertTrue(os.path.islink(tftp_link))
 
         # Verify that it links to the right PXE image.

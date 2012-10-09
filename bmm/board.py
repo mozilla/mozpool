@@ -41,9 +41,14 @@ def boot(board, image, config_data):
     image_fullpath = os.path.join(config.image_store(),
                                   image_details["pxe_config_filename"])
     # Make the link to the PXE config in the proper location
-    mac_address = data.board_mac_address(board)
-    #FIXME: 'pxelinux.cfg/01-2a-40-fe-d5-3b-0a'
-    tftp_symlink = os.path.join(config.tftp_root(), mac_address)
+    mac_address = data.mac_with_dashes(data.board_mac_address(board))
+    symlink_dir = os.path.join(config.tftp_root(), "pxelinux.cfg")
+    if not os.path.isdir(symlink_dir):
+        try:
+            os.mkdir(symlink_dir)
+        except:
+            pass
+    tftp_symlink = os.path.join(symlink_dir, "01-" + mac_address)
     #print "Linking %s -> %s" % (image_fullpath, tftp_symlink)
     os.symlink(image_fullpath, tftp_symlink)
     # Now actually reboot the board.

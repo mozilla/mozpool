@@ -39,7 +39,7 @@ def add_server(hostname):
 
 inventory_id = 1
 def add_board(board, server="server", state="offline",
-              mac_address="00:00:00:00:00:00",
+              mac_address="000000000000",
               log=[], config={}, relayinfo=""):
     global inventory_id
     conn = data.get_conn()

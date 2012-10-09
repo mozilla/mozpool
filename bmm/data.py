@@ -6,6 +6,7 @@ import datetime
 import json
 import sqlalchemy
 from sqlalchemy.sql import select
+from itertools import izip_longest
 from bmm import model
 from bmm import config
 
@@ -110,6 +111,14 @@ def board_relay_info(board):
     hostname, bank, relay = info.split(":", 2)
     assert bank.startswith("bank") and relay.startswith("relay")
     return hostname, int(bank[4:]), int(relay[5:])
+
+def mac_with_dashes(mac):
+    """
+    Reformat a 12-digit MAC address to contain
+    a dash between each 2 characters.
+    """
+    # From the itertools docs.
+    return "-".join("%s%s" % i for i in izip_longest(fillvalue=None, *[iter(mac)]*2))
 
 def board_mac_address(board):
     """
