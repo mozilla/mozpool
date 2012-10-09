@@ -22,6 +22,7 @@ from bmm import model
 from bmm import relay
 from bmm import testing
 from bmm import invsync
+from bmm import config
 from bmm.testing import add_server, add_board, add_bootimage
 
 class ConfigMixin(object):
@@ -251,44 +252,44 @@ class TestInvSyncMerge(unittest.TestCase):
         self.panda2_db = self.panda2_inv.copy()
         self.panda2_db['id'] = 402
 
-    def test_merge_hosts_no_change(self):
-        commands = list(invsync.merge_hosts(
+    def test_merge_boards_no_change(self):
+        commands = list(invsync.merge_boards(
             [self.panda1_db, self.panda2_db],
             [self.panda1_inv, self.panda2_inv]))
         self.assertEqual(commands, [])
 
-    def test_merge_hosts_insert(self):
-        commands = list(invsync.merge_hosts(
+    def test_merge_boards_insert(self):
+        commands = list(invsync.merge_boards(
             [self.panda1_db],
             [self.panda1_inv, self.panda2_inv]))
         self.assertEqual(commands, [
             ('insert', self.panda2_inv),
         ])
 
-    def test_merge_hosts_delete(self):
-        commands = list(invsync.merge_hosts(
+    def test_merge_boards_delete(self):
+        commands = list(invsync.merge_boards(
             [self.panda1_db, self.panda2_db],
             [self.panda2_inv]))
         self.assertEqual(sorted(commands), [
-            ('delete', 401), ## panda1's db id
+            ('delete', 401, self.panda1_db),
         ])
 
-    def test_merge_hosts_update(self):
+    def test_merge_boards_update(self):
         self.panda2_inv['mac_address'] = '1a2b3c4d5e6f'
-        commands = list(invsync.merge_hosts(
+        commands = list(invsync.merge_boards(
             [self.panda1_db, self.panda2_db],
             [self.panda1_inv, self.panda2_inv]))
         self.assertEqual(sorted(commands), [
             ('update', 402, self.panda2_inv),
         ])
 
-    def test_merge_hosts_combo(self):
+    def test_merge_boards_combo(self):
         self.panda2_inv['mac_address'] = '1a2b3c4d5e6f'
-        commands = list(invsync.merge_hosts(
+        commands = list(invsync.merge_boards(
             [self.panda1_db, self.panda2_db],
             [self.panda2_inv]))
         self.assertEqual(sorted(commands), [
-            ('delete', 401),
+            ('delete', 401, self.panda1_db),
             ('update', 402, self.panda2_inv),
         ])
 
@@ -334,7 +335,7 @@ class TestInvSyncGet(unittest.TestCase):
         self.set_responses([
             [ self.make_host('panda-001'), self.make_host('panda-002') ],
         ])
-        hosts = list(invsync.get_hosts('filter', 'me', 'pass'))
+        hosts = list(invsync.get_boards('https://inv', 'filter', 'me', 'pass'))
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
@@ -344,7 +345,7 @@ class TestInvSyncGet(unittest.TestCase):
              'fqdn': 'panda-002.vlan.dc.mozilla.com'},
         ])
         self.assertEqual(requests.get.call_args_list, [
-            mock.call('https://inventory.mozilla.org/en-US/tasty/v3/system/?filter', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/tasty/v3/system/?filter', auth=('me', 'pass')),
         ])
 
     def test_loop_and_filtering(self, get):
@@ -353,7 +354,7 @@ class TestInvSyncGet(unittest.TestCase):
             [ self.make_host('panda-003'), self.make_host('panda-004', relay_info=False) ],
             [ self.make_host('panda-005'), self.make_host('panda-006', mac_address=False) ],
         ])
-        hosts = list(invsync.get_hosts('filter', 'me', 'pass'))
+        hosts = list(invsync.get_boards('https://inv', 'filter', 'me', 'pass'))
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
@@ -372,10 +373,36 @@ class TestInvSyncGet(unittest.TestCase):
             # panda-006 was skipped
         ])
         self.assertEqual(requests.get.call_args_list, [
-            mock.call('https://inventory.mozilla.org/en-US/tasty/v3/system/?filter', auth=('me', 'pass')),
-            mock.call('https://inventory.mozilla.org/path1', auth=('me', 'pass')),
-            mock.call('https://inventory.mozilla.org/path2', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/tasty/v3/system/?filter', auth=('me', 'pass')),
+            mock.call('https://inv/path1', auth=('me', 'pass')),
+            mock.call('https://inv/path2', auth=('me', 'pass')),
         ])
+
+@patch('bmm.data.dump_boards')
+@patch('bmm.data.insert_board')
+@patch('bmm.data.update_board')
+@patch('bmm.data.delete_board')
+@patch('bmm.invsync.get_boards')
+@patch('bmm.invsync.merge_boards')
+class TestInvSyncSync(unittest.TestCase):
+
+    def test_sync(self, merge_boards, get_boards, delete_board,
+                        update_board, insert_board, dump_boards):
+        config.set_config(inventory_url='http://foo/', inventory_username='u', inventory_password='p')
+        dump_boards.return_value = 'dumped boards'
+        get_boards.return_value = 'gotten boards'
+        merge_boards.return_value = [
+            ('insert', dict(insert=1)),
+            ('delete', 10, dict(delete=2)),
+            ('update', 11, dict(update=3)),
+        ]
+        invsync.sync()
+        dump_boards.assert_called_with()
+        get_boards.assert_called_with('http://foo/', 'hostname__startswith=panda-', 'u', 'p', verbose=False)
+        merge_boards.assert_called_with('dumped boards', 'gotten boards')
+        insert_board.assert_called_with(dict(insert=1))
+        delete_board.assert_called_with(10)
+        update_board.assert_called_with(11, dict(update=3))
 
 if __name__ == "__main__":
     unittest.main()

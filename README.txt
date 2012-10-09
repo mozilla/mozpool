@@ -15,6 +15,13 @@ To flip relays:
 and follow the command-line usage description
 
 
+To synchronize the internal DB with inventory:
+
+  bmm-invsync
+
+(use --verbose to see what it's up to - note that it's not too fast)
+
+
 To run the tests:
 
  * install mock
