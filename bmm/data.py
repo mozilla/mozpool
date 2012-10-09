@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import datetime
+import json
 import sqlalchemy
 from sqlalchemy.sql import select
 from bmm import model
@@ -88,18 +89,18 @@ def board_config(board):
     res = get_conn().execute(select([model.boards.c.boot_config],
                                     model.boards.c.name==board))
     row = res.fetchone()
-    config = {}
+    config_data = {}
     if row:
-        config = row['boot_config'].encode('utf-8')
-    return {'config': config}
+        config_data = row['boot_config'].encode('utf-8')
+    return {'config': config_data}
 
-def set_board_config(board, config):
+def set_board_config(board, config_data):
     """
     Set the config parameters for the /boot/ API for board.
     """
     get_conn().execute(model.boards.update().
                        where(model.boards.c.name==board).
-                       values(boot_config=json.dumps(config)))
+                       values(boot_config=json.dumps(config_data)))
     return config
 
 def board_relay_info(board):
@@ -110,12 +111,21 @@ def board_relay_info(board):
     assert bank.startswith("bank") and relay.startswith("relay")
     return hostname, int(bank[4:]), int(relay[5:])
 
+def board_mac_address(board):
+    """
+    Get the mac address of board.
+    """
+    res = get_conn().execute(select([model.boards.c.mac_address],
+                                    model.boards.c.name==board))
+    row = res.fetchone()
+    return row['mac_address'].encode('utf-8')
+
 def add_log(board, message):
     conn = get_conn()
-    id = conn.execute(select([model.boards.c.id],
-                              model.boards.c.name==board)).fetchone()[0]
+    board_id = conn.execute(select([model.boards.c.id],
+                                   model.boards.c.name==board)).fetchone()[0]
     conn.execute(model.logs.insert(),
-                 board_id=id,
+                 board_id=board_id,
                  ts=datetime.datetime.now(),
                  source="webapp",
                  message=message)

@@ -12,7 +12,9 @@ from bmm import testing
 
 fqdn=socket.getfqdn()
 testing.set_config(sqlite_db="/tmp/imaging-testserver.sqlite",
-                   server_fqdn=fqdn)
+                   server_fqdn=fqdn,
+                   tftp_root="/tmp",
+                   image_store="/tmp")
 testing.add_server(fqdn)
 testing.add_board("board1", server=fqdn)
 testing.add_bootimage("image1")

@@ -15,9 +15,15 @@ from bmm import model
 from bmm import data
 from bmm import config
 
-def set_config(sqlite_db, server_fqdn, create_db=False):
+def set_config(sqlite_db,
+               server_fqdn,
+               tftp_root,
+               image_store,
+               create_db=False):
     config.set_config(db_engine = "sqlite:///" + sqlite_db,
-                      server_fqdn = server_fqdn)
+                      server_fqdn = server_fqdn,
+                      tftp_root = tftp_root,
+                      image_store = image_store)
     if not os.path.isfile(sqlite_db) or create_db:
         create_db_schema()
 
@@ -33,6 +39,7 @@ def add_server(hostname):
 
 inventory_id = 1
 def add_board(board, server="server", state="offline",
+              mac_address="00:00:00:00:00:00",
               log=[], config={}, relayinfo=""):
     global inventory_id
     conn = data.get_conn()
@@ -45,7 +52,7 @@ def add_board(board, server="server", state="offline",
                  fqdn=board, #XXX
                  inventory_id=inventory_id,
                  status=state,
-                 mac_address='00:00:00:00:00:00',
+                 mac_address=mac_address,
                  imaging_server_id=id,
                  relay_info=relayinfo,
                  boot_config=json.dumps(config))

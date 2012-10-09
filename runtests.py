@@ -6,11 +6,13 @@ import os
 import sys
 import unittest
 import json
+import shutil
 import socket
 import tempfile
 from mock import patch
 from paste.fixture import TestApp
 
+from bmm import config
 from bmm import server
 from bmm import data
 from bmm import relay
@@ -19,16 +21,23 @@ from bmm.testing import add_server, add_board, add_bootimage
 
 class ConfigMixin(object):
     def setUp(self):
-        self.dbfile = tempfile.NamedTemporaryFile()
-        testing.set_config(sqlite_db=self.dbfile.name,
+        self.tempdir = tempfile.mkdtemp()
+        self.dbfile = os.path.join(self.tempdir, "sqlite.db")
+        tftp_root = os.path.join(self.tempdir, "tftp")
+        os.mkdir(tftp_root)
+        image_store = os.path.join(self.tempdir, "images")
+        os.mkdir(image_store)
+        testing.set_config(sqlite_db=self.dbfile,
                            server_fqdn="server1",
+                           tftp_root=tftp_root,
+                           image_store=image_store,
                            create_db=True)
         self.app = TestApp(server.get_app().wsgifunc())
 
     def tearDown(self):
         data.get_conn().close()
-        del self.dbfile
         data.engine = None
+        shutil.rmtree(self.tempdir)
 
 class TestData(ConfigMixin, unittest.TestCase):
     def setUp(self):
@@ -128,16 +137,60 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
         body = json.loads(r.body)
         self.assertEquals({"abc": "xyz"}, json.loads(body["config"]))
 
+@patch("socket.socket")
 class TestBoardBoot(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardBoot, self).setUp()
         add_server("server1")
-        add_board("board1", server="server1")
-        add_board("board2", server="server1")
+        self.board_mac = "00:11:22:33:44:55"
+        add_board("board1", server="server1", state="running",
+                  mac_address=self.board_mac,
+                  relayinfo="relay-1:bank1:relay1")
+        self.pxefile = "image1"
+        # create a file for the boot image.
+        open(os.path.join(config.image_store(), self.pxefile), "w").write("abc")
+        add_bootimage("image1", pxe_config_filename=self.pxefile)
 
-    def testBoardBoot(self):
-        #TODO
-        pass
+    def testBoardBoot(self, MockSocket):
+        MockSocketRecv = MockSocket.return_value.recv
+        # reboot will do two sets, each followed by a get, so mock
+        # the responses it would receive from the relay board
+        mock_data = [relay.COMMAND_OK,
+                     chr(1),
+                     relay.COMMAND_OK,
+                     chr(0)]
+        self.done = False
+        def mock_recv(*args):
+            ret = mock_data.pop(0)
+            if not mock_data:
+                self.done = True
+            return ret
+        MockSocketRecv.side_effect = mock_recv
+        r = self.app.post("/api/board/board1/boot/image1/")
+        self.assertEqual(204, r.status)
+        # Nothing in the response body currently
+
+        # Verify that it got put into the boot-initiated state
+        r = self.app.get("/api/board/board1/status/")
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEquals("boot-initiated", body["state"])
+
+        # Verify that the symlink was created in tftp_root
+        tftp_link = os.path.join(config.tftp_root(), self.board_mac)
+        self.assertTrue(os.path.islink(tftp_link))
+
+        # Verify that it links to the right PXE image.
+        self.assertEqual(self.pxefile, os.path.basename(os.readlink(tftp_link)))
+
+        #TODO: fake TFTP log for background thread to see.
+        # Wait for the reboot command to complete in the background.
+        while not self.done:
+            pass
+
+        self.assertNotEqual(None, MockSocket.return_value.connect.call_args)
+        self.assertEqual("relay-1",
+                         MockSocket.return_value.connect.call_args[0][0][0])
 
 @patch("socket.socket")
 class TestBoardReboot(ConfigMixin, unittest.TestCase):

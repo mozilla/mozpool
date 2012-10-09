@@ -3,8 +3,14 @@
 [database]
 # This is a SQLalchemy engine URL, see
 # http://docs.sqlalchemy.org/en/rel_0_7/core/engines.html#engine-creation-api
-engine = sqlite:////tmp/test.sqlite
+engine =
 
 [server]
 # Defaults to socket.getfqdn
 #fqdn =
+
+[paths]
+# Root path where the TFTP server serves files.
+tftp_root =
+# The path where boot images are stored.
+image_store =
