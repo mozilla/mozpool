@@ -128,10 +128,9 @@ def board_status(board):
     """
     res = get_conn().execute(select([model.boards.c.status],
                                     model.boards.c.name==board))
-    row = res.fetchone()
+    row = res.fetchall()[0]
     return {"status": row['status'].encode('utf-8'),
-            #TODO: fetch logs
-            "log": []}
+            "log": get_logs(board)}
 
 def set_board_status(board, status):
     """
@@ -194,9 +193,21 @@ def add_log(board, message):
                                    model.boards.c.name==board)).fetchone()[0]
     conn.execute(model.logs.insert(),
                  board_id=board_id,
-                 ts=datetime.datetime.now(),
+                 ts=datetime.datetime.utcnow(),
                  source="webapp",
                  message=message)
+
+def get_logs(board, timeperiod=datetime.timedelta(hours=1)):
+    """Get log entries for a board for the past timeperiod."""
+    then = datetime.datetime.utcnow() - timeperiod
+    res = get_conn().execute(select([model.logs.c.ts,
+                                     model.logs.c.source,
+                                     model.logs.c.message],
+                                    from_obj=[model.boards.join(model.logs,
+                                                                model.boards.c.id == model.logs.c.board_id)]).where(model.boards.c.name == board))
+    return [{"timestamp": row["ts"].isoformat(),
+             "source": row["source"],
+             "message": row["message"]} for row in res]
 
 def list_bootimages():
     conn = get_conn()
