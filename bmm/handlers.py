@@ -16,6 +16,7 @@ urls = (
   "/board/([^/]+)/status/?", "board_status",
   "/board/([^/]+)/boot/([^/]+)/?", "board_boot",
   "/board/([^/]+)/reboot/?", "board_reboot",
+  "/board/([^/]+)/bootcomplete/?", "board_bootcomplete",
   "/board/([^/]+)/config/?", "board_config",
   # /bootimage methods
   "/bootimage/list/?", "bootimage_list",
@@ -50,6 +51,13 @@ class board_reboot:
     @boardredirect
     def POST(self, id):
         board.reboot(id)
+        #XXX: should we return something here?
+        raise web.webapi._status_code("204 No Content")
+
+class board_bootcomplete:
+    @boardredirect
+    def POST(self, id):
+        board.bootcomplete(id)
         #XXX: should we return something here?
         raise web.webapi._status_code("204 No Content")
 

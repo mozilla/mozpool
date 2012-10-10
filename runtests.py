@@ -252,6 +252,11 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
                          MockSocket.return_value.connect.call_args[0][0][0])
         self.assertEqual(4, MockSocketRecv.call_count)
 
+        # Lazy, just test this here
+        r = self.app.post("/api/board/board1/bootcomplete/")
+        self.assertEqual(204, r.status)
+        self.assertFalse(os.path.exists(tftp_link))
+
 @patch("socket.socket")
 class TestBoardReboot(ConfigMixin, unittest.TestCase):
     def setUp(self):

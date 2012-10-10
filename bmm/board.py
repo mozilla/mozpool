@@ -25,6 +25,15 @@ def boardredirect(function):
         return function(self, id, *args)
     return wrapped
 
+def get_symlink_path(board):
+    """
+    Get the path where the PXE boot symlink should be placed
+    for a specific board.
+    """
+    mac_address = data.mac_with_dashes(data.board_mac_address(board))
+    symlink_dir = os.path.join(config.get('paths', 'tftp_root'), "pxelinux.cfg")
+    return os.path.join(symlink_dir, "01-" + mac_address)
+
 def boot(board, image, config_data):
     """
     Boot board into image and set config_data for it to use
@@ -41,14 +50,14 @@ def boot(board, image, config_data):
     image_fullpath = os.path.join(config.get('paths', 'image_store'),
                                   image_details["pxe_config_filename"])
     # Make the link to the PXE config in the proper location
-    mac_address = data.mac_with_dashes(data.board_mac_address(board))
-    symlink_dir = os.path.join(config.get('paths', 'tftp_root'), "pxelinux.cfg")
+    tftp_symlink = get_symlink_path(board)
+    symlink_dir = os.path.dirname(tftp_symlink)
     if not os.path.isdir(symlink_dir):
         try:
             os.mkdir(symlink_dir)
         except:
             pass
-    tftp_symlink = os.path.join(symlink_dir, "01-" + mac_address)
+
     if image_fullpath.startswith(config.get('paths', 'tftp_root')):
         # Use a relative symlink, because TFTP might be chrooted
         image_fullpath = os.path.join(os.path.relpath(os.path.dirname(image_fullpath),
@@ -67,3 +76,8 @@ def reboot(board):
     data.set_board_status(board, "rebooting")
     data.add_log(board, "Rebooted by /reboot command")
     return relay.powercycle(relay_hostname, bank_num, relay_num)
+
+def bootcomplete(board):
+    """Remove symlink for this board's MAC address from TFTP."
+    tftp_symlink = get_symlink_path(board)
+    os.unlink(tftp_symlink)
