@@ -79,5 +79,7 @@ def reboot(board):
 
 def bootcomplete(board):
     """Remove symlink for this board's MAC address from TFTP."""
+    data.set_board_status(board, "boot-complete")
+    data.add_log(board, "Boot completed")
     tftp_symlink = get_symlink_path(board)
     os.unlink(tftp_symlink)
