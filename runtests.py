@@ -10,6 +10,7 @@ import shutil
 import requests
 import tempfile
 import mock
+import datetime
 from mock import patch
 from paste.fixture import TestApp
 
@@ -87,8 +88,17 @@ class TestData(ConfigMixin, unittest.TestCase):
 
     def testDeleteBoard(self):
         conn = data.get_conn()
+        now = datetime.datetime.now()
+        conn.execute(model.logs.insert(), [
+            dict(board_id=1, ts=now, source='test', message='hi'),
+            dict(board_id=1, ts=now, source='test', message='world'),
+        ])
         data.delete_board(1)
+
+        # check that both logs and boards were deleted
         res = conn.execute(model.boards.select())
+        self.assertEquals(res.fetchall(), [])
+        res = conn.execute(model.logs.select())
         self.assertEquals(res.fetchall(), [])
 
     def testUpdateBoard(self):

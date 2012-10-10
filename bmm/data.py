@@ -90,7 +90,12 @@ def insert_board(values):
 
 def delete_board(id):
     """Delete the board with the given ID"""
-    get_conn().execute(model.boards.delete(), whereclause=(model.boards.c.id==id))
+    conn = get_conn()
+    # foreign keys don't automatically delete log entries, so do it manually.
+    # This table is partitioned, so there's no need to later optimize these
+    # deletes - they'll get flushed when their parititon is dropped.
+    conn.execute(model.logs.delete(), whereclause=(model.logs.c.board_id==id))
+    conn.execute(model.boards.delete(), whereclause=(model.boards.c.id==id))
 
 def update_board(id, values):
     """Update an existing board with id ID into the DB.  VALUES should be in
