@@ -18,8 +18,11 @@ def _load():
     if not _config:
         defaults = {'fqdn': socket.getfqdn()}
         _config = ConfigParser.ConfigParser(defaults=defaults)
-        path = os.path.join(os.path.dirname(__file__), "config.ini")
-        _config.read(path)
+        if 'BMM_CONFIG' in os.environ:
+            config_path = os.environ['BMM_CONFIG']
+        else:
+            config_path = os.path.join(os.path.dirname(__file__), "config.ini")
+        _config.read(config_path)
     return _config
 
 def reset():

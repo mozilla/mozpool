@@ -1,3 +1,5 @@
 ~$
 \.pyc$
 bmm/config\.ini$
+dist
+MANIFEST

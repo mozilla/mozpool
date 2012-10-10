@@ -22,6 +22,11 @@ To synchronize the internal DB with inventory:
 (use --verbose to see what it's up to - note that it's not too fast)
 
 
+Configuration should be based on the bmm/config.ini.dist template.  The config
+can either be put in the `bmm/config.ini`, or anywhere else with $BMM_CONFIG
+giving the full path.
+
+
 To run the tests:
 
  * install mock
