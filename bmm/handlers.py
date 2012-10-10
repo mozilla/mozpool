@@ -37,7 +37,7 @@ class board_status:
     @templeton.handlers.json_response
     def POST(self, id):
         args, body = templeton.handlers.get_request_parms()
-        return {"state": data.set_board_status(id, body['state'])}
+        return {"status": data.set_board_status(id, body["status"])}
 
 class board_boot:
     @boardredirect

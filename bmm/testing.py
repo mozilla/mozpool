@@ -31,7 +31,7 @@ def add_server(hostname):
     """
     data.get_conn().execute(model.imaging_servers.insert(), fqdn=hostname)
 
-def add_board(board, server="server", state="offline",
+def add_board(board, server="server", status="offline",
               mac_address="000000000000",
               log=[], config={}, relayinfo=""):
     global inventory_id
@@ -44,7 +44,7 @@ def add_board(board, server="server", state="offline",
                  name=board,
                  fqdn=board, #XXX
                  inventory_id=inventory_id,
-                 status=state,
+                 status=status,
                  mac_address=mac_address,
                  imaging_server_id=id,
                  relay_info=relayinfo,

@@ -147,10 +147,10 @@ class TestBoardStatus(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardStatus, self).setUp()
         add_server("server1")
-        add_board("board1", server="server1", state="running")
-        add_board("board2", server="server1", state="freaking_out")
+        add_board("board1", server="server1", status="running")
+        add_board("board2", server="server1", status="freaking_out")
         add_server("server2")
-        add_board("board3", server="server2", state="running")
+        add_board("board3", server="server2", status="running")
 
     def testBoardStatus(self):
         """
@@ -159,30 +159,30 @@ class TestBoardStatus(ConfigMixin, unittest.TestCase):
         r = self.app.get("/api/board/board1/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals("running", body["state"])
+        self.assertEquals("running", body["status"])
 
         r = self.app.get("/api/board/board2/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals("freaking_out", body["state"])
+        self.assertEquals("freaking_out", body["status"])
 
         r = self.app.get("/api/board/board3/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals("running", body["state"])
+        self.assertEquals("running", body["status"])
 
     def testSetBoardStatus(self):
         r = self.app.get("/api/board/board1/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals("running", body["state"])
+        self.assertEquals("running", body["status"])
 
         r = self.app.post("/api/board/board1/status/",
                           headers={"Content-Type": "application/json"},
-                          params='{"state":"offline"}')
+                          params='{"status":"offline"}')
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals("offline", body["state"])
+        self.assertEquals("offline", body["status"])
 
 class TestBoardConfig(ConfigMixin, unittest.TestCase):
     def setUp(self):
@@ -202,7 +202,7 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         super(TestBoardBoot, self).setUp()
         add_server("server1")
         self.board_mac = "001122334455"
-        add_board("board1", server="server1", state="running",
+        add_board("board1", server="server1", status="running",
                   mac_address=self.board_mac,
                   relayinfo="relay-1:bank1:relay1")
         self.pxefile = "image1"
@@ -230,7 +230,7 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         r = self.app.get("/api/board/board1/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals("boot-initiated", body["state"])
+        self.assertEquals("boot-initiated", body["status"])
 
         # Verify that the config data was set properly.
         r = self.app.get("/api/board/board1/config/")
@@ -262,7 +262,7 @@ class TestBoardReboot(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardReboot, self).setUp()
         add_server("server1")
-        add_board("board1", server="server1", state="running",
+        add_board("board1", server="server1", status="running",
                   relayinfo="relay-1:bank1:relay1")
 
     def testBoardReboot(self, MockSocket):
@@ -284,7 +284,7 @@ class TestBoardReboot(ConfigMixin, unittest.TestCase):
         r = self.app.get("/api/board/board1/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals("rebooting", body["state"])
+        self.assertEquals("rebooting", body["status"])
 
 class TestBoardRedirects(ConfigMixin, unittest.TestCase):
     """

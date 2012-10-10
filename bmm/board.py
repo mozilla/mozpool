@@ -78,6 +78,6 @@ def reboot(board):
     return relay.powercycle(relay_hostname, bank_num, relay_num)
 
 def bootcomplete(board):
-    """Remove symlink for this board's MAC address from TFTP."
+    """Remove symlink for this board's MAC address from TFTP."""
     tftp_symlink = get_symlink_path(board)
     os.unlink(tftp_symlink)

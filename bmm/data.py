@@ -129,9 +129,9 @@ def board_status(board):
     res = get_conn().execute(select([model.boards.c.status],
                                     model.boards.c.name==board))
     row = res.fetchone()
-    return {'state': row['status'].encode('utf-8'),
+    return {"status": row['status'].encode('utf-8'),
             #TODO: fetch logs
-            'log': []}
+            "log": []}
 
 def set_board_status(board, status):
     """
