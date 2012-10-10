@@ -49,7 +49,11 @@ def boot(board, image, config_data):
         except:
             pass
     tftp_symlink = os.path.join(symlink_dir, "01-" + mac_address)
-    #print "Linking %s -> %s" % (image_fullpath, tftp_symlink)
+    if image_fullpath.startswith(config.get('paths', 'tftp_root')):
+        # Use a relative symlink, because TFTP might be chrooted
+        image_fullpath = os.path.join(os.path.relpath(os.path.dirname(image_fullpath),
+                                                      os.path.dirname(tftp_symlink)),
+                                                      image_details["pxe_config_filename"])
     os.symlink(image_fullpath, tftp_symlink)
     # Now actually reboot the board.
     relay_hostname, bank_num, relay_num = data.board_relay_info(board)
