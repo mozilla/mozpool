@@ -1,0 +1,54 @@
+BMM API documentation
+
+All APIs are accessed under paths starting with /api/.
+
+= Boards =
+
+/api/board/list
+* GET returns a JSON response body whose "boards" key
+  contains an array of the names of boards known to the system.
+  Board names can be passed as the id in the following board APIs.
+
+/api/board/{id}/status/
+* GET returns a JSON response body whose "status" key contains
+  a short string describing the last-known status of the board,
+  and whose "log" key contains an array of recent log entries
+  for the board.
+* POST a JSON request body whose "status" key will be used
+  to update the last-known status of the board. The request
+  body will be echoed in the response.
+
+/api/board/{id}/config/
+* GET returns a JSON response body whose "config" key contains
+  an object describing configuration parameters for the current
+  boot of the board. The configuration parameters are specific
+  to each individual boot image and are simply implemented as a way
+  to provide extra data to the image on boot. The image is intended
+  to GET this during the boot process.
+
+/api/board/{id}/reboot/
+* POST to power-cycle this board via the relay controller.
+  204 No Content is returned as the response status.
+
+/api/board/{id}/boot/{image}/
+* POST to indicate that this board should be booted with this image.
+  Optional request body should be JSON that is stored as the configuration
+  parameters for the boot.
+  204 No Content is returned as the response status.
+
+/api/board/{id}/bootcomplete/
+* POST to indicate that the boot of this board has completed and
+  the PXE boot data can be removed. No request body is required.
+
+= Boot images =
+
+/api/bootimage/list/
+* GET returns a JSON response body whose "bootimages" key
+  contains an array of the names of boot images known to the system.
+  Bootimage names can be passed as the id in the following bootimage APIs.
+
+/api/bootimage/{id}/details/
+* GET returns a JSON response body whose "details" key contains
+  an object that provides information about this boot image.
+  The keys of this object are: "name", "version", "description" and
+  "pxe_config_filename".
