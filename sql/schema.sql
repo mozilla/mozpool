@@ -148,3 +148,24 @@ CALL init_log_partitions(14, 1);
 DROP EVENT IF EXISTS update_log_partitions;
 CREATE EVENT update_log_partitions  ON SCHEDULE EVERY 1 day
 DO CALL update_log_partitions(14, 1);
+
+--
+-- Log insertion utility (called from rsyslogd)
+--
+
+DELIMITER $$
+
+-- Procedure to insert a log entry given a board name.  This silently drops log entries for
+-- boards that are not configured.
+DROP PROCEDURE IF EXISTS insert_log_entry $$
+CREATE PROCEDURE insert_log_entry(board TEXT, ts TIMESTAMP, source TEXT, message TEXT)
+BEGIN
+    DECLARE boardid integer;
+    SELECT id from boards where name=board INTO boardid;
+    IF boardid is not NULL THEN
+        -- trim the message since rsyslogd prepends a space
+        INSERT INTO logs (board_id, ts, source, message) values (boardid, ts, source, ltrim(message));
+    END IF; 
+END $$
+
+DELIMITER ;
