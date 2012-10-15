@@ -52,7 +52,6 @@ def get_boards(url, filter, username, password, verbose=False):
 
         # go on to the next set of hosts
         path = r.json['meta']['next']
-        path = None
 
 def merge_boards(from_db, from_inv):
     """
@@ -80,13 +79,15 @@ def merge_boards(from_db, from_inv):
             yield ('update', id, inv_row)
 
 def sync(verbose=False):
-    from_db = data.dump_boards()
     from_inv = get_boards(
             config.get('inventory', 'url'),
             config.get('inventory', 'filter'),
             config.get('inventory', 'username'),
             config.get('inventory', 'password'),
             verbose=verbose)
+    # dump the db second, since otherwise the mysql server can go away while
+    # get_boards is still running, which is no fun
+    from_db = data.dump_boards()
 
     for task in merge_boards(from_db, from_inv):
         if task[0] == 'insert':
