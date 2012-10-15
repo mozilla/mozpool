@@ -22,7 +22,8 @@ def get_boards(url, filter, username, password, verbose=False):
     Generate a list of hosts from inventory.  FILTER is a tastypie-style filter for
     the desired hosts.  Any hosts without 'system.relay.0' are ignored.
     """
-    path = '/en-US/tasty/v3/system/?' + filter
+    # limit=100 selects 100 results at a time
+    path = '/en-US/tasty/v3/system/?limit=100&' + filter
     while path:
         r = requests.get(url + path, auth=(username, password))
         if r.status_code != requests.codes.ok:
