@@ -52,6 +52,7 @@ def get_boards(url, filter, username, password, verbose=False):
 
         # go on to the next set of hosts
         path = r.json['meta']['next']
+        path = None
 
 def merge_boards(from_db, from_inv):
     """
@@ -82,9 +83,7 @@ def sync(verbose=False):
     from_db = data.dump_boards()
     from_inv = get_boards(
             config.get('inventory', 'url'),
-            # TODO: use a better filter that can look for k/v entries indicating systems
-            # are managed by an imaging server
-            'hostname__startswith=panda-',
+            config.get('inventory', 'filter'),
             config.get('inventory', 'username'),
             config.get('inventory', 'password'),
             verbose=verbose)
