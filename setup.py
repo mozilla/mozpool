@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='blackmobilemagic',
-      version='0.1.1',
+      version='0.1.2',
       description='Frontend for the BMM Boot and Imaging Service',
       author='Ted Mielczarek',
       author_email='ted@mielczarek.org',
