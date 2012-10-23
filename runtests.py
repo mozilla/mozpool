@@ -427,7 +427,7 @@ class TestInvSyncGet(unittest.TestCase):
              'fqdn': 'panda-002.vlan.dc.mozilla.com'},
         ])
         self.assertEqual(requests.get.call_args_list, [
-            mock.call('https://inv/en-US/tasty/v3/system/?filter', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
         ])
 
     def test_loop_and_filtering(self, get):
@@ -452,7 +452,7 @@ class TestInvSyncGet(unittest.TestCase):
             # panda-006 was skipped
         ])
         self.assertEqual(requests.get.call_args_list, [
-            mock.call('https://inv/en-US/tasty/v3/system/?filter', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
             mock.call('https://inv/path1', auth=('me', 'pass')),
             mock.call('https://inv/path2', auth=('me', 'pass')),
         ])
@@ -469,6 +469,7 @@ class TestInvSyncSync(unittest.TestCase):
                         update_board, insert_board, dump_boards):
         config.reset()
         config.set('inventory', 'url', 'http://foo/')
+        config.set('inventory', 'filter', 'hostname__startswith=panda-')
         config.set('inventory', 'username', 'u')
         config.set('inventory', 'password', 'p')
         dump_boards.return_value = 'dumped boards'
