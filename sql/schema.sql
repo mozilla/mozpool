@@ -162,9 +162,14 @@ CREATE PROCEDURE insert_log_entry(board TEXT, ts TIMESTAMP, source TEXT, message
 BEGIN
     DECLARE boardid integer;
     SELECT id from boards where name=board INTO boardid;
-    IF boardid is not NULL THEN
+    IF boardid is not NULL THEN BEGIN
+        -- 1526 occurs when there's no matching partition; in this case, use NOW() instead of the timestamp
+        DECLARE CONTINUE HANDLER FOR 1526 BEGIN
+            INSERT INTO logs (board_id, ts, source, message) values (boardid, NOW(), source, ltrim(message));
+        END;
         -- trim the message since rsyslogd prepends a space
         INSERT INTO logs (board_id, ts, source, message) values (boardid, ts, source, ltrim(message));
+    END;
     END IF; 
 END $$
 
