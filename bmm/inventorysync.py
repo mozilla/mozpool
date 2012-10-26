@@ -19,11 +19,12 @@ from bmm import config
 
 def get_boards(url, filter, username, password, verbose=False):
     """
-    Generate a list of hosts from inventory.  FILTER is a tastypie-style filter for
+    Return a list of hosts from inventory.  FILTER is a tastypie-style filter for
     the desired hosts.  Any hosts without 'system.relay.0' are ignored.
     """
     # limit=100 selects 100 results at a time
     path = '/en-US/tasty/v3/system/?limit=100&' + filter
+    rv = []
     while path:
         r = requests.get(url + path, auth=(username, password))
         if r.status_code != requests.codes.ok:
@@ -41,18 +42,20 @@ def get_boards(url, filter, username, password, verbose=False):
 
             name = hostname.split('.', 1)[0]
             mac_address = kv['nic.0.mac_address.0'].replace(':', '').lower()
-            yield dict(
+            rv.append(dict(
                 name=name,
                 fqdn=hostname,
                 inventory_id=o['id'],
                 mac_address=mac_address,
                 imaging_server=kv['system.imaging_server.0'],
-                relay_info=kv['system.relay.0'])
+                relay_info=kv['system.relay.0']))
 
             if verbose: print hostname, 'downloaded.'
 
         # go on to the next set of hosts
         path = r.json['meta']['next']
+
+    return rv
 
 def merge_boards(from_db, from_inv):
     """

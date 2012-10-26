@@ -430,13 +430,14 @@ class TestInvSyncGet(unittest.TestCase):
             mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
         ])
 
+    maxDiff=None
     def test_loop_and_filtering(self, get):
         self.set_responses([
             [ self.make_host('panda-001'), self.make_host('panda-002', want_imaging_server=False) ],
             [ self.make_host('panda-003'), self.make_host('panda-004', want_relay_info=False) ],
             [ self.make_host('panda-005'), self.make_host('panda-006', want_mac_address=False) ],
         ])
-        hosts = list(inventorysync.get_boards('https://inv', 'filter', 'me', 'pass'))
+        hosts = inventorysync.get_boards('https://inv', 'filter', 'me', 'pass')
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
