@@ -20,6 +20,7 @@ setup(name='blackmobilemagic',
               'bmm-relay = bmm.relay:main',
               'bmm-server = bmm.server:main',
               'bmm-inventorysync = bmm.inventorysync:main',
+              'bmm-model = bmm.data:bmm_model',
           ]
       }
 )

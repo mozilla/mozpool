@@ -222,3 +222,9 @@ def bootimage_details(image):
     if row is None:
         raise NotFound
     return {'details': row_to_dict(row, model.images, omit_cols=['id'])}
+
+# bmm-model script
+def bmm_model():
+    engine_url = config.get('database', 'engine')
+    engine = sqlalchemy.create_engine(engine_url)
+    model.metadata.create_all(bind=engine)
