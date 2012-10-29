@@ -3,13 +3,16 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import sys
+import os
 import templeton.handlers
 import templeton.middleware
 import web
-from bmm import handlers, data
+import bmm
+from bmm import handlers
 
 templeton.middleware.patch_middleware()
+
+STATIC_PATH = os.path.join(os.path.dirname(bmm.__file__), 'html')
 
 def get_app():
     web.config.debug = False
@@ -17,12 +20,10 @@ def get_app():
     return web.application(urls, handlers.__dict__)
 
 def main():
-    # load test data
-    if len(sys.argv) > 1:
-        # load the data from argv[1]
-        execfile(sys.argv[1])
-        del sys.argv[1]
-
+    # templeton uses $PWD/../html to serve /, so put PWD in a subdirectory of
+    # the directory containing our html data.  Easiest is to just change the the
+    # html directory itself
+    os.chdir(os.path.join(os.path.dirname(bmm.__file__), 'html'))
     app = get_app()
     app.run()
 

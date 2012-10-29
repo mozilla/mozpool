@@ -1,0 +1,69 @@
+/* overall layout */
+
+body {
+    margin: 0;
+}
+
+h1 {
+    text-align: center;
+    font-family: sans-serif;
+}
+
+#loading {
+    text-align: center;
+    font-family: sans-serif;
+}
+
+#error {
+    text-align: center;
+    border: thick solid red;
+    display: none;
+    margin: 3em;
+    padding: 1em;
+}
+
+#error:before {
+    content: "ERROR: ";
+    color: red;
+}
+
+/* dataTables chrome */
+
+div.dataTables_filter {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    padding: 6px;
+}
+
+/* table styling */
+
+table.dataTable {
+    clear: both;
+    width: 100%;
+}
+
+div.dataTables_wrapper {
+    background-color: #719ba7;
+}
+
+table.dataTable td,
+table.dataTable th {
+    text-align: left;
+    padding: 5px;
+    border: 1px solid #fff;
+}
+
+table.dataTable th {
+    background: #66a9bd;
+}
+
+table.dataTable tr td {
+    background: #d5eaf0;
+}
+
+table.dataTable tr.odd td {
+    background: #bcd9e1;
+}
+
+/* more at http://datatables.net/blog/Creating_beautiful_and_functional_tables_with_DataTables */
