@@ -2,3 +2,4 @@ include bmm/config.ini.dist
 include bmm/html/*.html
 include bmm/html/css/*.css
 include bmm/html/js/*.js
+include bmm/html/js/deps/*.js
