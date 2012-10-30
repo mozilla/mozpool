@@ -27,7 +27,11 @@ urls = (
 class board_list:
     @templeton.handlers.json_response
     def GET(self):
-        return data.list_boards()
+        args, _ = templeton.handlers.get_request_parms()
+        if 'details' in args:
+            return dict(boards=data.dump_boards())
+        else:
+            return data.list_boards()
 
 class board_status:
     @templeton.handlers.json_response

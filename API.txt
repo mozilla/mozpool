@@ -9,6 +9,12 @@ All APIs are accessed under paths starting with /api/.
   contains an array of the names of boards known to the system.
   Board names can be passed as the id in the following board APIs.
 
+/api/board/list?details=1
+* GET returns a JSON response body whose "boards" key
+  contains an array of objects, each representing a single board.
+  The objects have keys id, name, fqdn, invenetory_id, mac_address,
+  imaging_server, and relay_info.
+
 /api/board/{id}/status/
 * GET returns a JSON response body whose "status" key contains
   a short string describing the last-known status of the board,

@@ -2,6 +2,11 @@ var TableView = Backbone.View.extend({
     tagName: 'div',
     columns: [
         { id: "name", title: "Name" },
+        { id: "fqdn", title: "FQDN" },
+        { id: "inventory_id", title: "Inventory" },
+        { id: "mac_address", title: "MAC" },
+        { id: "imaging_server", title: "Imaging Server" },
+        { id: "relay_info", title: "Relay Info" },
     ],
 
     initialize: function(args) {

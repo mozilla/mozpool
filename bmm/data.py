@@ -52,14 +52,17 @@ def list_boards():
     return {'boards': [row[0].encode('utf-8') for row in res]}
 
 def dump_boards():
-    """Dump all boards for inventory sync."""
+    """
+    Dump all boards.  This returns a list of dictionaries with keys id, name,
+    fqdn, invenetory_id, mac_address, imaging_server, and relay_info.
+    """
     conn = get_conn()
     boards = model.boards
     img_svrs = model.imaging_servers
     res = conn.execute(sqlalchemy.select(
         [ boards.c.id, boards.c.name, boards.c.fqdn, boards.c.inventory_id, boards.c.mac_address,
           img_svrs.c.fqdn.label('imaging_server'), boards.c.relay_info ],
-        from_obj=[boards, img_svrs]))
+        from_obj=[boards.join(img_svrs)]))
     return [ dict(row) for row in res ]
 
 def find_imaging_server_id(name):
