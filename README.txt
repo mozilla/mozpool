@@ -2,10 +2,14 @@ To run the server:
 
   bmm-server
 
-To run it with test data (the given file is execfile'd, and should define a
-dictionary called `data`):
+optionally adding a port on the command line:
 
-  bmm-server testdata.py
+  bmm-server 8010
+
+
+To install the DB schema (using the configured database):
+
+  bmm-model
 
 
 To flip relays:
