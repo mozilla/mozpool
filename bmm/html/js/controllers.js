@@ -43,6 +43,7 @@ $.extend(JobRunner.prototype, {
             + this.running.get('board_name') + '/reboot/';
         $.ajax(url, {
             type: 'POST',
+            data: '',
             error: function (jqxhr, textStatus, errorThrown) {
                 self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
             },
@@ -60,6 +61,7 @@ $.extend(JobRunner.prototype, {
             type: 'POST',
             data: JSON.stringify(job_args.config),
             error: function (jqxhr, textStatus, errorThrown) {
+                window.goterror = errorThrown;
                 self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
             },
             complete: this.jobFinished

@@ -45,25 +45,24 @@ class board_status:
 
 class board_boot:
     @boardredirect
+    @templeton.handlers.json_response
     def POST(self, id, image):
         args, body = templeton.handlers.get_request_parms()
         board.boot(id, image, body)
-        #XXX: should we return something here?
-        raise web.webapi._status_code("204 No Content")
+        return {}
 
 class board_reboot:
     @boardredirect
+    @templeton.handlers.json_response
     def POST(self, id):
         board.reboot(id)
-        #XXX: should we return something here?
-        raise web.webapi._status_code("204 No Content")
+        return {}
 
 class board_bootcomplete:
     @boardredirect
     def POST(self, id):
         board.bootcomplete(id)
-        #XXX: should we return something here?
-        raise web.webapi._status_code("204 No Content")
+        return {}
 
 class board_config:
     @templeton.handlers.json_response
