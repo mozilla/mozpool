@@ -59,7 +59,7 @@ class TestData(ConfigMixin, unittest.TestCase):
     def testDumpBoards(self):
         self.assertEquals([
             dict(id=1, name='board1', fqdn='board1', inventory_id=1, mac_address='000000000000',
-                imaging_server='server1', relay_info='relay-1:bank1:relay1'),
+                imaging_server='server1', relay_info='relay-1:bank1:relay1', status='offline'),
             ],
             data.dump_boards())
 
@@ -223,7 +223,7 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         r = self.app.post("/api/board/board1/boot/image1/",
                           headers={"Content-Type": "application/json"},
                           params=json.dumps(config_data))
-        self.assertEqual(204, r.status)
+        self.assertEqual(200, r.status)
         # Nothing in the response body currently
 
         # Verify that it got put into the boot-initiated state
@@ -254,7 +254,7 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
 
         # Lazy, just test this here
         r = self.app.post("/api/board/board1/bootcomplete/")
-        self.assertEqual(204, r.status)
+        self.assertEqual(200, r.status)
         self.assertFalse(os.path.exists(tftp_link))
 
 @patch("socket.socket")
@@ -274,7 +274,7 @@ class TestBoardReboot(ConfigMixin, unittest.TestCase):
                                       relay.COMMAND_OK,
                                       chr(0)]
         r = self.app.post("/api/board/board1/reboot/")
-        self.assertEqual(204, r.status)
+        self.assertEqual(200, r.status)
         # Nothing in the response body currently
         self.assertEqual("relay-1",
                          MockSocket.return_value.connect.call_args[0][0][0])
@@ -323,6 +323,7 @@ class TestInvSyncMerge(unittest.TestCase):
             relay_info="relay-1:bank1:relay1")
         self.panda1_db = self.panda1_inv.copy()
         self.panda1_db['id'] = 401
+        self.panda1_db['status'] = 'new'
 
         self.panda2_inv = dict(
             name='panda-0002',
@@ -333,6 +334,7 @@ class TestInvSyncMerge(unittest.TestCase):
             relay_info="relay-1:bank2:relay2")
         self.panda2_db = self.panda2_inv.copy()
         self.panda2_db['id'] = 402
+        self.panda2_db['status'] = 'old'
 
     def test_merge_boards_no_change(self):
         commands = list(inventorysync.merge_boards(

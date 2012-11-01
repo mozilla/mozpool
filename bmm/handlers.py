@@ -60,6 +60,7 @@ class board_reboot:
 
 class board_bootcomplete:
     @boardredirect
+    @templeton.handlers.json_response
     def POST(self, id):
         board.bootcomplete(id)
         return {}
