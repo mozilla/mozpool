@@ -8,6 +8,7 @@ function model_loader(name) {
     return function(next) {
         var model = eval('new ' + class_name + '()');
         model.fetch({
+            add: true,
             success: next,
             error: function(jqxhr, response) {
                 show_error('AJAX Error while fetching ' + name + ': ' + response.statusText);
