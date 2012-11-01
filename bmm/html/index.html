@@ -9,10 +9,17 @@
     <script type="text/javascript"> load("/js/ui.js") </script>
   </head>
   <body>
-    <h1>Black Mobile Magic</h1>
     <div id="container">
         <div id="loading">loading...</div>
     </div>
     <div id="error"></div>
+    <div id="toolbar">
+      <button id="power-cycle-button">Power Cycle</button>
+      <button id="reimage-button">Reimage</button>
+      <select id="reimage-bootimage">
+        <option value=''>Select Boot Image</option>
+      </select>
+      &bull; <span id="job-queue"></span>
+    </div>
   </body>
 </html>

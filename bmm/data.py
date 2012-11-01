@@ -54,14 +54,14 @@ def list_boards():
 def dump_boards():
     """
     Dump all boards.  This returns a list of dictionaries with keys id, name,
-    fqdn, invenetory_id, mac_address, imaging_server, and relay_info.
+    fqdn, invenetory_id, mac_address, imaging_server, relay_info, and status.
     """
     conn = get_conn()
     boards = model.boards
     img_svrs = model.imaging_servers
     res = conn.execute(sqlalchemy.select(
         [ boards.c.id, boards.c.name, boards.c.fqdn, boards.c.inventory_id, boards.c.mac_address,
-          img_svrs.c.fqdn.label('imaging_server'), boards.c.relay_info ],
+          img_svrs.c.fqdn.label('imaging_server'), boards.c.relay_info, boards.c.status ],
         from_obj=[boards.join(img_svrs)]))
     return [ dict(row) for row in res ]
 

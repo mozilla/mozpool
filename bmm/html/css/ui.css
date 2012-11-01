@@ -2,11 +2,8 @@
 
 body {
     margin: 0;
-}
-
-h1 {
-    text-align: center;
-    font-family: sans-serif;
+    /* leave room for the toolbar */
+    margin-bottom: 2em;
 }
 
 #loading {
@@ -27,15 +24,6 @@ h1 {
     color: red;
 }
 
-/* dataTables chrome */
-
-div.dataTables_filter {
-    position: absolute;
-    top: 0px;
-    right: 0px;
-    padding: 6px;
-}
-
 /* table styling */
 
 table.dataTable {
@@ -50,8 +38,8 @@ div.dataTables_wrapper {
 table.dataTable td,
 table.dataTable th {
     text-align: left;
-    padding: 5px;
-    border: 1px solid #fff;
+    padding: 3px;
+    border: 0px;
 }
 
 table.dataTable th {
@@ -66,4 +54,39 @@ table.dataTable tr.odd td {
     background: #bcd9e1;
 }
 
+/* size the checkbox row appropriately */
+td.rowcheckbox {
+    width: 0em;
+}
+
+td.rowcheckbox input {
+    margin: 0px;
+    margin-bottom: 3px;
+}
+
 /* more at http://datatables.net/blog/Creating_beautiful_and_functional_tables_with_DataTables */
+
+/* fixed bottom toolbar */
+div#toolbar {
+    position: fixed;
+    bottom: 0px;
+    left: 0px;
+    right: 0px;
+    height: 2em;
+    border-top: thin solid #e0e0e0;
+    padding: 2pt;
+    background: #b0b0b0;
+}
+
+div#toolbar button {
+    height: 2.5em;
+    margin: 0.25em;
+    padding: 0px;
+}
+
+div.dataTables_filter {
+    /* note that this gets transplanted into the toolbar */
+    float: right;
+    padding: 6px;
+}
+
