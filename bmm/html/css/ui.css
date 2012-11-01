@@ -17,6 +17,7 @@ body {
     display: none;
     margin: 3em;
     padding: 1em;
+    white-space: pre;
 }
 
 #error:before {

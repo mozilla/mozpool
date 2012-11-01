@@ -1,5 +1,5 @@
 function show_error(errmsg) {
-    $('#error').append(errmsg).show();
+    $('#error').append('\n' + errmsg).show();
 }
 
 function model_loader(name) {
