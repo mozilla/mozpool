@@ -51,8 +51,16 @@ table.dataTable tr td {
     background: #d5eaf0;
 }
 
+table.dataTable tr td.sorting_1 {
+    background: #DDF2F7;
+}
+
 table.dataTable tr.odd td {
     background: #bcd9e1;
+}
+
+table.dataTable tr.odd td.sorting_1 {
+    background: #C7E2E9;
 }
 
 /* size the checkbox row appropriately */
