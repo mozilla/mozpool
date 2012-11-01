@@ -39,8 +39,8 @@ $.extend(JobRunner.prototype, {
     runPowerCycle: function() {
         var self = this;
 
-        // TODO: pick the right hostname
-        var url = '/api/board/' + this.running.get('board_name') + '/reboot/';
+        var url = '//' + this.running.get('board').get('imaging_server') + '/api/board/'
+            + this.running.get('board_name') + '/reboot/';
         $.ajax(url, {
             type: 'POST',
             error: function (jqxhr, textStatus, errorThrown) {
@@ -53,9 +53,9 @@ $.extend(JobRunner.prototype, {
     runReimage: function() {
         var self = this;
 
-        // TODO: pick the right hostname
         var job_args = this.running.get('job_args');
-        var url = '/api/board/' + this.running.get('board_name') + '/boot/' + job_args.bootimage;
+        var url = '//' + this.running.get('board').get('imaging_server') + '/api/board/'
+            + this.running.get('board_name') + '/boot/' + job_args.bootimage;
         $.ajax(url, {
             type: 'POST',
             data: JSON.stringify(job_args.config),
