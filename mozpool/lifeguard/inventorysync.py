@@ -5,8 +5,8 @@
 
 import argparse
 import requests
-from bmm import data
-from bmm import config
+from mozpool.db import data
+from mozpool import config
 
 # systems are represented as a dict with keys:
 #  - id (only for dicts from the database)

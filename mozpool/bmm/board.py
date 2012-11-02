@@ -3,12 +3,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import os
-import socket
-import threading
 import web
-from bmm import config
-from bmm import data
-from bmm import relay
+from mozpool import config
+from mozpool.db import data
+from mozpool.bmm import relay
 
 def boardredirect(function):
     """

@@ -14,14 +14,14 @@ import datetime
 from mock import patch
 from paste.fixture import TestApp
 
-from mozpool import config
-from mozpool import statemachine
-from mozpool.web import server
-from mozpool.db import data
-from mozpool.db import model
-from mozpool.bmm import relay
-from mozpool.lifeguard import inventorysync
-from mozpool.test.util import add_server, add_board, add_bootimage, setup_db
+from bmm import config
+from bmm import server
+from bmm import data
+from bmm import model
+from bmm import relay
+from bmm import testing
+from bmm import inventorysync
+from bmm.testing import add_server, add_board, add_bootimage
 
 class ConfigMixin(object):
     def setUp(self):
@@ -38,7 +38,7 @@ class ConfigMixin(object):
         config.set('paths', 'tftp_root', tftp_root)
         config.set('paths', 'image_store', image_store)
         # set up the db
-        setup_db(self.dbfile)
+        testing.setup_db(self.dbfile)
         self.app = TestApp(server.get_app().wsgifunc())
 
     def tearDown(self):
@@ -460,12 +460,12 @@ class TestInvSyncGet(unittest.TestCase):
             mock.call('https://inv/path2', auth=('me', 'pass')),
         ])
 
-@patch('mozpool.db.data.dump_boards')
-@patch('mozpool.db.data.insert_board')
-@patch('mozpool.db.data.update_board')
-@patch('mozpool.db.data.delete_board')
-@patch('mozpool.lifeguard.inventorysync.get_boards')
-@patch('mozpool.lifeguard.inventorysync.merge_boards')
+@patch('bmm.data.dump_boards')
+@patch('bmm.data.insert_board')
+@patch('bmm.data.update_board')
+@patch('bmm.data.delete_board')
+@patch('bmm.inventorysync.get_boards')
+@patch('bmm.inventorysync.merge_boards')
 class TestInvSyncSync(unittest.TestCase):
 
     def test_sync(self, merge_boards, get_boards, delete_board,
@@ -489,62 +489,6 @@ class TestInvSyncSync(unittest.TestCase):
         insert_board.assert_called_with(dict(insert=1))
         delete_board.assert_called_with(10)
         update_board.assert_called_with(11, dict(update=3))
-
-class StateSubclass(statemachine.State):
-
-    api_event_called = False
-    @statemachine.State.api_event_method('apievent')
-    def on_api_event(self):
-        self.api_event_called = True
-
-    timeout_called = False
-    @statemachine.State.timeout_method('apievent')
-    def on_timeout(self):
-        self.timeout_called = True
-
-    on_exit_called = False
-    def on_exit(self):
-        self.on_exit_called = True
-
-    on_entry_called = False
-    def on_entry(self):
-        self.on_entry_called = True
-
-
-class SecondStateSubclass(statemachine.State):
-
-    pass
-
-
-class TestStateSubclasses(unittest.TestCase):
-
-    def setUp(self):
-        self.board = dict(id=92, state='StateSubclass', counters={})
-
-    def patch_external_methods(self):
-        pass
-
-    def test_api_event(self):
-        st = statemachine.State.create(self.board)
-        st.handle_api_event('apievent')
-        self.assertTrue(st.api_event_called)
-
-    def test_timeout(self):
-        st = statemachine.State.create(self.board)
-        st.handle_timeout()
-        self.assertTrue(st.timeout_called)
-
-    def test_on_exit(self):
-        st = statemachine.State.create(self.board)
-        st.goto_state(SecondStateSubclass)
-        self.assertTrue(st.on_exit_called)
-
-    def test_on_entry(self):
-        self.board['state'] = 'SecondStateSubclass'
-        st = statemachine.State.create(self.board)
-        new_st = st.goto_state(StateSubclass)
-        self.assertTrue(new_st.on_entry_called)
-
 
 if __name__ == "__main__":
     unittest.main()
