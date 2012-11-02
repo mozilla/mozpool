@@ -7,8 +7,8 @@ import json
 import sqlalchemy
 from sqlalchemy.sql import select
 from itertools import izip_longest
-from bmm import model
-from bmm import config
+from mozpool.db import model
+from mozpool import config
 
 # global for convenience
 engine = None
@@ -16,15 +16,21 @@ engine = None
 class NotFound(Exception):
     pass
 
-def get_conn():
+def get_engine():
     """
-    Get a database connection object.
+    Get a database engine object.
     """
     global engine
     if engine is None:
         engine_url = config.get('database', 'engine')
         engine = sqlalchemy.create_engine(engine_url)
-    return engine.connect()
+    return engine
+
+def get_conn():
+    """
+    Get a database connection object.
+    """
+    return get_engine().connect()
 
 def row_to_dict(row, table, omit_cols=[]):
     """
@@ -202,7 +208,6 @@ def add_log(board, message):
 
 def get_logs(board, timeperiod=datetime.timedelta(hours=1)):
     """Get log entries for a board for the past timeperiod."""
-    then = datetime.datetime.utcnow() - timeperiod
     res = get_conn().execute(select([model.logs.c.ts,
                                      model.logs.c.source,
                                      model.logs.c.message],
@@ -225,9 +230,3 @@ def bootimage_details(image):
     if row is None:
         raise NotFound
     return {'details': row_to_dict(row, model.images, omit_cols=['id'])}
-
-# bmm-model script
-def bmm_model():
-    engine_url = config.get('database', 'engine')
-    engine = sqlalchemy.create_engine(engine_url)
-    model.metadata.create_all(bind=engine)

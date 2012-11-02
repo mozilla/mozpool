@@ -14,13 +14,14 @@ import datetime
 from mock import patch
 from paste.fixture import TestApp
 
-from mozpool import config
-from mozpool.web import server
-from mozpool.db import data
-from mozpool.db import model
-from mozpool.bmm import relay
-from mozpool.lifeguard import inventorysync
-from mozpool.test.util import add_server, add_board, add_bootimage, setup_db
+from bmm import config
+from bmm import server
+from bmm import data
+from bmm import model
+from bmm import relay
+from bmm import testing
+from bmm import inventorysync
+from bmm.testing import add_server, add_board, add_bootimage
 
 class ConfigMixin(object):
     def setUp(self):
@@ -37,7 +38,7 @@ class ConfigMixin(object):
         config.set('paths', 'tftp_root', tftp_root)
         config.set('paths', 'image_store', image_store)
         # set up the db
-        setup_db(self.dbfile)
+        testing.setup_db(self.dbfile)
         self.app = TestApp(server.get_app().wsgifunc())
 
     def tearDown(self):
@@ -459,12 +460,12 @@ class TestInvSyncGet(unittest.TestCase):
             mock.call('https://inv/path2', auth=('me', 'pass')),
         ])
 
-@patch('mozpool.db.data.dump_boards')
-@patch('mozpool.db.data.insert_board')
-@patch('mozpool.db.data.update_board')
-@patch('mozpool.db.data.delete_board')
-@patch('mozpool.lifeguard.inventorysync.get_boards')
-@patch('mozpool.lifeguard.inventorysync.merge_boards')
+@patch('bmm.data.dump_boards')
+@patch('bmm.data.insert_board')
+@patch('bmm.data.update_board')
+@patch('bmm.data.delete_board')
+@patch('bmm.inventorysync.get_boards')
+@patch('bmm.inventorysync.merge_boards')
 class TestInvSyncSync(unittest.TestCase):
 
     def test_sync(self, merge_boards, get_boards, delete_board,

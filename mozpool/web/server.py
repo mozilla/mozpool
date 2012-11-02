@@ -7,23 +7,21 @@ import os
 import templeton.handlers
 import templeton.middleware
 import web
-import bmm
-from bmm import handlers
+import mozpool
+from mozpool.lifeguard import handlers as lifeguard_handlers
 
 templeton.middleware.patch_middleware()
 
-STATIC_PATH = os.path.join(os.path.dirname(bmm.__file__), 'html')
-
 def get_app():
     web.config.debug = False
-    urls = templeton.handlers.load_urls(handlers.urls)
-    return web.application(urls, handlers.__dict__)
+    urls = templeton.handlers.load_urls(lifeguard_handlers.urls)
+    return web.application(urls, lifeguard_handlers.__dict__)
 
 def main():
     # templeton uses $PWD/../html to serve /, so put PWD in a subdirectory of
     # the directory containing our html data.  Easiest is to just change the the
     # html directory itself
-    os.chdir(os.path.join(os.path.dirname(bmm.__file__), 'html'))
+    os.chdir(os.path.join(os.path.dirname(mozpool.__file__), 'html'))
     app = get_app()
     app.run()
 
