@@ -2,51 +2,65 @@ BMM API documentation
 
 All APIs are accessed under paths starting with /api/.
 
-= Boards =
+= MozPool =
 
-/api/board/list
-* GET returns a JSON response body whose "boards" key
-  contains an array of the names of boards known to the system.
-  Board names can be passed as the id in the following board APIs.
+This is the central, public interface to request, return, and operate on
+devices.
 
-/api/board/list?details=1
-* GET returns a JSON response body whose "boards" key
-  contains an array of objects, each representing a single board.
+== Devices ==
+
+/api/device/list/
+* GET returns a JSON response body whose "devices" key
+  contains an array of the names of devices known to the system.
+  Device names can be passed as the id in the following device APIs.
+
+/api/device/list?details=1
+* GET returns a JSON response body whose "devices" key
+  contains an array of objects, each representing a single device.
   The objects have keys id, name, fqdn, invenetory_id, mac_address,
   imaging_server, and relay_info.
 
-/api/board/{id}/status/
+/api/device/{id}/status/
 * GET returns a JSON response body whose "status" key contains
-  a short string describing the last-known status of the board,
+  a short string describing the last-known status of the device,
   and whose "log" key contains an array of recent log entries
-  for the board.
-* POST a JSON request body whose "status" key will be used
-  to update the last-known status of the board. The request
-  body will be echoed in the response.
+  for the device.
 
-/api/board/{id}/config/
-* GET returns a JSON response body whose "config" key contains
-  an object describing configuration parameters for the current
-  boot of the board. The configuration parameters are specific
-  to each individual boot image and are simply implemented as a way
-  to provide extra data to the image on boot. The image is intended
-  to GET this during the boot process.
+/api/device/{id}/request/
+* POST requests the given device. {id} may be "any" to let MozPool choose an
+  unassigned device. The body must be a JSON object with the key "requester"
+  that takes an email address, for human users, or a hostname, for machine
+  users. If successful, returns 200 OK with a JSON object with keys "device"
+  and "request". The value of "request" should be used in request calls, as
+  detailed below. If the requested device is already assigned, or if no device
+  could be found if "any" was requested, returns 409 Conflict.
 
-/api/board/{id}/reboot/
-* POST to power-cycle this board via the relay controller.
-  204 No Content is returned as the response status.
+== Requests ==
 
-/api/board/{id}/boot/{image}/
-* POST to indicate that this board should be booted with this image.
-  Optional request body should be JSON that is stored as the configuration
-  parameters for the boot.
-  204 No Content is returned as the response status.
+/api/request/list/
+* GET returns a JSON response body whose "requests" key contains an array of
+  objects representing all current requests. The objects have the keys id,
+  device_id, assignee, and status.
 
-/api/board/{id}/bootcomplete/
-* POST to indicate that the boot of this board has completed and
-  the PXE boot data can be removed. No request body is required.
+/api/request/{id}/status/
+* GET returns a JSON response body whose "request" key contains an object
+  representing the given request with the keys id, device_id, assignee, and
+  status.
 
-= Boot images =
+The following are operation requests for the device. They will fail with
+409 Conflict if the device is in any state other than "ready". Most have
+analagous private calls in the LifeGuard section below.
+
+/api/request/{id}/reboot/
+* POST requests a reboot of the given device.
+
+/api/request/{id}/boot/{image}/
+* POST requests that the device should be booted with the given image.
+
+/api/request/{id}/return/
+* POST returns the device to the pool and deletes the request.
+
+== Boot images ==
 
 /api/bootimage/list/
 * GET returns a JSON response body whose "bootimages" key
@@ -58,3 +72,32 @@ All APIs are accessed under paths starting with /api/.
   an object that provides information about this boot image.
   The keys of this object are: "name", "version", "description" and
   "pxe_config_filename".
+
+
+= LifeGuard =
+
+These are requests to a particular LifeGuard server to start low-level BMM
+operations. These should *not* be called directly by anything other than
+a MozPool server or the device itself.
+
+/api/device/{id}/config/
+* GET returns a JSON response body whose "config" key contains
+  an object describing configuration parameters for the current
+  boot of the device. The configuration parameters are specific
+  to each individual boot image and are simply implemented as a way
+  to provide extra data to the image on boot. The image is intended
+  to GET this during the boot process.
+
+/api/device/{id}/reboot/
+* POST to power-cycle this device via the relay controller.
+  204 No Content is returned as the response status.
+
+/api/device/{id}/boot/{image}/
+* POST to indicate that this device should be booted with this image.
+  Optional request body should be JSON that is stored as the configuration
+  parameters for the boot.
+  204 No Content is returned as the response status.
+
+/api/device/{id}/bootcomplete/
+* POST to indicate that the boot of this device has completed and
+  the PXE boot data can be removed. No request body is required.
