@@ -154,9 +154,9 @@ Usage
 Configuration
 -------------
 
-Configuration should be based on the bmm/config.ini.dist template.  The config
-can either be put in the `bmm/config.ini`, or anywhere else with `$BMM_CONFIG`
-giving the full path.
+Configuration should be based on the mozpool/config.ini.dist template.  The
+config can either be put in the `mozpool/config.ini`, or anywhere else with
+`$BMM_CONFIG` giving the full path.
 
 Server
 ------
