@@ -511,15 +511,15 @@ class StateMachineSubclass(statemachine.StateMachine):
         self._counters = counters.copy()
 
 
-@StateMachineSubclass.state_class('state1')
-class State1(statemachine.State):
+@StateMachineSubclass.state_class
+class state1(statemachine.State):
 
     on_poke_called = False
     on_timeout_called = False
 
     @statemachine.event_method('poke')
     def on_poke(self):
-        State1.on_poke_called = True
+        state1.on_poke_called = True
 
     @statemachine.event_method('goto2')
     def on_goto2(self):
@@ -527,7 +527,7 @@ class State1(statemachine.State):
 
     @statemachine.event_method('goto2_class')
     def on_goto2_class(self):
-        self.machine.goto_state(State2)
+        self.machine.goto_state(state2)
 
     @statemachine.event_method('inc')
     def on_inc(self):
@@ -543,11 +543,11 @@ class State1(statemachine.State):
 
     @statemachine.timeout_method(10)
     def on_timeout(self):
-        State1.on_timeout_called = True
+        state1.on_timeout_called = True
 
 
-@StateMachineSubclass.state_class('state2')
-class State2(statemachine.State):
+@StateMachineSubclass.state_class
+class state2(statemachine.State):
 
     @statemachine.timeout_method(20)
     def on_timeout(self):
@@ -560,19 +560,23 @@ class TestStateSubclasses(unittest.TestCase):
         self.machine = StateMachineSubclass('machine')
 
     def test_event(self):
-        State1.on_poke_called = False
+        state1.on_poke_called = False
         self.machine.handle_event('poke')
-        self.assertTrue(State1.on_poke_called)
+        self.assertTrue(state1.on_poke_called)
+
+    def test_unknown_event(self):
+        self.machine.handle_event('never-heard-of-it')
+        # TODO: assert logged
 
     def test_timeout(self):
-        State1.on_timeout_called = False
+        state1.on_timeout_called = False
         self.machine.handle_timeout()
-        self.assertTrue(State1.on_timeout_called)
+        self.assertTrue(state1.on_timeout_called)
 
     def test_state_transition(self):
         # also tests on_exit and on_entry
-        with mock.patch.object(State1, 'on_exit') as on_exit:
-            with mock.patch.object(State2, 'on_entry') as on_entry:
+        with mock.patch.object(state1, 'on_exit') as on_exit:
+            with mock.patch.object(state2, 'on_entry') as on_entry:
                 self.machine.handle_event('goto2')
                 on_exit.assert_called()
                 on_entry.assert_called()

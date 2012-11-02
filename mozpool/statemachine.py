@@ -81,7 +81,7 @@ class StateMachine(object):
         """Transition the machine to a new state.  The caller should return
         immediately after calling this method."""
         if isinstance(new_state_name_or_class, type) and issubclass(new_state_name_or_class, State):
-            new_state_name_or_class = new_state_name_or_class.state_name
+            new_state_name_or_class = new_state_name_or_class.__name__
 
         self.state.on_exit()
 
@@ -113,13 +113,10 @@ class StateMachine(object):
     # decorator
 
     @classmethod
-    def state_class(machine_class, state_name):
+    def state_class(machine_class, state_class):
         """Decorator -- decorates a class as a state for a particular machine."""
-        def wrap(state_class):
-            state_class.state_name = state_name
-            machine_class.statesByName[state_name] = state_class
-            return state_class
-        return wrap
+        machine_class.statesByName[state_class.__name__] = state_class
+        return state_class
 
     # utilities
 
@@ -150,7 +147,12 @@ class State(object):
         self.machine = machine
 
     def handle_event(self, event):
-        self._event_methods[event](self)
+        handler = self._event_methods.get(event)
+        if handler:
+            handler(self)
+        else:
+            print "%s ignored event %s in state %s" % \
+                (self.machine.machine_name, event, self.__class__.__name__)
 
     def handle_timeout(self):
         self._timeout_method()
