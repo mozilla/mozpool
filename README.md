@@ -8,8 +8,7 @@ design simplicity.
 Component Design
 ----------------
 
-MozPool
-.......
+## MozPool ##
 
 It shouldn't cause too much confusion that the top-level component is also
 known as MozPool.  It's just such a great name.
@@ -45,8 +44,7 @@ In the initial design, MozPool is entirely reactive, but the design does not
 preclude predictive or proactive operations, e.g., balancing the distribution
 of images on spare devices, predictively installing B2G images, etc.
 
-LifeGuard
-.........
+## LifeGuard ##
 
 LifeGuard deals only with devices.  It actively tracks the state of every device,
 and handles requests from MozPool to change the state of a device.  These
@@ -56,8 +54,7 @@ in state X"; the state-change request fails if the condition is not met.
 Most states for a device involve periodic checks from LifeGuard.
 Idle devices are checked periodically, and failure conditions rectified.
 
-BMM
-...
+## BMM ##
 
 BMM, short for Black Mobile Magic, is the lowest-level component, and handles
 technical operations on devices as requested from LifeGuard.  The available
@@ -76,16 +73,14 @@ well as the particulars of boot images for specific hardware.
 Other Features
 --------------
 
-Logging
-.......
+## Logging ##
 
 As much logging as possible is funneled through syslog and into the mysql
 database, to help with debugging.
 
 Logs are expired after some time by the database itself (see `sql/schema.sql`).
 
-Inventory Sync
-..............
+## Inventory Sync ##
 
 The Mozilla inventory (https://inventory.mozilla.org) is the source of truth
 from which the list of devices is derived.  The database is automatically
@@ -94,8 +89,7 @@ synchronized with inventory periodically.
 Implementation
 --------------
 
-Hosting
-.......
+## Hosting ##
 
 Each device is assigned, in inventory, to a specific mobile-imaging server.  In
 general, that server is "close" to the device, physically or virtually.
@@ -111,16 +105,14 @@ There is no front-end load balancer.  If an imaging server is down or
 unavailable, the devices assigned to it are also unavailable, but other devices
 continue to be accessible.
 
-API Client
-..........
+## API Client ##
 
 Clients access MozPool using an HTTP API.  The endpoint for that API is any
 mobile-imaging server, since all are configured identically.  Clients should be
 pre-configured with a list of servers, and retry servers in random order until
 successful.
 
-Requests
-........
+## Requests ##
 
 The entire lifetime of each request is handled by MozPool as a formal state
 machine.  The state is stored in the database. 
@@ -135,8 +127,7 @@ refresh interval expires.
 Boards are claimed by inserting into a correspondance table in the database,
 with constraints such that only one request can claim a device.
 
-Boards
-......
+## Boards ##
 
 Like requests, devices are managed by LifeGuard as a formal state machine.
 MozPool has read-only visibility to device states for purposes of selecting
@@ -149,8 +140,7 @@ so).
 All state transitions and actions are handled on the server to which the device
 is assigned.
 
-Inter-Component Communication
-.............................
+## Inter-Component Communication ##
 
 MozPool communicates with LifeGuard using an HTTP API, selecting the endpoint
 based on the assigned imaging server in the database. This may result in a
