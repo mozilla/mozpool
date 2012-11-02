@@ -44,7 +44,7 @@ devices.
 /api/request/list/
 * GET returns a JSON response body whose "requests" key contains an array of
   objects representing all current requests. The objects have the keys id,
-  device_id, assignee, and status.
+  device_id, assignee, expires, and status.
 
 Once a request is fulfilled using the "request" API above, all further
 actions related to the requested device should be done using that URL, which
@@ -57,10 +57,10 @@ The full paths of request APIs are presented below for clarity.
 Note that a request will be automatically terminated once it expires. The
 "renew" call should be used to extend the request lifetime.
 
-/api/request/{id}/status/
+/api/request/{id}/details/
 * GET returns a JSON response body whose "request" key contains an object
   representing the given request with the keys id, device_id, assignee, 
-  duration, and status.
+  expires, and status.
 
 /api/request/{id}/renew/
 * POST requests that the request's lifetime be updated. The request body

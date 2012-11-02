@@ -15,7 +15,7 @@ setup(name='mozpool',
       install_requires=[
           'sqlalchemy',
           'requests',
-          'templeton'
+          'templeton >= 0.6.2'
       ],
       entry_points={
           'console_scripts': [
