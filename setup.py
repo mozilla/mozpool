@@ -2,14 +2,14 @@
 
 from setuptools import setup
 
-setup(name='blackmobilemagic',
-      version='0.2.1',
-      description='Frontend for the BMM Boot and Imaging Service',
-      author='Ted Mielczarek',
+setup(name='mozpool',
+      version='0.3.0',
+      description='System to manage a pool of cranky mobile devices',
+      author=u'Ted Mielczarek, Mark Côté, Dustin Mitchell',
       author_email='ted@mielczarek.org',
-      packages=[ 'bmm' ],
+      packages=[ 'mozpool' ],
       package_data={
-          'bmm': [ 'html/*.html', 'html/css/*.css', 'html/js/*.js', 'html/js/deps/*.js' ],
+          'mozpool': [ 'html/*.html', 'html/css/*.css', 'html/js/*.js', 'html/js/deps/*.js' ],
       },
       install_requires=[
           'sqlalchemy',
@@ -18,10 +18,10 @@ setup(name='blackmobilemagic',
       ],
       entry_points={
           'console_scripts': [
-              'bmm-relay = bmm.relay:main',
-              'bmm-server = bmm.server:main',
-              'bmm-inventorysync = bmm.inventorysync:main',
-              'bmm-model = bmm.data:bmm_model',
+              'board-powercycle = mozpool.bmm.scripts:board_power',
+              'mozpool-server = mozpool.web.server:main',
+              'mozpool-inventorysync = mozpool.lifeguard.inventorysync:main',
+              'mozpool-model = mozpool.db.scripts:mozpool_model',
           ]
       }
 )
