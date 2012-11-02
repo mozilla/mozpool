@@ -490,60 +490,90 @@ class TestInvSyncSync(unittest.TestCase):
         delete_board.assert_called_with(10)
         update_board.assert_called_with(11, dict(update=3))
 
-class StateSubclass(statemachine.State):
 
-    api_event_called = False
-    @statemachine.State.api_event_method('apievent')
-    def on_api_event(self):
-        self.api_event_called = True
+class StateMachineSubclass(statemachine.StateMachine):
 
-    timeout_called = False
-    @statemachine.State.timeout_method('apievent')
+    _counters = {}
+
+    def set_state(self, new_state, new_timeout_duration):
+        self.got_new_state = new_state
+        self.got_new_timeout_duration = new_timeout_duration
+
+    def get_counters(self):
+        return self._counters.copy()
+
+    def set_counters(self, counters):
+        self._counters = counters.copy()
+
+
+@StateMachineSubclass.state('state1')
+class State1(statemachine.State):
+
+    on_poke_called = False
+    on_timeout_called = False
+
+    @statemachine.event_method('poke')
+    def on_poke(self):
+        State1.on_poke_called = True
+
+    @statemachine.timeout_method(10)
     def on_timeout(self):
-        self.timeout_called = True
-
-    on_exit_called = False
-    def on_exit(self):
-        self.on_exit_called = True
-
-    on_entry_called = False
-    def on_entry(self):
-        self.on_entry_called = True
+        State1.on_timeout_called = True
 
 
-class SecondStateSubclass(statemachine.State):
+@StateMachineSubclass.state('state2')
+class State2(statemachine.State):
 
-    pass
+    @statemachine.timeout_method(20)
+    def on_timeout(self):
+        State1.on_poke_called = True
+
 
 
 class TestStateSubclasses(unittest.TestCase):
 
     def setUp(self):
-        self.board = dict(id=92, state='StateSubclass', counters={})
+        self.machine = StateMachineSubclass('machine', 'state1')
 
-    def patch_external_methods(self):
-        pass
-
-    def test_api_event(self):
-        st = statemachine.State.create(self.board)
-        st.handle_api_event('apievent')
-        self.assertTrue(st.api_event_called)
+    def test_event(self):
+        State1.on_poke_called = False
+        self.machine.handle_event('poke')
+        self.assertTrue(State1.on_poke_called)
 
     def test_timeout(self):
-        st = statemachine.State.create(self.board)
-        st.handle_timeout()
-        self.assertTrue(st.timeout_called)
+        State1.on_timeout_called = False
+        self.machine.handle_timeout()
+        self.assertTrue(State1.on_timeout_called)
 
-    def test_on_exit(self):
-        st = statemachine.State.create(self.board)
-        st.goto_state(SecondStateSubclass)
-        self.assertTrue(st.on_exit_called)
+    def test_state_transition(self):
+        with mock.patch.object(State1, 'on_exit') as on_exit:
+            with mock.patch.object(State2, 'on_entry') as on_entry:
+                self.machine.goto_state('state2')
+                on_exit.assert_called()
+                on_entry.assert_called()
+        self.assertEqual(self.machine.state.name, 'state2')
+        self.assertEqual(self.machine.got_new_state, 'state2')
+        self.assertEqual(self.machine.got_new_timeout_duration, 20)
 
-    def test_on_entry(self):
-        self.board['state'] = 'SecondStateSubclass'
-        st = statemachine.State.create(self.board)
-        new_st = st.goto_state(StateSubclass)
-        self.assertTrue(new_st.on_entry_called)
+    def test_increment_counter(self):
+        self.machine.increment_counter('x')
+        self.machine.increment_counter('x')
+        self.assertEqual(self.machine._counters['x'], 2)
+
+    def test_clear_counter_not_set(self):
+        self.machine.clear_counter('x')
+        self.assertFalse('x' in self.machine._counters)
+
+    def test_clear_counter_set(self):
+        self.machine._counters = dict(x=10)
+        self.machine.clear_counter('x')
+        self.assertFalse('x' in self.machine._counters)
+
+    def test_clear_counter_all(self):
+        self.machine._counters = dict(x=10, y=20)
+        self.machine.clear_counter()
+        self.assertEqual(self.machine._counters, {})
+
 
 
 if __name__ == "__main__":
