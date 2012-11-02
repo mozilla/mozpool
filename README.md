@@ -163,32 +163,32 @@ Server
 
 To run the server daemon:
 
-  mozpool-server
+    mozpool-server
 
 optionally, add a port on the command line for the HTTP server:
 
-  mozpool-server 8010
+    mozpool-server 8010
 
 Database
 --------
 
 To install the DB schema (using the configured database):
 
-  mozpool-db create-schema
+    mozpool-db create-schema
 
 And to install test adta
 
-  mozpool-db run testdata.py
+    mozpool-db run testdata.py
 
 Relays
 ------
 
 To control relays:
 
-  relay powercycle <hostname> <bank> <relay>
-  relay status <hostname> <bank> <relay>
-  relay turnon <hostname> <bank> <relay>
-  relay turnoff <hostname> <bank> <relay>
+    relay powercycle <hostname> <bank> <relay>
+    relay status <hostname> <bank> <relay>
+    relay turnon <hostname> <bank> <relay>
+    relay turnoff <hostname> <bank> <relay>
 
 Note: do not manually adjust relays that are also under MozPool's active control!
 
@@ -197,7 +197,7 @@ Inventory Sync
 
 To synchronize the internal DB with inventory:
 
-  bmm-inventorysync
+    bmm-inventorysync
 
 (use `--verbose` to see what it's up to - note that it's not too fast!)
 
