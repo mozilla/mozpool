@@ -28,12 +28,16 @@ devices.
 
 /api/device/{id}/request/
 * POST requests the given device. {id} may be "any" to let MozPool choose an
-  unassigned device. The body must be a JSON object with the key "requester"
-  that takes an email address, for human users, or a hostname, for machine
-  users. If successful, returns 200 OK with a JSON object with keys "device"
-  and "request". The value of "request" should be used in request calls, as
-  detailed below. If the requested device is already assigned, or if no device
-  could be found if "any" was requested, returns 409 Conflict.
+  unassigned device. The body must be a JSON object with the keys "requester",
+  "image", and "duration". The value for "requester" takes an email address,
+  for human users, or a hostname, for machine users. "image" must be the
+  name of an image (see bootimage API below). "duration" must be a value, in
+  seconds, of the duration of the request (which can be renewed; see below).
+  If successful, returns 200 OK with a JSON object with keys "device"
+  and "request". The value of "request" is a partial URL for the request
+  object and should be used in request calls, as detailed below. If the
+  requested device is already assigned, or if no device could be found if
+  "any" was requested, returns 409 Conflict.
 
 == Requests ==
 
@@ -42,23 +46,30 @@ devices.
   objects representing all current requests. The objects have the keys id,
   device_id, assignee, and status.
 
+Once a request is fulfilled using the "request" API above, all further
+actions related to the requested device should be done using that URL, which
+includes up to "/api/request/{id}/". This ensures that only one server
+handles any given request. Attempts to access that request ID on a different
+server will result in a 302 Found redirection to the correct server.
+
+The full paths of request APIs are presented below for clarity.
+
+Note that a request will be automatically terminated once it expires. The
+"renew" call should be used to extend the request lifetime.
+
 /api/request/{id}/status/
 * GET returns a JSON response body whose "request" key contains an object
-  representing the given request with the keys id, device_id, assignee, and
-  status.
+  representing the given request with the keys id, device_id, assignee, 
+  duration, and status.
 
-The following are operation requests for the device. They will fail with
-409 Conflict if the device is in any state other than "ready". Most have
-analagous private calls in the LifeGuard section below.
-
-/api/request/{id}/reboot/
-* POST requests a reboot of the given device.
-
-/api/request/{id}/boot/{image}/
-* POST requests that the device should be booted with the given image.
+/api/request/{id}/renew/
+* POST requests that the request's lifetime be updated. The request body
+  should be a JSON object with the key "duration", the value of which is the
+  *new* remaining time, in seconds, of the request. Returns 204 No Content.
 
 /api/request/{id}/return/
-* POST returns the device to the pool and deletes the request.
+* POST returns the device to the pool and deletes the request. Returns
+  204 No Content.
 
 == Boot images ==
 
