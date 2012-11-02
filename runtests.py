@@ -21,6 +21,7 @@ from bmm import model
 from bmm import relay
 from bmm import testing
 from bmm import inventorysync
+from bmm import statemachine
 from bmm.testing import add_server, add_board, add_bootimage
 
 class ConfigMixin(object):
@@ -489,6 +490,62 @@ class TestInvSyncSync(unittest.TestCase):
         insert_board.assert_called_with(dict(insert=1))
         delete_board.assert_called_with(10)
         update_board.assert_called_with(11, dict(update=3))
+
+class StateSubclass(statemachine.State):
+
+    api_event_called = False
+    @statemachine.State.api_event_method('apievent')
+    def on_api_event(self):
+        self.api_event_called = True
+
+    timeout_called = False
+    @statemachine.State.timeout_method('apievent')
+    def on_timeout(self):
+        self.timeout_called = True
+
+    on_exit_called = False
+    def on_exit(self):
+        self.on_exit_called = True
+
+    on_entry_called = False
+    def on_entry(self):
+        self.on_entry_called = True
+
+
+class SecondStateSubclass(statemachine.State):
+
+    pass
+
+
+class TestStateSubclasses(unittest.TestCase):
+
+    def setUp(self):
+        self.board = dict(id=92, state='StateSubclass', counters={})
+
+    def patch_external_methods(self):
+        pass
+
+    def test_api_event(self):
+        st = statemachine.State.create(self.board)
+        st.handle_api_event('apievent')
+        self.assertTrue(st.api_event_called)
+
+    def test_timeout(self):
+        st = statemachine.State.create(self.board)
+        st.handle_timeout()
+        self.assertTrue(st.timeout_called)
+
+    def test_on_exit(self):
+        st = statemachine.State.create(self.board)
+        st.goto_state(SecondStateSubclass)
+        self.assertTrue(st.on_exit_called)
+
+    def test_on_entry(self):
+        self.board['state'] = 'SecondStateSubclass'
+        st = statemachine.State.create(self.board)
+        new_st = st.goto_state(StateSubclass)
+        self.assertTrue(new_st.on_entry_called)
+
 
 if __name__ == "__main__":
     unittest.main()
