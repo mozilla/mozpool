@@ -20,6 +20,16 @@ boards = sa.Table('boards', metadata,
     sa.Column('boot_config', sa.Text),
 )
 
+requests = sa.Table('requests', metadata,
+    sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
+    sa.Column('device_id', sa.Integer(unsigned=True),
+        sa.ForeignKey('boards.id', ondelete='RESTRICT'),
+        nullable=False),
+    sa.Column('assignee', sa.String(256), nullable=False),
+    sa.Column('status', sa.String(32), nullable=False),
+    sa.Column('expires', sa.DateTime, nullable=False),
+)                   
+
 imaging_servers = sa.Table('imaging_servers', metadata,
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
     sa.Column('fqdn', sa.String(256), nullable=False),
