@@ -9,8 +9,8 @@ manual testing.
 import os
 import json
 from sqlalchemy.sql import select
-from bmm import model
-from bmm import data
+from mozpool.db import model
+from mozpool.db import data
 
 inventory_id = 1
 
