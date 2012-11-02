@@ -18,10 +18,10 @@ setup(name='mozpool',
       ],
       entry_points={
           'console_scripts': [
-              'board-powercycle = mozpool.bmm.scripts:board_power',
+              'relay = mozpool.bmm.scripts:relay_script',
               'mozpool-server = mozpool.web.server:main',
               'mozpool-inventorysync = mozpool.lifeguard.inventorysync:main',
-              'mozpool-model = mozpool.db.scripts:mozpool_model',
+              'mozpool-db = mozpool.db.scripts:db_script',
           ]
       }
 )
