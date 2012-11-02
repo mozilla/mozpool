@@ -77,15 +77,18 @@ class StateMachine(object):
 
     # state mechanics
 
-    def goto_state(self, new_state_name):
+    def goto_state(self, new_state_name_or_class):
         """Transition the machine to a new state.  The caller should return
         immediately after calling this method."""
+        if isinstance(new_state_name_or_class, type) and issubclass(new_state_name_or_class, State):
+            new_state_name_or_class = new_state_name_or_class.state_name
+
         self.state.on_exit()
 
-        print "%s entering state %s" % (self.machine_name, new_state_name) # TODO: mozlog
+        print "%s entering state %s" % (self.machine_name, new_state_name_or_class) # TODO: mozlog
 
-        self.state = self._make_state_instance(new_state_name)
-        self.write_state(new_state_name, self.state._timeout_duration)
+        self.state = self._make_state_instance(new_state_name_or_class)
+        self.write_state(new_state_name_or_class, self.state._timeout_duration)
 
         self.state.on_entry()
 
@@ -107,7 +110,7 @@ class StateMachine(object):
         counters[counter_name] = counters.get(counter_name, 0) + 1
         self.write_counters(counters)
 
-    # decorators
+    # decorator
 
     @classmethod
     def state_class(machine_class, state_name):

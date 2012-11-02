@@ -525,6 +525,10 @@ class State1(statemachine.State):
     def on_goto2(self):
         self.machine.goto_state('state2')
 
+    @statemachine.event_method('goto2_class')
+    def on_goto2_class(self):
+        self.machine.goto_state(State2)
+
     @statemachine.event_method('inc')
     def on_inc(self):
         self.machine.increment_counter('x')
@@ -566,11 +570,17 @@ class TestStateSubclasses(unittest.TestCase):
         self.assertTrue(State1.on_timeout_called)
 
     def test_state_transition(self):
+        # also tests on_exit and on_entry
         with mock.patch.object(State1, 'on_exit') as on_exit:
             with mock.patch.object(State2, 'on_entry') as on_entry:
                 self.machine.handle_event('goto2')
                 on_exit.assert_called()
                 on_entry.assert_called()
+        self.assertEqual(self.machine._state_name, 'state2')
+        self.assertEqual(self.machine._state_timeout_dur, 20)
+
+    def test_state_transition_class_name(self):
+        self.machine.handle_event('goto2_class')
         self.assertEqual(self.machine._state_name, 'state2')
         self.assertEqual(self.machine._state_timeout_dur, 20)
 
