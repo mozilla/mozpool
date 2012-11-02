@@ -11,6 +11,7 @@ import requests
 import tempfile
 import mock
 import datetime
+import threading
 from mock import patch
 from paste.fixture import TestApp
 
@@ -494,19 +495,23 @@ class TestInvSyncSync(unittest.TestCase):
 class StateMachineSubclass(statemachine.StateMachine):
 
     _counters = {}
+    _state_name = 'state1'
 
-    def set_state(self, new_state, new_timeout_duration):
-        self.got_new_state = new_state
-        self.got_new_timeout_duration = new_timeout_duration
+    def read_state(self):
+        return self._state_name
 
-    def get_counters(self):
+    def write_state(self, new_state, new_timeout_duration):
+        self._state_name = new_state
+        self._state_timeout_dur = new_timeout_duration
+
+    def read_counters(self):
         return self._counters.copy()
 
-    def set_counters(self, counters):
+    def write_counters(self, counters):
         self._counters = counters.copy()
 
 
-@StateMachineSubclass.state('state1')
+@StateMachineSubclass.state_class('state1')
 class State1(statemachine.State):
 
     on_poke_called = False
@@ -516,24 +521,39 @@ class State1(statemachine.State):
     def on_poke(self):
         State1.on_poke_called = True
 
+    @statemachine.event_method('goto2')
+    def on_goto2(self):
+        self.machine.goto_state('state2')
+
+    @statemachine.event_method('inc')
+    def on_inc(self):
+        self.machine.increment_counter('x')
+
+    @statemachine.event_method('clear')
+    def on_clear(self):
+        self.machine.clear_counter('x')
+
+    @statemachine.event_method('clear_all')
+    def on_clear_all(self):
+        self.machine.clear_counter()
+
     @statemachine.timeout_method(10)
     def on_timeout(self):
         State1.on_timeout_called = True
 
 
-@StateMachineSubclass.state('state2')
+@StateMachineSubclass.state_class('state2')
 class State2(statemachine.State):
 
     @statemachine.timeout_method(20)
     def on_timeout(self):
-        State1.on_poke_called = True
-
+        pass
 
 
 class TestStateSubclasses(unittest.TestCase):
 
     def setUp(self):
-        self.machine = StateMachineSubclass('machine', 'state1')
+        self.machine = StateMachineSubclass('machine')
 
     def test_event(self):
         State1.on_poke_called = False
@@ -548,33 +568,66 @@ class TestStateSubclasses(unittest.TestCase):
     def test_state_transition(self):
         with mock.patch.object(State1, 'on_exit') as on_exit:
             with mock.patch.object(State2, 'on_entry') as on_entry:
-                self.machine.goto_state('state2')
+                self.machine.handle_event('goto2')
                 on_exit.assert_called()
                 on_entry.assert_called()
-        self.assertEqual(self.machine.state.name, 'state2')
-        self.assertEqual(self.machine.got_new_state, 'state2')
-        self.assertEqual(self.machine.got_new_timeout_duration, 20)
+        self.assertEqual(self.machine._state_name, 'state2')
+        self.assertEqual(self.machine._state_timeout_dur, 20)
 
     def test_increment_counter(self):
-        self.machine.increment_counter('x')
-        self.machine.increment_counter('x')
+        self.machine.handle_event('inc')
+        self.machine.handle_event('inc')
         self.assertEqual(self.machine._counters['x'], 2)
 
     def test_clear_counter_not_set(self):
-        self.machine.clear_counter('x')
+        self.machine.handle_event('clear')
         self.assertFalse('x' in self.machine._counters)
 
     def test_clear_counter_set(self):
         self.machine._counters = dict(x=10)
-        self.machine.clear_counter('x')
+        self.machine.handle_event('clear')
         self.assertFalse('x' in self.machine._counters)
 
     def test_clear_counter_all(self):
         self.machine._counters = dict(x=10, y=20)
-        self.machine.clear_counter()
+        self.machine.handle_event('clear_all')
         self.assertEqual(self.machine._counters, {})
 
+class TestStateMachineLocking(unittest.TestCase):
 
+    def setUp(self):
+        statemachine.StateMachine.locksByMachine = {}
+        self.m1 = statemachine.StateMachine('m1')
+        self.m2 = statemachine.StateMachine('m2')
+
+    def test_different_machines(self):
+        # this just needs to not deadlock..
+        self.m1._lock()
+        self.m2._lock()
+        self.m1._unlock()
+        self.m2._unlock()
+
+    def test_same_machine(self):
+        events = []
+        self.m1._lock()
+        events.append('this locked')
+        def other_thread():
+            events.append('other started')
+            self.m1._lock()
+            events.append('other locked')
+            self.m1._unlock()
+            events.append('other unlocked')
+        thd = threading.Thread(target=other_thread)
+        thd.start()
+        # busywait for the thread to start
+        while 'other started' not in events:
+            pass
+        events.append('unlocking this')
+        self.m1._unlock()
+        thd.join()
+
+        self.assertEqual(events,
+            [ 'this locked', 'other started', 'unlocking this', 'other locked', 'other unlocked' ])
 
 if __name__ == "__main__":
     unittest.main()

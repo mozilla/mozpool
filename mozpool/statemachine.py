@@ -16,10 +16,15 @@ Transitions are triggered by events: timeouts, API calls, or internal events.
 
 To use this module, subclass StateMachine and implement the virutal method,
 then instantiate a number of state classes, decorated with
-C{@YourStateMachine.state('statename')}.
+C{@YourStateMachine.state_class('statename')}.
+
+This class implements process-local locking to prevent overlapping state
+transitions.  Note that it is up to the caller to ensure that overlapping state
+transitions do not occur in other processes.
+
 """
 
-## in-memory locking
+import threading
 
 ####
 # Base and Mixins
@@ -27,30 +32,47 @@ C{@YourStateMachine.state('statename')}.
 class StateMachine(object):
 
     statesByName = {}
+    locksByMachine = {}
+    locksByMachine_lock = threading.Lock()
 
     # external interface
 
-    def __init__(self, name, state_name):
-        self.name = name
-        self.state = self._make_state_instance(state_name)
+    def __init__(self, machine_name):
+        self.machine_name = machine_name
+        self.state = None
 
     def handle_event(self, event):
         "Act on an event for this machine, specified by name"
-        self.state.handle_event(event)
+        self._lock()
+        self.state = self._make_state_instance()
+        try:
+            self.state.handle_event(event)
+        finally:
+            self.state = None
+            self._unlock()
 
     def handle_timeout(self):
         "The current state for this machine has timed out"
-        self.state.handle_timeout()
+        self._lock()
+        self.state = self._make_state_instance()
+        try:
+            self.state.handle_timeout()
+        finally:
+            self.state = None
+            self._unlock()
 
     # virtual methods
 
-    def set_state(self, new_state, new_timeout_duration):
+    def read_state(self):
         raise NotImplementedError
 
-    def get_counters(self):
+    def write_state(self, new_state, new_timeout_duration):
         raise NotImplementedError
 
-    def set_counters(self, counters):
+    def read_counters(self):
+        raise NotImplementedError
+
+    def write_counters(self, counters):
         raise NotImplementedError
 
     # state mechanics
@@ -59,46 +81,64 @@ class StateMachine(object):
         """Transition the machine to a new state.  The caller should return
         immediately after calling this method."""
         self.state.on_exit()
-        print "%s entering state %s" % (self.name, new_state_name) # TODO: mozlog
+
+        print "%s entering state %s" % (self.machine_name, new_state_name) # TODO: mozlog
+
         self.state = self._make_state_instance(new_state_name)
-        self.set_state(new_state_name, self.state._timeout_duration)
-        self.state = self.state
+        self.write_state(new_state_name, self.state._timeout_duration)
+
         self.state.on_entry()
 
     def clear_counter(self, counter_name=None):
         """Clear a single counter or, if no counter is specified, all counters"""
+        assert self.state is not None, "state is not loaded"
         if counter_name:
-            counters = self.get_counters()
+            counters = self.read_counters()
             if counter_name in counters:
                 del counters[counter_name]
-                self.set_counters(counters)
+                self.write_counters(counters)
         else:
-            self.set_counters({})
+            self.write_counters({})
 
     def increment_counter(self, counter_name):
         """Increment the value of the given counter, returning the new value."""
-        counters = self.get_counters()
+        assert self.state is not None, "state is not loaded"
+        counters = self.read_counters()
         counters[counter_name] = counters.get(counter_name, 0) + 1
-        self.set_counters(counters)
+        self.write_counters(counters)
 
     # decorators
 
     @classmethod
-    def state(machine_class, name):
+    def state_class(machine_class, state_name):
         """Decorator -- decorates a class as a state for a particular machine."""
         def wrap(state_class):
-            state_class.name = name
-            machine_class.statesByName[name] = state_class
+            state_class.state_name = state_name
+            machine_class.statesByName[state_name] = state_class
             return state_class
         return wrap
 
     # utilities
 
-    def _make_state_instance(self, state_name):
+    def _make_state_instance(self, state_name=None):
+        if not state_name:
+            state_name = self.read_state()
         state_cls = self.statesByName.get(state_name)
         if not state_cls:
             state_cls = self.statesByName['unknown']
         return state_cls(self)
+
+    def _lock(self):
+        # get a lock object
+        with self.locksByMachine_lock:
+            if self.machine_name not in self.locksByMachine:
+                self.locksByMachine[self.machine_name] = threading.Lock()
+            lock = self.locksByMachine[self.machine_name]
+        lock.acquire()
+
+    def _unlock(self):
+        lock = self.locksByMachine[self.machine_name]
+        lock.release()
 
 
 class State(object):
