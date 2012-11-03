@@ -19,7 +19,7 @@ def db_script():
         model.metadata.create_all(bind=engine)
     elif sys.argv[1] == 'run':
         conn = data.get_conn()
-        execfile(sys.argv[2], dict(conn=conn))
+        execfile(sys.argv[2], dict(conn=conn, args=sys.argv[3:]))
     else:
         usage()
     sys.exit(0)

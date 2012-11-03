@@ -5,7 +5,7 @@
 import datetime
 import json
 import sqlalchemy
-from sqlalchemy.sql import select
+from sqlalchemy.sql import exists, not_, select
 from itertools import izip_longest
 from mozpool.db import model
 from mozpool import config
@@ -230,3 +230,8 @@ def bootimage_details(image):
     if row is None:
         raise NotFound
     return {'details': row_to_dict(row, model.images, omit_cols=['id'])}
+
+def get_unassigned_boards():
+    conn = get_conn()
+    res = conn.execute(select([model.boards.c.name]).where(not_(exists(select([model.requests.c.id]).where(model.requests.c.id==model.boards.c.id)))))
+    return {'boards': [row[0].encode('utf-8') for row in res]}
