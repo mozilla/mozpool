@@ -24,7 +24,8 @@ transitions do not occur in other processes.
 
 """
 
-import threading
+from __future__ import absolute_import
+from mozpool import util
 
 ####
 # Base and Mixins
@@ -32,8 +33,7 @@ import threading
 class StateMachine(object):
 
     statesByName = {}
-    locksByMachine = {}
-    locksByMachine_lock = threading.Lock()
+    locksByMachine = util.LocksByName()
 
     # external interface
 
@@ -129,16 +129,10 @@ class StateMachine(object):
         return state_cls(self)
 
     def _lock(self):
-        # get a lock object
-        with self.locksByMachine_lock:
-            if self.machine_name not in self.locksByMachine:
-                self.locksByMachine[self.machine_name] = threading.Lock()
-            lock = self.locksByMachine[self.machine_name]
-        lock.acquire()
+        self.locksByMachine.acquire(self.machine_name)
 
     def _unlock(self):
-        lock = self.locksByMachine[self.machine_name]
-        lock.release()
+        self.locksByMachine.release(self.machine_name)
 
 
 class State(object):

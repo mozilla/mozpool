@@ -17,6 +17,7 @@ from paste.fixture import TestApp
 
 from mozpool import config
 from mozpool import statemachine
+from mozpool import util
 from mozpool.web import server
 from mozpool.db import data
 from mozpool.db import model
@@ -607,29 +608,27 @@ class TestStateSubclasses(unittest.TestCase):
         self.machine.handle_event('clear_all')
         self.assertEqual(self.machine._counters, {})
 
-class TestStateMachineLocking(unittest.TestCase):
+class TestLocksByName(unittest.TestCase):
 
     def setUp(self):
-        statemachine.StateMachine.locksByMachine = {}
-        self.m1 = statemachine.StateMachine('m1')
-        self.m2 = statemachine.StateMachine('m2')
+        self.lbn = util.LocksByName()
 
-    def test_different_machines(self):
+    def test_different_names(self):
         # this just needs to not deadlock..
-        self.m1._lock()
-        self.m2._lock()
-        self.m1._unlock()
-        self.m2._unlock()
+        self.lbn.acquire('one')
+        self.lbn.acquire('two')
+        self.lbn.release('one')
+        self.lbn.release('two')
 
-    def test_same_machine(self):
+    def test_same_name(self):
         events = []
-        self.m1._lock()
+        self.lbn.acquire('one')
         events.append('this locked')
         def other_thread():
             events.append('other started')
-            self.m1._lock()
+            self.lbn.acquire('one')
             events.append('other locked')
-            self.m1._unlock()
+            self.lbn.release('one')
             events.append('other unlocked')
         thd = threading.Thread(target=other_thread)
         thd.start()
@@ -637,7 +636,7 @@ class TestStateMachineLocking(unittest.TestCase):
         while 'other started' not in events:
             pass
         events.append('unlocking this')
-        self.m1._unlock()
+        self.lbn.release('one')
         thd.join()
 
         self.assertEqual(events,
