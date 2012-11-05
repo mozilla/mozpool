@@ -686,5 +686,15 @@ class TestBmmApi(unittest.TestCase):
         powercycle.side_effect = lambda *args : 11/0 # ZeroDivisionError
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=0.01), False)
 
+class TestBmmRelay(unittest.TestCase):
+
+    @patch('socket.socket')
+    def test_connected_socket(self, socket):
+        with relay.connected_socket('h', 444) as sock:
+            self.failUnless(sock is socket())
+            sock.connect.assert_called_with(('h', 444))
+
+    # remainder untested, left as-is
+
 if __name__ == "__main__":
     unittest.main()

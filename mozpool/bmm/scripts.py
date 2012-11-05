@@ -21,17 +21,14 @@ def relay_script():
         else:
             print "FAILED"
     elif cmd == 'status':
-        # TODO: this shouldn't require a socket
-        with relay.connected_socket(hostname, relay.PORT) as sock:
-            print "bank %d, relay %d status: %d" % (bnk, rly, relay.get_status(sock, bnk, rly))
+        print "bank %d, relay %d status: %d" % (bnk, rly,
+                relay.get_status(hostname, bnk, rly))
     elif cmd == 'turnon' or cmd == 'turnoff':
-        # TODO: this shouldn't require a socket
-        with relay.connected_socket(hostname, relay.PORT) as sock:
-            status = cmd == 'turnon'
-            if status == relay.set_status(sock, bnk, rly, status):
-                print "OK"
-            else:
-                print "FAILED"
+        status = (cmd == 'turnon')
+        if status == relay.set_status(hostname, bnk, rly, status):
+            print "OK"
+        else:
+            print "FAILED"
     else:
         usage()
     sys.exit(0)

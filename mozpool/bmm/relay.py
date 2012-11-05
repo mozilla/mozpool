@@ -19,6 +19,7 @@ and when a relay is ON the device is not receiving power.
 
 from __future__ import with_statement
 import socket
+from mozpool import util
 from contextlib import contextmanager
 
 __all__ = ['get_status',
@@ -28,22 +29,27 @@ __all__ = ['get_status',
 
 PORT = 2101
 
+locks = util.LocksByName()
+
 # Some magic numbers from the manual
 # Command completed successfully
 COMMAND_OK = chr(85)
 
 # Enter command mode.
 START_COMMAND = chr(254)
+
 def READ_RELAY_N_AT_BANK(N):
     """
     Return command code for reading status of relay N in a bank.
     """
     return chr(115 + N)
+
 def TURN_ON_RELAY_N_AT_BANK(N):
     """
     Return command code for turning on relay N in a bank.
     """
     return chr(107 + N)
+
 def TURN_OFF_RELAY_N_AT_BANK(N):
     """
     Return command code for turning off relay N in a bank.
@@ -53,21 +59,20 @@ def TURN_OFF_RELAY_N_AT_BANK(N):
 @contextmanager
 def connected_socket(hostname, port):
     """
-    Return a TCP socket connected to (hostname, port). The socket
-    will be closed when finished.
+    Return a TCP socket connected to (hostname, port). The socket will be
+    closed when finished.  This method ensures that, within this process, only
+    one connection to the relay is made at amy time.
     """
-    sock = socket.socket()
-    sock.connect((hostname, port))
-    yield sock
-    sock.close()
+    locks.acquire(hostname)
+    try:
+        sock = socket.socket()
+        sock.connect((hostname, port))
+        yield sock
+        sock.close()
+    finally:
+        locks.release(hostname)
 
-def get_status(sock, bank, relay):
-    """
-    Get the status of a relay on a specified bank from an already-connected
-    socket.
-
-    Return the current state of the relay: True if on, False if off.
-    """
+def _get_status(sock, bank, relay):
     assert(bank >= 1 and bank <= 4)
     assert(relay >= 1 and relay <= 8)
     sock.send(START_COMMAND)
@@ -76,16 +81,7 @@ def get_status(sock, bank, relay):
     # will return 0 or 1 indicating relay state
     return ord(sock.recv(256)) == 1
 
-def set_status(sock, bank, relay, status):
-    """
-    Set the status of a relay on a specified bank from an already-connected
-    socket.
-
-    If status is True, turn on the specified relay. If it is False,
-    turn off the specified relay.
-
-    Return the current state of the relay: True if on, False if off.
-    """
+def _set_status(sock, bank, relay, status):
     assert(bank >= 1 and bank <= 4)
     assert(relay >= 1 and relay <= 8)
 
@@ -99,7 +95,32 @@ def set_status(sock, bank, relay, status):
     res = sock.recv(256)
     if res != COMMAND_OK:
         raise Exception, "Command did not succeed, status: %d" % res
-    return get_status(sock, bank, relay)
+    return _get_status(sock, bank, relay)
+
+## external API (but internal to BMM)
+
+def get_status(hostname, bank, relay, port=PORT):
+    """
+    Get the status of a relay on a specified bank from an already-connected
+    socket.
+
+    Return the current state of the relay: True if on, False if off.
+    """
+    with connected_socket(hostname, port) as sock:
+        return _get_status(sock, bank, relay)
+
+def set_status(hostname, bank, relay, status, port=PORT):
+    """
+    Set the status of a relay on a specified bank from an already-connected
+    socket.
+
+    If status is True, turn on the specified relay. If it is False,
+    turn off the specified relay.
+
+    Return the current state of the relay: True if on, False if off.
+    """
+    with connected_socket(hostname, port) as sock:
+        return _set_status(sock, bank, relay, status)
 
 def powercycle(relay_hostname, bank, relay):
     """
@@ -115,9 +136,9 @@ def powercycle(relay_hostname, bank, relay):
     assert(relay >= 1 and relay <= 8)
     with connected_socket(relay_hostname, PORT) as sock:
         # Turn relay on to power off device
-        if not set_status(sock, bank, relay, True):
+        if not _set_status(sock, bank, relay, True):
             return False
         # Turn relay off to power on device
-        if set_status(sock, bank, relay, False):
+        if _set_status(sock, bank, relay, False):
             return False
     return True
