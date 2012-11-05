@@ -233,5 +233,19 @@ def bootimage_details(image):
 
 def get_unassigned_boards():
     conn = get_conn()
-    res = conn.execute(select([model.boards.c.name]).where(not_(exists(select([model.requests.c.id]).where(model.requests.c.id==model.boards.c.id)))))
+    res = conn.execute(select([model.boards.c.name]).where(not_(exists(select([model.requests.c.id]).where(model.requests.c.board_id==model.boards.c.id)))))
     return {'boards': [row[0].encode('utf-8') for row in res]}
+
+def reserve_board(board, assignee, duration):
+    conn = get_conn()
+    board_id = conn.execute(select([model.boards.c.id]).where(model.boards.c.name==board)).fetchall()[0][0]
+    reservation = {'board_id': board_id,
+                   'assignee': assignee,
+                   'status': 'pending',
+                   'expires': datetime.datetime.now() +
+                   datetime.timedelta(seconds=duration)}
+    try:
+        res = conn.execute(model.requests.insert(), reservation)
+    except sqlalchemy.exc.IntegrityError:
+        return False
+    return True
