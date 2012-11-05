@@ -261,3 +261,7 @@ def dump_requests():
     conn = get_conn()
     return [row_to_dict(x, model.requests) for x in
             conn.execute(select([model.requests]))]
+
+def update_request_duration(request_id, duration):
+    conn = get_conn()
+    conn.execute(model.requests.update(model.requests).values(expires=datetime.datetime.now() + datetime.timedelta(seconds=duration)).where(model.requests.c.id==request_id))
