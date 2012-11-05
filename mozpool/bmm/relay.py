@@ -18,7 +18,7 @@ and when a relay is ON the device is not receiving power.
 """
 
 from __future__ import with_statement
-import socket, sys
+import socket
 from contextlib import contextmanager
 
 __all__ = ['get_status',

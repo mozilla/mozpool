@@ -24,6 +24,7 @@ from mozpool.db import model
 from mozpool.bmm import relay
 from mozpool.lifeguard import inventorysync
 from mozpool.test.util import add_server, add_board, add_bootimage, setup_db
+import mozpool.bmm.api
 
 class ConfigMixin(object):
     def setUp(self):
@@ -641,6 +642,49 @@ class TestLocksByName(unittest.TestCase):
 
         self.assertEqual(events,
             [ 'this locked', 'other started', 'unlocking this', 'other locked', 'other unlocked' ])
+
+class TestBmmApi(unittest.TestCase):
+
+    def do_call_start_powercycle(self, device_name, max_time):
+        done_cond = threading.Condition()
+
+        cb_result = []
+        def cb(success):
+            cb_result.append(success)
+            done_cond.acquire()
+            done_cond.notify()
+            done_cond.release()
+
+        done_cond.acquire()
+        mozpool.bmm.api.start_powercycle(device_name, cb, max_time)
+        done_cond.wait()
+        done_cond.release()
+
+        return cb_result[0]
+
+    @patch('mozpool.bmm.relay.powercycle')
+    @patch('mozpool.db.data.board_relay_info')
+    def test_good(self, board_relay_info, powercycle):
+        board_relay_info.return_value = ('relay1', 1, 3)
+        powercycle.return_value = True
+        self.assertEqual(self.do_call_start_powercycle('dev1', max_time=30), True)
+        board_relay_info.assert_called_with('dev1')
+        powercycle.assert_called_with('relay1', 1, 3)
+
+    @patch('mozpool.bmm.relay.powercycle')
+    @patch('mozpool.db.data.board_relay_info')
+    def test_bad(self, board_relay_info, powercycle):
+        board_relay_info.return_value = ('relay1', 1, 3)
+        powercycle.return_value = False
+        self.assertEqual(self.do_call_start_powercycle('dev1', max_time=30), False)
+
+    @patch('mozpool.bmm.relay.powercycle')
+    @patch('mozpool.db.data.board_relay_info')
+    def test_exceptions(self, board_relay_info, powercycle):
+        board_relay_info.return_value = ('relay1', 1, 3)
+        powercycle.return_value = False
+        powercycle.side_effect = lambda *args : 11/0 # ZeroDivisionError
+        self.assertEqual(self.do_call_start_powercycle('dev1', max_time=0.01), False)
 
 if __name__ == "__main__":
     unittest.main()
