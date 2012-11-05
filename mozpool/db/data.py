@@ -238,7 +238,10 @@ def get_unassigned_boards():
 
 def reserve_board(board, assignee, duration):
     conn = get_conn()
-    board_id = conn.execute(select([model.boards.c.id]).where(model.boards.c.name==board)).fetchall()[0][0]
+    try:
+        board_id = conn.execute(select([model.boards.c.id]).where(model.boards.c.name==board)).fetchall()[0][0]
+    except IndexError:
+        raise NotFound
     reservation = {'board_id': board_id,
                    'assignee': assignee,
                    'status': 'pending',
@@ -247,5 +250,14 @@ def reserve_board(board, assignee, duration):
     try:
         res = conn.execute(model.requests.insert(), reservation)
     except sqlalchemy.exc.IntegrityError:
-        return False
-    return True
+        return None
+    return conn.execute(select([model.requests.c.id]).where(model.requests.c.board_id==board_id)).fetchall()[0][0]
+
+def end_request(request_id):
+    conn = get_conn()
+    conn.execute(model.requests.delete().where(model.requests.c.id==request_id))
+
+def dump_requests():
+    conn = get_conn()
+    return [row_to_dict(x, model.requests) for x in
+            conn.execute(select([model.requests]))]
