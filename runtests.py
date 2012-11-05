@@ -22,6 +22,7 @@ from mozpool.web import server
 from mozpool.db import data, sql
 from mozpool.db import model
 from mozpool.bmm import relay
+from mozpool.bmm import pxe
 from mozpool.lifeguard import inventorysync
 from mozpool.test.util import add_server, add_board, add_bootimage, setup_db
 from mozpool.test import fakerelay
@@ -213,15 +214,17 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         open(os.path.join(config.get('paths', 'image_store'), self.pxefile), "w").write("abc")
         add_bootimage("image1", pxe_config_filename=self.pxefile)
 
-    @patch("mozpool.bmm.board.boot")
-    def testBoardBoot(self, board_boot):
+    @patch("mozpool.bmm.api.powercycle")
+    @patch("mozpool.bmm.api.set_pxe")
+    def testBoardBoot(self, set_pxe, powercycle):
         config_data = {"foo":"bar"}
         r = self.app.post("/api/board/board1/boot/image1/",
                           headers={"Content-Type": "application/json"},
                           params=json.dumps(config_data))
         self.assertEqual(200, r.status)
         # Nothing in the response body currently
-        board_boot.assert_called_with('board1', 'image1', config_data)
+        set_pxe.assert_called_with('board1', 'image1', config_data)
+        powercycle.assert_called_with('board1')
 
 class TestBoardReboot(ConfigMixin, unittest.TestCase):
     def setUp(self):
@@ -230,12 +233,18 @@ class TestBoardReboot(ConfigMixin, unittest.TestCase):
         add_board("board1", server="server1", status="running",
                   relayinfo="relay-1:bank1:relay1")
 
-    @patch("mozpool.bmm.board.reboot")
-    def testBoardReboot(self, board_reboot):
+    @patch("mozpool.bmm.api.powercycle")
+    @patch("mozpool.bmm.api.clear_pxe")
+    def testBoardReboot(self, clear_pxe, powercycle):
         r = self.app.post("/api/board/board1/reboot/")
         self.assertEqual(200, r.status)
         # Nothing in the response body currently
-        board_reboot.assert_called_with('board1')
+        clear_pxe.assert_called_with('board1')
+        powercycle.assert_called_with('board1')
+
+    def testBoardRebootNotFound(self):
+        r = self.app.post("/api/board/board2/reboot/", expect_errors=True)
+        self.assertEqual(404, r.status)
 
 class TestBoardRedirects(ConfigMixin, unittest.TestCase):
     """
@@ -610,29 +619,49 @@ class TestBmmApi(unittest.TestCase):
 
         return cb_result[0]
 
+    @patch('mozpool.db.logs.Logs.add')
     @patch('mozpool.bmm.relay.powercycle')
     @patch('mozpool.db.data.board_relay_info')
-    def test_good(self, board_relay_info, powercycle):
+    def test_good(self, board_relay_info, powercycle, logs_add):
         board_relay_info.return_value = ('relay1', 1, 3)
         powercycle.return_value = True
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=30), True)
         board_relay_info.assert_called_with('dev1')
         powercycle.assert_called_with('relay1', 1, 3, 30)
+        logs_add.assert_called()
 
+    @patch('mozpool.db.logs.Logs.add')
     @patch('mozpool.bmm.relay.powercycle')
     @patch('mozpool.db.data.board_relay_info')
-    def test_bad(self, board_relay_info, powercycle):
+    def test_bad(self, board_relay_info, powercycle, logs_add):
         board_relay_info.return_value = ('relay1', 1, 3)
         powercycle.return_value = False
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=30), False)
+        logs_add.assert_called()
 
+    @patch('mozpool.db.logs.Logs.add')
     @patch('mozpool.bmm.relay.powercycle')
     @patch('mozpool.db.data.board_relay_info')
-    def test_exceptions(self, board_relay_info, powercycle):
+    def test_exceptions(self, board_relay_info, powercycle, logs_add):
         board_relay_info.return_value = ('relay1', 1, 3)
         powercycle.return_value = False
         powercycle.side_effect = lambda *args : 11/0 # ZeroDivisionError
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=0.01), False)
+        logs_add.assert_called()
+
+    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.bmm.pxe.set_pxe')
+    def test_set_pxe(self, pxe_set_pxe, logs_add):
+        mozpool.bmm.pxe.set_pxe('board1', 'img1', 'cfg')
+        pxe_set_pxe.assert_called_with('board1', 'img1', 'cfg')
+        logs_add.assert_called()
+
+    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.bmm.pxe.clear_pxe')
+    def test_clear_pxe(self, pxe_clear_pxe, logs_add):
+        mozpool.bmm.pxe.clear_pxe('board1')
+        pxe_clear_pxe.assert_called_with('board1')
+        logs_add.assert_called()
 
 class TestBmmRelay(unittest.TestCase):
 
@@ -675,6 +704,35 @@ class TestBmmRelay(unittest.TestCase):
         self.server.delay = 0.05
         self.assertEqual(relay.powercycle('127.0.0.1', 2, 2, 0.1), False)
 
+
+class TestBmmPxe(ConfigMixin, unittest.TestCase):
+
+    def setUp(self):
+        super(TestBmmPxe, self).setUp()
+        add_server("server1")
+        add_board("board1", server="server1", relayinfo="relay-1:bank1:relay1",
+                            mac_address='aabbccddeeff')
+        add_bootimage('img1', pxe_config_filename='/a/b/img1')
+        cfg_dir = os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg')
+        add_bootimage('img2', pxe_config_filename=os.path.join(cfg_dir, 'img2'))
+
+    def test_set_pxe(self):
+        pxe.set_pxe('board1', 'img1', 'config')
+        cfg_dir = os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg')
+        cfg_filename = os.path.join(cfg_dir, '01-aa-bb-cc-dd-ee-ff')
+        self.assertEqual(os.readlink(cfg_filename), '/a/b/img1')
+
+    def test_clear_pxe(self):
+        cfg_dir = os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg')
+        cfg_filename = os.path.join(cfg_dir, '01-aa-bb-cc-dd-ee-ff')
+        os.makedirs(cfg_dir)
+        open(cfg_filename, "w")
+        pxe.clear_pxe('board1')
+        self.assertFalse(os.path.exists(cfg_filename))
+
+    def test_clear_pxe_nonexistent(self):
+        # just has to not fail!
+        pxe.clear_pxe('board1')
 
 if __name__ == "__main__":
     unittest.main()

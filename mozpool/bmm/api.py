@@ -6,7 +6,9 @@ import time
 import threading
 import traceback
 from mozpool.db import data
+from mozpool.db import logs
 from mozpool.bmm import relay
+from mozpool.bmm import pxe
 
 def start_powercycle(device_name, callback, max_time=30):
     """
@@ -26,6 +28,7 @@ def start_powercycle(device_name, callback, max_time=30):
 
     # TODO: verify this device belongs to this imaging server
 
+    logs.board_logs.add(device_name, "initiating power cycle")
     def try_powercycle():
         res = False
         try:
@@ -37,3 +40,39 @@ def start_powercycle(device_name, callback, max_time=30):
         if time.time() < callback_before:
             callback(res)
     threading.Thread(target=try_powercycle).start()
+
+def powercycle(device_name, max_time=30):
+    """Like start_powercycle, but block until completion and return the success
+    status"""
+    result = []
+    cond = threading.Condition()
+
+    def callback(success):
+        result.append(success)
+        cond.acquire()
+        cond.notify()
+        cond.release()
+
+    cond.acquire()
+    start_powercycle(device_name, callback, max_time)
+    while not result:
+        cond.wait()
+    cond.release()
+
+    return result[0]
+
+def set_pxe(device_name, image_name, config):
+    """
+    Set the boot configuration for the given device to the start up with PXE
+    config from IMAGE_NAME and supply an additional JSON configuratoin CONFIG.
+    """
+    logs.board_logs.add(device_name, "setting PXE config to image %s" % (image_name,))
+    pxe.set_pxe(device_name, image_name, config)
+
+def clear_pxe(device_name):
+    """
+    Clear a device's boot configuration, allowing it to boot from its internal
+    storage.
+    """
+    logs.board_logs.add(device_name, "clearing PXE config")
+    pxe.clear_pxe(device_name)
