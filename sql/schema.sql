@@ -1,3 +1,104 @@
+--
+-- automated log partition handling
+--
+
+DELIMITER $$
+
+-- Procedure to initialize partitioning on the log tables
+DROP PROCEDURE IF EXISTS init_log_partitions $$
+CREATE PROCEDURE init_log_partitions(log_table_name TEXT, days_past INT, days_future INT)
+BEGIN
+    DECLARE newpart integer;
+    SELECT UNIX_TIMESTAMP(NOW()) INTO newpart;
+    SELECT newpart - (newpart % 86400) INTO newpart; -- round down to the previous whole day
+
+    -- add partitions, with a single partition for the beginning of the current day, then
+    -- let update_log_partitions take it from there
+    -- SELECT CONCAT('initial partition ', CAST(newpart as char(16)), ' for table ', log_table_name);
+    SET @sql := CONCAT('ALTER TABLE ', log_table_name, ' PARTITION BY RANGE (UNIX_TIMESTAMP(ts)) ('
+                        , 'PARTITION p'
+                        , CAST(newpart as char(16))
+                        , ' VALUES LESS THAN ('
+                        , CAST(newpart as char(16))
+                        , '));');
+    PREPARE stmt FROM @sql;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+
+    -- do an initial update to get things synchronized
+    call update_log_partitions(log_table_name, days_past, days_future);
+END $$
+
+-- Procedure to delete old partitions and create new ones around the current date
+DROP PROCEDURE IF EXISTS update_log_partitions $$
+CREATE PROCEDURE update_log_partitions(log_table_name TEXT, days_past INT, days_future INT)
+BEGIN
+    DECLARE part integer;
+    DECLARE newpart integer;
+    DECLARE earliest integer;
+    DECLARE latest integer;
+
+    -- add new partitions; keep adding a partition for a new day until we reach latest
+    SELECT UNIX_TIMESTAMP(NOW()) + 86400 * (days_future+1) INTO latest;
+    createloop: LOOP
+        -- Get the newest partition (PARTITION_DESCRIPTION is the number from VALUES LESS THAN)
+        -- partitions are named similarly, with a 'p' prefix
+        SELECT MAX(PARTITION_DESCRIPTION) INTO part
+            FROM INFORMATION_SCHEMA.PARTITIONS
+            WHERE TABLE_NAME=log_table_name
+            AND TABLE_SCHEMA='black_mobile_magic';
+        IF part < latest THEN -- note part cannot be NULL, as there must be at least one partition
+            SELECT part + 86400 INTO newpart;
+            -- SELECT CONCAT('add partition ', CAST(newpart as CHAR(16)), ' to ', log_table_name);
+            SET @sql := CONCAT('ALTER TABLE ', log_table_name, ' ADD PARTITION ( PARTITION p'
+                                , CAST(newpart as char(16))
+                                , ' VALUES LESS THAN ('
+                                , CAST(newpart as char(16))
+                                , '));');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        ELSE
+            LEAVE createloop;
+        END IF;
+    END LOOP;
+
+    -- now, deal with pruning old partitions; select the minimum partition
+    -- and delete it if it's too old
+    SELECT UNIX_TIMESTAMP(NOW()) - 86400 * (days_past+1) INTO earliest;
+    purgeloop: LOOP
+        -- Get the oldest partition
+        SELECT MIN(PARTITION_DESCRIPTION) INTO part
+            FROM INFORMATION_SCHEMA.PARTITIONS
+            WHERE TABLE_NAME=log_table_name
+            AND TABLE_SCHEMA='black_mobile_magic';
+        IF part < earliest THEN
+            -- SELECT CONCAT('drop partition ', CAST(part as CHAR(16)), ' to ', log_table_name);
+            SET @sql := CONCAT('ALTER TABLE ', log_table_name, ' DROP PARTITION p'
+                                , CAST(part as char(16))
+                                , ';');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+        ELSE
+            LEAVE purgeloop;
+        END IF;
+    END LOOP;
+END $$
+
+DELIMITER ;
+
+--
+-- Tables
+--
+
+DROP TABLE IF EXISTS imaging_servers;
+CREATE TABLE imaging_servers (
+  id integer UNSIGNED not null primary key auto_increment,
+  -- fqdn of imaging server
+  fqdn varchar(256) not null
+);
+
 DROP TABLE IF EXISTS boards;
 CREATE TABLE boards (
   id integer UNSIGNED not null primary key auto_increment,
@@ -20,13 +121,6 @@ CREATE TABLE boards (
   boot_config text
 );
 
-DROP TABLE IF EXISTS imaging_servers;
-CREATE TABLE imaging_servers (
-  id integer UNSIGNED not null primary key auto_increment,
-  -- fqdn of imaging server
-  fqdn varchar(256) not null
-);
-
 DROP TABLE IF EXISTS images;
 CREATE TABLE images (
   id integer unsigned not null primary key auto_increment,
@@ -40,8 +134,23 @@ CREATE TABLE images (
   pxe_config_filename varchar(256) not null
 );
 
-DROP TABLE IF EXISTS logs;
-CREATE TABLE logs (
+DROP TABLE IF EXISTS requests;
+CREATE TABLE requests (
+  id integer unsigned not null primary key auto_increment,
+  -- assigned board, if any
+  board_id integer not null references boards.id on delete restrict,
+  -- short identifier for the requester/assignee
+  assignee varchar(255) not null,
+  -- current status of the request (part of the state machine)
+  status varchar(255) not null,
+  -- time at which the request will expire (if not renewed)
+  expires datetime not null,
+
+  unique index board_id_idx (board_id)
+);
+
+DROP TABLE IF EXISTS board_logs;
+CREATE TABLE board_logs (
     -- foreign key for the board
     board_id integer not null,
     ts timestamp not null,
@@ -53,101 +162,40 @@ CREATE TABLE logs (
     index board_id_idx (board_id),
     index ts_idx (ts)
 );
+CALL init_log_partitions('board_logs', 14, 1);
+
+DROP TABLE IF EXISTS request_logs;
+CREATE TABLE request_logs (
+    -- request this log is for
+    request_id integer not null,
+    ts timestamp not null,
+    -- short string giving the origin of the message (syslog, api, etc.)
+    source varchar(32) not null,
+    -- the message itself
+    message text not null,
+    -- indices
+    index request_id_idx (request_id),
+    index ts_idx (ts)
+);
+CALL init_log_partitions('request_logs', 14, 1);
+
 
 --
--- automated log partition handling
+-- Events
 --
 
 DELIMITER $$
 
--- Procedure to initialize partitioning on the logs table
-DROP PROCEDURE IF EXISTS init_log_partitions $$
-CREATE PROCEDURE init_log_partitions(days_past INT, days_future INT)
-BEGIN
-    DECLARE newpart integer;
-    SELECT UNIX_TIMESTAMP(NOW()) INTO newpart;
-    SELECT newpart - (newpart % 86400) INTO newpart; -- round down to the previous whole day
-
-    -- add partitions, with a single partition for the beginning of the current day, then
-    -- let update_log_partitions take it from there
-    SET @sql := CONCAT('ALTER TABLE logs PARTITION BY RANGE (UNIX_TIMESTAMP(ts)) ('
-                        , 'PARTITION p'
-                        , CAST(newpart as char(16))
-                        , ' VALUES LESS THAN ('
-                        , CAST(newpart as char(16))
-                        , '));');
-    PREPARE stmt FROM @sql;
-    EXECUTE stmt;
-    DEALLOCATE PREPARE stmt;
-
-    -- do an initial update to get things synchronized
-    call update_log_partitions(days_past, days_future);
-END $$
-
--- Procedure to delete old partitions and create new ones around the current date
-DROP PROCEDURE IF EXISTS update_log_partitions $$
-CREATE PROCEDURE update_log_partitions(days_past INT, days_future INT)
-BEGIN
-    DECLARE part integer;
-    DECLARE newpart integer;
-    DECLARE earliest integer;
-    DECLARE latest integer;
-
-    -- add new partitions; keep adding a partition for a new day until we reach latest
-    SELECT UNIX_TIMESTAMP(NOW()) + 86400 * (days_future+1) INTO latest;
-    createloop: LOOP
-        -- Get the newest partition (PARTITION_DESCRIPTION is the number from VALUES LESS THAN)
-        -- partitions are named similarly, with a 'p' prefix
-        SELECT MAX(PARTITION_DESCRIPTION) INTO part
-            FROM INFORMATION_SCHEMA.PARTITIONS
-            WHERE TABLE_NAME='logs'
-            AND TABLE_SCHEMA='black_mobile_magic';
-        IF part < latest THEN -- note part cannot be NULL, as there must be at least one partition
-            SELECT part + 86400 INTO newpart;
-            SET @sql := CONCAT('ALTER TABLE logs ADD PARTITION ( PARTITION p'
-                                , CAST(newpart as char(16))
-                                , ' VALUES LESS THAN ('
-                                , CAST(newpart as char(16))
-                                , '));');
-            PREPARE stmt FROM @sql;
-            EXECUTE stmt;
-            DEALLOCATE PREPARE stmt;
-        ELSE
-            LEAVE createloop;
-        END IF;
-    END LOOP;
-
-    -- now, deal with pruning old partitions; select the minimum partition
-    -- and delete it if it's too old
-    SELECT UNIX_TIMESTAMP(NOW()) - 86400 * (days_past+1) INTO earliest;
-    purgeloop: LOOP
-        -- Get the oldest partition
-        SELECT MIN(PARTITION_DESCRIPTION) INTO part
-            FROM INFORMATION_SCHEMA.PARTITIONS
-            WHERE TABLE_NAME='logs'
-            AND TABLE_SCHEMA='black_mobile_magic';
-        IF part < earliest THEN
-            SET @sql := CONCAT('ALTER TABLE logs DROP PARTITION p'
-                                , CAST(part as char(16))
-                                , ';');
-            PREPARE stmt FROM @sql;
-            EXECUTE stmt;
-            DEALLOCATE PREPARE stmt;
-        ELSE
-            LEAVE purgeloop;
-        END IF;
-    END LOOP;
+-- and then update every day (this can't be set up in init_log_partitions)
+DROP EVENT IF EXISTS update_log_partitions $$
+CREATE EVENT update_log_partitions  ON SCHEDULE EVERY 1 day
+DO BEGIN
+    CALL update_log_partitions('board_logs', 14, 1);
+    CALL update_log_partitions('request_logs', 14, 1);
+    -- TODO: optimize requests and any other tables that get lots of deletes
 END $$
 
 DELIMITER ;
-
--- initialize the partitioning
-CALL init_log_partitions(14, 1);
-
--- and then update every day (this can't be set up in init_log_partitions)
-DROP EVENT IF EXISTS update_log_partitions;
-CREATE EVENT update_log_partitions  ON SCHEDULE EVERY 1 day
-DO CALL update_log_partitions(14, 1);
 
 --
 -- Log insertion utility (called from rsyslogd)
@@ -165,10 +213,10 @@ BEGIN
     IF boardid is not NULL THEN BEGIN
         -- 1526 occurs when there's no matching partition; in this case, use NOW() instead of the timestamp
         DECLARE CONTINUE HANDLER FOR 1526 BEGIN
-            INSERT INTO logs (board_id, ts, source, message) values (boardid, NOW(), source, ltrim(message));
+            INSERT INTO board_logs (board_id, ts, source, message) values (boardid, NOW(), source, ltrim(message));
         END;
         -- trim the message since rsyslogd prepends a space
-        INSERT INTO logs (board_id, ts, source, message) values (boardid, ts, source, ltrim(message));
+        INSERT INTO board_logs (board_id, ts, source, message) values (boardid, ts, source, ltrim(message));
     END;
     END IF; 
 END $$
