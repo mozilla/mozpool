@@ -16,19 +16,24 @@ def relay_script():
     cmd, hostname, bnk, rly = sys.argv[1:5]
     bnk, rly = int(bnk), int(rly)
     if cmd == 'powercycle':
-        if relay.powercycle(hostname, bnk, rly):
+        if relay.powercycle(hostname, bnk, rly, timeout=60):
             print "OK"
         else:
             print "FAILED"
+            sys.exit(1)
     elif cmd == 'status':
-        print "bank %d, relay %d status: %d" % (bnk, rly,
-                relay.get_status(hostname, bnk, rly))
+        status = relay.get_status(hostname, bnk, rly, timeout=60)
+        if status is None:
+            print "FAILED"
+            sys.exit(1)
+        print "bank %d, relay %d status: %s" % (bnk, rly, 'on' if status else 'off')
     elif cmd == 'turnon' or cmd == 'turnoff':
         status = (cmd == 'turnon')
-        if status == relay.set_status(hostname, bnk, rly, status):
+        if relay.set_status(hostname, bnk, rly, status, timeout=60):
             print "OK"
         else:
             print "FAILED"
+            sys.exit(1)
     else:
         usage()
     sys.exit(0)

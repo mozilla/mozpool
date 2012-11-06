@@ -20,7 +20,8 @@ def start_powercycle(device_name, callback, max_time=30):
     """
     callback_before = time.time() + max_time
 
-    # TODO: call this in the thread so it doesn't block
+    # TODO: call this in the thread so it doesn't block and gets counted in the
+    # total request time
     hostname, bnk, rly = data.board_relay_info(device_name)
 
     # TODO: verify this device belongs to this imaging server
@@ -28,7 +29,7 @@ def start_powercycle(device_name, callback, max_time=30):
     def try_powercycle():
         res = False
         try:
-            res = relay.powercycle(hostname, bnk, rly)
+            res = relay.powercycle(hostname, bnk, rly, max_time)
         except:
             traceback.print_exc()
             print "(ignored)"
