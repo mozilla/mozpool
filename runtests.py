@@ -199,7 +199,6 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
         body = json.loads(r.body)
         self.assertEquals({"abc": "xyz"}, body["config"])
 
-@patch("socket.socket")
 class TestBoardBoot(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardBoot, self).setUp()
@@ -213,54 +212,16 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         open(os.path.join(config.get('paths', 'image_store'), self.pxefile), "w").write("abc")
         add_bootimage("image1", pxe_config_filename=self.pxefile)
 
-    def testBoardBoot(self, MockSocket):
-        MockSocketRecv = MockSocket.return_value.recv
-        # reboot will do two sets, each followed by a get, so mock
-        # the responses it would receive from the relay board
-        MockSocketRecv.side_effect = [relay.COMMAND_OK,
-                                      chr(1),
-                                      relay.COMMAND_OK,
-                                      chr(0)]
-
+    @patch("mozpool.bmm.board.boot")
+    def testBoardBoot(self, board_boot):
         config_data = {"foo":"bar"}
         r = self.app.post("/api/board/board1/boot/image1/",
                           headers={"Content-Type": "application/json"},
                           params=json.dumps(config_data))
         self.assertEqual(200, r.status)
         # Nothing in the response body currently
+        board_boot.assert_called_with('board1', 'image1', config_data)
 
-        # Verify that it got put into the boot-initiated state
-        r = self.app.get("/api/board/board1/status/")
-        self.assertEqual(200, r.status)
-        body = json.loads(r.body)
-        self.assertEquals("boot-initiated", body["status"])
-
-        # Verify that the config data was set properly.
-        r = self.app.get("/api/board/board1/config/")
-        self.assertEqual(200, r.status)
-        body = json.loads(r.body)
-        self.assertEquals(config_data, body["config"])
-
-        # Verify that the symlink was created in tftp_root
-        mac = data.mac_with_dashes(self.board_mac)
-        tftp_link = os.path.join(config.get('paths', 'tftp_root'), "pxelinux.cfg",
-                                 "01-" + mac)
-        self.assertTrue(os.path.islink(tftp_link))
-
-        # Verify that it links to the right PXE image.
-        self.assertEqual(self.pxefile, os.path.basename(os.readlink(tftp_link)))
-
-        self.assertNotEqual(None, MockSocket.return_value.connect.call_args)
-        self.assertEqual("relay-1",
-                         MockSocket.return_value.connect.call_args[0][0][0])
-        self.assertEqual(4, MockSocketRecv.call_count)
-
-        # Lazy, just test this here
-        r = self.app.post("/api/board/board1/bootcomplete/")
-        self.assertEqual(200, r.status)
-        self.assertFalse(os.path.exists(tftp_link))
-
-@patch("socket.socket")
 class TestBoardReboot(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardReboot, self).setUp()
@@ -268,26 +229,12 @@ class TestBoardReboot(ConfigMixin, unittest.TestCase):
         add_board("board1", server="server1", status="running",
                   relayinfo="relay-1:bank1:relay1")
 
-    def testBoardReboot(self, MockSocket):
-        MockSocketRecv = MockSocket.return_value.recv
-        # reboot will do two sets, each followed by a get, so mock
-        # the responses it would receive from the relay board
-        MockSocketRecv.side_effect = [relay.COMMAND_OK,
-                                      chr(1),
-                                      relay.COMMAND_OK,
-                                      chr(0)]
+    @patch("mozpool.bmm.board.reboot")
+    def testBoardReboot(self, board_reboot):
         r = self.app.post("/api/board/board1/reboot/")
         self.assertEqual(200, r.status)
         # Nothing in the response body currently
-        self.assertEqual("relay-1",
-                         MockSocket.return_value.connect.call_args[0][0][0])
-        self.assertEqual(4, MockSocketRecv.call_count)
-
-        # Verify that it got put into the rebooting state
-        r = self.app.get("/api/board/board1/status/")
-        self.assertEqual(200, r.status)
-        body = json.loads(r.body)
-        self.assertEquals("rebooting", body["status"])
+        board_reboot.assert_called_with('board1')
 
 class TestBoardRedirects(ConfigMixin, unittest.TestCase):
     """
@@ -669,7 +616,7 @@ class TestBmmApi(unittest.TestCase):
         powercycle.return_value = True
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=30), True)
         board_relay_info.assert_called_with('dev1')
-        powercycle.assert_called_with('relay1', 1, 3)
+        powercycle.assert_called_with('relay1', 1, 3, timeout=30)
 
     @patch('mozpool.bmm.relay.powercycle')
     @patch('mozpool.db.data.board_relay_info')
@@ -688,13 +635,7 @@ class TestBmmApi(unittest.TestCase):
 
 class TestBmmRelay(unittest.TestCase):
 
-    @patch('socket.socket')
-    def test_connected_socket(self, socket):
-        with relay.connected_socket('h', 444) as sock:
-            self.failUnless(sock is socket())
-            sock.connect.assert_called_with(('h', 444))
-
-    # remainder untested, left as-is
+    pass # TODO
 
 if __name__ == "__main__":
     unittest.main()
