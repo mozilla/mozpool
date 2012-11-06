@@ -19,7 +19,7 @@ from mozpool import config
 from mozpool import statemachine
 from mozpool import util
 from mozpool.web import server
-from mozpool.db import data
+from mozpool.db import data, sql
 from mozpool.db import model
 from mozpool.bmm import relay
 from mozpool.lifeguard import inventorysync
@@ -45,8 +45,8 @@ class ConfigMixin(object):
         self.app = TestApp(server.get_app().wsgifunc())
 
     def tearDown(self):
-        data.get_conn().close()
-        data.engine = None
+        sql.get_conn().close()
+        sql.engine = None
         shutil.rmtree(self.tempdir)
 
 class TestData(ConfigMixin, unittest.TestCase):
@@ -74,7 +74,7 @@ class TestData(ConfigMixin, unittest.TestCase):
         data.insert_board(dict(name='board3', fqdn='board3.fqdn', inventory_id=24,
             mac_address='aabbccddeeff', imaging_server='server1',
                 relay_info='relay-2:bank2:relay2'))
-        conn = data.get_conn()
+        conn = sql.get_conn()
         res = conn.execute(model.boards.select())
         self.assertEquals(sorted([ dict(r) for r in res.fetchall() ]),
         sorted([
@@ -90,9 +90,9 @@ class TestData(ConfigMixin, unittest.TestCase):
             ]))
 
     def testDeleteBoard(self):
-        conn = data.get_conn()
+        conn = sql.get_conn()
         now = datetime.datetime.now()
-        conn.execute(model.logs.insert(), [
+        conn.execute(model.board_logs.insert(), [
             dict(board_id=1, ts=now, source='test', message='hi'),
             dict(board_id=1, ts=now, source='test', message='world'),
         ])
@@ -101,11 +101,11 @@ class TestData(ConfigMixin, unittest.TestCase):
         # check that both logs and boards were deleted
         res = conn.execute(model.boards.select())
         self.assertEquals(res.fetchall(), [])
-        res = conn.execute(model.logs.select())
+        res = conn.execute(model.board_logs.select())
         self.assertEquals(res.fetchall(), [])
 
     def testUpdateBoard(self):
-        conn = data.get_conn()
+        conn = sql.get_conn()
         data.update_board(1, dict(fqdn='board1.fqdn', imaging_server='server9', mac_address='aabbccddeeff'))
         res = conn.execute(model.boards.select())
         self.assertEquals([ dict(r) for r in res.fetchall() ], [

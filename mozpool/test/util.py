@@ -10,7 +10,7 @@ import os
 import json
 from sqlalchemy.sql import select
 from mozpool.db import model
-from mozpool.db import data
+from mozpool.db import data, sql
 
 inventory_id = 1
 
@@ -19,8 +19,8 @@ def setup_db(dbfile):
     # blow away the db file so we know we're starting fresh
     if os.path.exists(dbfile):
         os.unlink(dbfile)
-    data.get_conn()
-    model.metadata.create_all(data.engine)
+    sql.get_conn()
+    model.metadata.create_all(sql.engine)
     # reset the local "fake" stuff too
     global inventory_id
     inventory_id = 1
@@ -29,13 +29,13 @@ def add_server(hostname):
     """
     Configure data for a server running at |hostname|.
     """
-    data.get_conn().execute(model.imaging_servers.insert(), fqdn=hostname)
+    sql.get_conn().execute(model.imaging_servers.insert(), fqdn=hostname)
 
 def add_board(board, server="server", status="offline",
               mac_address="000000000000",
               log=[], config={}, relayinfo=""):
     global inventory_id
-    conn = data.get_conn()
+    conn = sql.get_conn()
     id = conn.execute(select([model.imaging_servers.c.id],
                               model.imaging_servers.c.fqdn==server)).fetchone()[0]
     if id is None:
@@ -53,6 +53,6 @@ def add_board(board, server="server", status="offline",
 
 def add_bootimage(name, version=1, description="Boot image",
                   pxe_config_filename="/path/to/image"):
-    data.get_conn().execute(model.images.insert(), name=name,
-                            version=version, description=description,
-                            pxe_config_filename=pxe_config_filename)
+    sql.get_conn().execute(model.images.insert(), name=name,
+                           version=version, description=description,
+                           pxe_config_filename=pxe_config_filename)

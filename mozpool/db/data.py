@@ -7,30 +7,21 @@ import json
 import sqlalchemy
 from sqlalchemy.sql import exists, not_, select
 from itertools import izip_longest
-from mozpool.db import model
+from mozpool.db import logs, model, sql
 from mozpool import config
-
-# global for convenience
-engine = None
 
 class NotFound(Exception):
     pass
 
-def get_engine():
-    """
-    Get a database engine object.
-    """
-    global engine
-    if engine is None:
-        engine_url = config.get('database', 'engine')
-        engine = sqlalchemy.create_engine(engine_url)
-    return engine
-
-def get_conn():
-    """
-    Get a database connection object.
-    """
-    return get_engine().connect()
+class InvalidStateChange(Exception):
+    
+    def __init__(self, old_state, new_state, current_state):
+        self.old_state = old_state
+        self.new_state = new_state
+        self.current_state = current_state
+        Exception.__init__(self, 'invalid state change request from "%s" '
+                           'to "%s" in current state "%s"' %
+                           (self.old_state, self.new_state, self.current_state))
 
 def row_to_dict(row, table, omit_cols=[]):
     """
@@ -53,7 +44,7 @@ def list_boards():
     Get the list of all boards known to the system.
     Returns a dict whose 'boards' entry is the list of boards.
     """
-    conn = get_conn()
+    conn = sql.get_conn()
     res = conn.execute(select([model.boards.c.name]))
     return {'boards': [row[0].encode('utf-8') for row in res]}
 
@@ -62,7 +53,7 @@ def dump_boards():
     Dump all boards.  This returns a list of dictionaries with keys id, name,
     fqdn, invenetory_id, mac_address, imaging_server, relay_info, and status.
     """
-    conn = get_conn()
+    conn = sql.get_conn()
     boards = model.boards
     img_svrs = model.imaging_servers
     res = conn.execute(sqlalchemy.select(
@@ -73,7 +64,7 @@ def dump_boards():
 
 def find_imaging_server_id(name):
     """Given an imaging server name, either return the existing ID, or a new ID."""
-    conn = get_conn()
+    conn = sql.get_conn()
 
     # try inserting, ignoring failures (most likely due to duplicate row)
     try:
@@ -95,15 +86,15 @@ def insert_board(values):
     values['imaging_server_id'] = find_imaging_server_id(values.pop('imaging_server'))
     values['status'] = 'new'
 
-    get_conn().execute(model.boards.insert(), [ values ])
+    sql.get_conn().execute(model.boards.insert(), [ values ])
 
 def delete_board(id):
     """Delete the board with the given ID"""
-    conn = get_conn()
+    conn = sql.get_conn()
     # foreign keys don't automatically delete log entries, so do it manually.
     # This table is partitioned, so there's no need to later optimize these
     # deletes - they'll get flushed when their parititon is dropped.
-    conn.execute(model.logs.delete(), whereclause=(model.logs.c.board_id==id))
+    logs.board_logs.delete_all(id)
     conn.execute(model.boards.delete(), whereclause=(model.boards.c.id==id))
 
 def update_board(id, values):
@@ -116,14 +107,14 @@ def update_board(id, values):
     if 'id' in values:
         values.pop('id')
 
-    get_conn().execute(model.boards.update(whereclause=(model.boards.c.id==id)), **values)
+    sql.get_conn().execute(model.boards.update(whereclause=(model.boards.c.id==id)), **values)
 
 def get_server_for_board(board):
     """
     Get the name of the imaging server associated with this board.
     """
-    res = get_conn().execute(select([model.imaging_servers.c.fqdn],
-                                    from_obj=[model.boards.join(model.imaging_servers)]).where(model.boards.c.name == board))
+    res = sql.get_conn().execute(select([model.imaging_servers.c.fqdn],
+                                        from_obj=[model.boards.join(model.imaging_servers)]).where(model.boards.c.name == board))
     row = res.fetchone()
     if row is None:
         raise NotFound
@@ -135,27 +126,27 @@ def board_status(board):
     """
     Get the status of board.
     """
-    res = get_conn().execute(select([model.boards.c.status],
-                                    model.boards.c.name==board))
+    res = sql.get_conn().execute(select([model.boards.c.status],
+                                        model.boards.c.name==board))
     row = res.fetchall()[0]
     return {"status": row['status'].encode('utf-8'),
-            "log": get_logs(board)}
+            "log": logs.board_logs.get(board)}
 
 def set_board_status(board, status):
     """
     Set the status of board to status.
     """
-    get_conn().execute(model.boards.update().
-                       where(model.boards.c.name==board).
-                       values(status=status))
+    sql.get_conn().execute(model.boards.update().
+                           where(model.boards.c.name==board).
+                           values(status=status))
     return status
 
 def board_config(board):
     """
     Get the config parameters passed to the /boot/ API for board.
     """
-    res = get_conn().execute(select([model.boards.c.boot_config],
-                                    model.boards.c.name==board))
+    res = sql.get_conn().execute(select([model.boards.c.boot_config],
+                                        model.boards.c.name==board))
     row = res.fetchone()
     config_data = {}
     if row:
@@ -166,14 +157,14 @@ def set_board_config(board, config_data):
     """
     Set the config parameters for the /boot/ API for board.
     """
-    get_conn().execute(model.boards.update().
-                       where(model.boards.c.name==board).
-                       values(boot_config=json.dumps(config_data)))
+    sql.get_conn().execute(model.boards.update().
+                           where(model.boards.c.name==board).
+                           values(boot_config=json.dumps(config_data)))
     return config
 
 def board_relay_info(board):
-    res = get_conn().execute(select([model.boards.c.relay_info],
-                                    model.boards.c.name==board))
+    res = sql.get_conn().execute(select([model.boards.c.relay_info],
+                                        model.boards.c.name==board))
     info = res.fetchone()[0]
     hostname, bank, relay = info.split(":", 2)
     assert bank.startswith("bank") and relay.startswith("relay")
@@ -191,39 +182,18 @@ def board_mac_address(board):
     """
     Get the mac address of board.
     """
-    res = get_conn().execute(select([model.boards.c.mac_address],
-                                    model.boards.c.name==board))
+    res = sql.get_conn().execute(select([model.boards.c.mac_address],
+                                        model.boards.c.name==board))
     row = res.fetchone()
     return row['mac_address'].encode('utf-8')
 
-def add_log(board, message):
-    conn = get_conn()
-    board_id = conn.execute(select([model.boards.c.id],
-                                   model.boards.c.name==board)).fetchone()[0]
-    conn.execute(model.logs.insert(),
-                 board_id=board_id,
-                 ts=datetime.datetime.utcnow(),
-                 source="webapp",
-                 message=message)
-
-def get_logs(board, timeperiod=datetime.timedelta(hours=1)):
-    """Get log entries for a board for the past timeperiod."""
-    res = get_conn().execute(select([model.logs.c.ts,
-                                     model.logs.c.source,
-                                     model.logs.c.message],
-                                    from_obj=[model.boards.join(model.logs,
-                                                                model.boards.c.id == model.logs.c.board_id)]).where(model.boards.c.name == board))
-    return [{"timestamp": row["ts"].isoformat(),
-             "source": row["source"],
-             "message": row["message"]} for row in res]
-
 def list_bootimages():
-    conn = get_conn()
+    conn = sql.get_conn()
     res = conn.execute(select([model.images.c.name]))
     return {'bootimages': [row[0].encode('utf-8') for row in res]}
 
 def bootimage_details(image):
-    conn = get_conn()
+    conn = sql.get_conn()
     res = conn.execute(select([model.images],
                               model.images.c.name==image))
     row = res.fetchone()
@@ -232,12 +202,12 @@ def bootimage_details(image):
     return {'details': row_to_dict(row, model.images, omit_cols=['id'])}
 
 def get_unassigned_boards():
-    conn = get_conn()
+    conn = sql.get_conn()
     res = conn.execute(select([model.boards.c.name]).where(not_(exists(select([model.requests.c.id]).where(model.requests.c.board_id==model.boards.c.id)))))
     return {'boards': [row[0].encode('utf-8') for row in res]}
 
 def reserve_board(board, assignee, duration):
-    conn = get_conn()
+    conn = sql.get_conn()
     try:
         board_id = conn.execute(select([model.boards.c.id]).where(model.boards.c.name==board)).fetchall()[0][0]
     except IndexError:
@@ -254,14 +224,21 @@ def reserve_board(board, assignee, duration):
     return conn.execute(select([model.requests.c.id]).where(model.requests.c.board_id==board_id)).fetchall()[0][0]
 
 def end_request(request_id):
-    conn = get_conn()
+    conn = sql.get_conn()
     conn.execute(model.requests.delete().where(model.requests.c.id==request_id))
 
 def dump_requests():
-    conn = get_conn()
+    conn = sql.get_conn()
     return [row_to_dict(x, model.requests) for x in
             conn.execute(select([model.requests]))]
 
 def update_request_duration(request_id, duration):
-    conn = get_conn()
+    conn = sql.get_conn()
     conn.execute(model.requests.update(model.requests).values(expires=datetime.datetime.now() + datetime.timedelta(seconds=duration)).where(model.requests.c.id==request_id))
+
+def update_request_status(request_id, old_status, new_status):
+    conn = sql.get_conn()
+    current_status = conn.execute(select([model.requests.c.status]).where(model.requests.c.id==request_id)).fetchall()[0][0]
+    if old_status != current_status:
+        raise InvalidStateChange(old_status, new_status, current_status)
+    conn.execute(model.requests.update(model.requests).values(status=new_status).where(model.requests.c.id==request_id))

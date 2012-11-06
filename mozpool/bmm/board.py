@@ -5,7 +5,7 @@
 import os
 import web
 from mozpool import config
-from mozpool.db import data
+from mozpool.db import data, logs
 from mozpool.bmm import relay
 
 def boardredirect(function):
@@ -44,7 +44,7 @@ def boot(board, image, config_data):
     # Set a few things in the database before writing to disk.
     data.set_board_config(board, config_data)
     data.set_board_status(board, "boot-initiated")
-    data.add_log(board, "Attempting to boot into image %s" % image)
+    logs.board_logs.add(board, "Attempting to boot into image %s" % image)
     image_fullpath = os.path.join(config.get('paths', 'image_store'),
                                   image_details["pxe_config_filename"])
     # Make the link to the PXE config in the proper location
@@ -72,12 +72,12 @@ def reboot(board):
     """
     relay_hostname, bank_num, relay_num = data.board_relay_info(board)
     data.set_board_status(board, "rebooting")
-    data.add_log(board, "Rebooted by /reboot command")
+    logs.board_logs.add(board, "Rebooted by /reboot command")
     return relay.powercycle(relay_hostname, bank_num, relay_num)
 
 def bootcomplete(board):
     """Remove symlink for this board's MAC address from TFTP."""
     data.set_board_status(board, "boot-complete")
-    data.add_log(board, "Boot completed")
+    logs.board_logs.add(board, "Boot completed")
     tftp_symlink = get_symlink_path(board)
     os.unlink(tftp_symlink)

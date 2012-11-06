@@ -43,8 +43,15 @@ images = sa.Table('images', metadata,
     sa.Column('pxe_config_filename', sa.String(256), nullable=False),
 )
 
-logs = sa.Table('logs', metadata,
+board_logs = sa.Table('board_logs', metadata,
     sa.Column('board_id', sa.Integer(unsigned=True), nullable=False),
+    sa.Column('ts', sa.DateTime, nullable=False),
+    sa.Column('source', sa.String(32), nullable=False),
+    sa.Column('message', sa.Text, nullable=False),
+)
+
+request_logs = sa.Table('request_logs', metadata,
+    sa.Column('request_id', sa.Integer(unsigned=True), nullable=False),
     sa.Column('ts', sa.DateTime, nullable=False),
     sa.Column('source', sa.String(32), nullable=False),
     sa.Column('message', sa.Text, nullable=False),
