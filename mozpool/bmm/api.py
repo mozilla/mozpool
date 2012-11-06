@@ -29,7 +29,7 @@ def start_powercycle(device_name, callback, max_time=30):
     def try_powercycle():
         res = False
         try:
-            res = relay.powercycle(hostname, bnk, rly, timeout=max_time)
+            res = relay.powercycle(hostname, bnk, rly, max_time)
         except:
             traceback.print_exc()
             print "(ignored)"

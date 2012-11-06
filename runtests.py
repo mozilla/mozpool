@@ -24,6 +24,7 @@ from mozpool.db import model
 from mozpool.bmm import relay
 from mozpool.lifeguard import inventorysync
 from mozpool.test.util import add_server, add_board, add_bootimage, setup_db
+from mozpool.test import fakerelay
 import mozpool.bmm.api
 
 class ConfigMixin(object):
@@ -616,7 +617,7 @@ class TestBmmApi(unittest.TestCase):
         powercycle.return_value = True
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=30), True)
         board_relay_info.assert_called_with('dev1')
-        powercycle.assert_called_with('relay1', 1, 3, timeout=30)
+        powercycle.assert_called_with('relay1', 1, 3, 30)
 
     @patch('mozpool.bmm.relay.powercycle')
     @patch('mozpool.db.data.board_relay_info')
@@ -635,7 +636,45 @@ class TestBmmApi(unittest.TestCase):
 
 class TestBmmRelay(unittest.TestCase):
 
-    pass # TODO
+    def setUp(self):
+        # start up a fake relay server, and set relay.PORT to point to it
+        self.server = fakerelay.RelayTCPServer(('127.0.0.1', 0))
+        self.old_PORT = relay.PORT
+        relay.PORT = self.server.get_port()
+        self.server.spawn_one()
+
+    def tearDown(self):
+        relay.PORT = self.old_PORT
+
+    def test_get_status(self):
+        self.assertEqual(relay.get_status('127.0.0.1', 2, 2, 10), False)
+        self.assertEqual(self.server.actions, [('get', 2, 2)])
+
+    def test_get_status_timeout(self):
+        self.server.delay = 1
+        self.assertEqual(relay.get_status('127.0.0.1', 2, 2, 0.1), None)
+
+    def test_set_status_on(self):
+        self.assertEqual(relay.set_status('127.0.0.1', 2, 2, True, 10), True)
+        self.assertEqual(self.server.actions, [('set', 'on', 2, 2)])
+
+    def test_set_status_off(self):
+        self.assertEqual(relay.set_status('127.0.0.1', 2, 2, False, 10), True)
+        self.assertEqual(self.server.actions, [('set', 'off', 2, 2)])
+
+    def test_set_status_timeout(self):
+        self.server.delay = 1
+        self.assertEqual(relay.set_status('127.0.0.1', 2, 2, True, 0.1), False)
+
+    def test_powercycle(self):
+        self.assertEqual(relay.powercycle('127.0.0.1', 2, 2, 10), True)
+        self.assertEqual(self.server.actions,
+                [('set', 'off', 2, 2), ('get', 2, 2), ('set', 'on', 2, 2), ('get', 2, 2)])
+
+    def test_powercycle_timeout(self):
+        self.server.delay = 0.05
+        self.assertEqual(relay.powercycle('127.0.0.1', 2, 2, 0.1), False)
+
 
 if __name__ == "__main__":
     unittest.main()
