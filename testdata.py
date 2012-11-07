@@ -15,7 +15,7 @@ from mozpool.db import model
 from optparse import OptionParser
 
 parser = OptionParser()
-parser.add_option('-b', '--boards', dest='boards', action='store', type='int',
+parser.add_option('-b', '--devices', dest='devices', action='store', type='int',
                   default=1)
 parser.add_option('-r', '--requests', dest='requests', action='store',
                   type='int', default=0)
@@ -25,8 +25,8 @@ fqdn = socket.getfqdn()
 r = conn.execute(model.imaging_servers.insert(), fqdn=fqdn)
 img_svr_id = r.inserted_primary_key[0]
 
-for board_id in range(1, options.boards+1):
-    conn.execute(model.boards.insert(),
+for board_id in range(1, options.devices+1):
+    conn.execute(model.devices.insert(),
                  name='board%d' % board_id,
                  fqdn='board%d.fqdn' % board_id,
                  inventory_id=1111 * board_id,
