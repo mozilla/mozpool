@@ -210,8 +210,8 @@ DELIMITER $$
 
 -- Procedure to insert a log entry given a device name.  This silently drops log entries for
 -- devices that are not configured.
-DROP PROCEDURE IF EXISTS insert_log_entry $$
-CREATE PROCEDURE insert_log_entry(device TEXT, ts TIMESTAMP, source TEXT, message TEXT)
+DROP PROCEDURE IF EXISTS insert_device_log_entry $$
+CREATE PROCEDURE insert_device_log_entry(device TEXT, ts TIMESTAMP, source TEXT, message TEXT)
 BEGIN
     DECLARE deviceid integer;
     SELECT id from devices where name=device INTO deviceid;
