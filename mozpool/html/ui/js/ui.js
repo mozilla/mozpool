@@ -27,9 +27,9 @@ load(
     '//cdnjs.cloudflare.com/ajax/libs/backbone.js/0.9.2/backbone-min.js')
 // load our own code
 .thenLoad(
-    '/js/models.js',
-    '/js/views.js',
-    '/js/controllers.js')
+    '/ui/js/models.js',
+    '/ui/js/views.js',
+    '/ui/js/controllers.js')
 // fetch data for our models
 .thenRun(
     model_loader('devices', 'Devices'),

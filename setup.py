@@ -12,7 +12,7 @@ setup(name='mozpool',
       author_email='ted@mielczarek.org',
       packages=find_packages('.'),
       package_data={
-          'mozpool' : [ 'html/*.html', 'html/css/*.css', 'html/js/*.js', 'html/js/deps/*.js' ],
+          'mozpool' : [ 'html/*.html', 'html/ui/*.html', 'html/ui/css/*.css', 'html/ui/js/*.js', 'html/ui/js/deps/*.js' ],
       },
       install_requires=[
           'sqlalchemy',
