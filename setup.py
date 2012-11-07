@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 print setup.func_code
 setup(name='mozpool',
-      version='0.3.0',
+      version='0.3.1',
       description='System to manage a pool of cranky mobile devices',
       author=u'Ted Mielczarek, Mark Côté, Dustin Mitchell',
       url='http://hg.mozilla.org/build/mozpool',
