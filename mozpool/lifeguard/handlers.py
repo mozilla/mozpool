@@ -17,9 +17,6 @@ urls = (
   "/device/([^/]+)/reboot/?", "device_reboot",
   "/device/([^/]+)/bootcomplete/?", "device_bootcomplete",
   "/device/([^/]+)/config/?", "device_config",
-  # /bootimage methods
-  "/bootimage/list/?", "bootimage_list",
-  "/bootimage/([^/]+)/details/?", "bootimage_details",
 )
 
 def deviceredirect(function):
@@ -89,13 +86,3 @@ class device_config:
     def GET(self, id):
         return data.device_config(id)
 
-# bootimage handlers
-class bootimage_list:
-    @templeton.handlers.json_response
-    def GET(self):
-        return data.list_bootimages()
-
-class bootimage_details:
-    @templeton.handlers.json_response
-    def GET(self, id):
-        return data.bootimage_details(id)

@@ -19,8 +19,14 @@ def setup_db(dbfile):
     # blow away the db file so we know we're starting fresh
     if os.path.exists(dbfile):
         os.unlink(dbfile)
-    sql.get_conn()
+    conn = sql.get_conn()
     model.metadata.create_all(sql.engine)
+
+    # clean out the db
+    conn.execute(model.imaging_servers.delete())
+    conn.execute(model.devices.delete())
+    conn.execute(model.pxe_configs.delete())
+
     # reset the local "fake" stuff too
     global inventory_id
     inventory_id = 1
@@ -51,8 +57,8 @@ def add_device(device, server="server", status="offline",
                  boot_config=json.dumps(config))
     inventory_id += 1
 
-def add_bootimage(name, version=1, description="Boot image",
-                  pxe_config_filename="/path/to/image"):
-    sql.get_conn().execute(model.images.insert(), name=name,
-                           version=version, description=description,
-                           pxe_config_filename=pxe_config_filename)
+def add_pxe_config(name, description="Boot image",
+                  contents="BOOT THIS THINGIE WITH THIS CONFIG"):
+    sql.get_conn().execute(model.pxe_configs.insert(), name=name,
+                           description=description,
+                           contents=contents)

@@ -235,7 +235,7 @@ var PowerCycleButtonView = Backbone.View.extend({
     },
 
     buttonClicked: function() {
-        var selected_bootimage = window.selected_bootimage.get('name');
+        var selected_pxe_config = window.selected_pxe_config.get('name');
         window.devices.each(function (b) {
             if (b.get('selected')) {
                 job_queue.push({
@@ -249,11 +249,11 @@ var PowerCycleButtonView = Backbone.View.extend({
     }
 });
 
-var ReimageButtonView = Backbone.View.extend({
+var PxeBootButtonView = Backbone.View.extend({
     initialize: function() {
         _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
         window.devices.bind('change', this.refreshButtonStatus);
-        window.selected_bootimage.bind('change', this.refreshButtonStatus);
+        window.selected_pxe_config.bind('change', this.refreshButtonStatus);
     },
 
     events: {
@@ -267,26 +267,26 @@ var ReimageButtonView = Backbone.View.extend({
     refreshButtonStatus: function() {
         // only enable the button if at least one device is selected, and we have a boot image
 
-        var bootimage_selected = (window.selected_bootimage.get('name') != '');
+        var pxe_config_selected = (window.selected_pxe_config.get('name') != '');
         var any_selected = false;
 
-        if (bootimage_selected) {
+        if (pxe_config_selected) {
             window.devices.each(function (b) {
                 any_selected = any_selected ? true : b.get('selected');
             });
         }
 
-        this.$el.attr('disabled', !(any_selected && bootimage_selected));
+        this.$el.attr('disabled', !(any_selected && pxe_config_selected));
     },
 
     buttonClicked: function() {
-        var selected_bootimage = window.selected_bootimage.get('name');
+        var selected_pxe_config = window.selected_pxe_config.get('name');
         window.devices.each(function (b) {
             if (b.get('selected')) {
                 job_queue.push({
                     device: b,
                     job_type: 'reimage',
-                    job_args: { bootimage: selected_bootimage, config: {} }
+                    job_args: { pxe_config: selected_pxe_config, config: {} }
                 });
                 b.set('selected', false);
             }
@@ -294,7 +294,7 @@ var ReimageButtonView = Backbone.View.extend({
     }
 });
 
-var BootimageOptionView = Backbone.View.extend({
+var PxeConfigOptionView = Backbone.View.extend({
     tagName: 'option',
 
     initialize: function() {
@@ -307,12 +307,12 @@ var BootimageOptionView = Backbone.View.extend({
     }
 });
 
-var BootimageSelectView = Backbone.View.extend({
+var PxeConfigSelectView = Backbone.View.extend({
     initialize: function(args) {
         _.bindAll(this, 'refresh', 'selectChanged');
 
-        this.bootimage_views = [];
-        window.bootimages.bind('reset', this.refresh);
+        this.pxe_config_views = [];
+        window.pxe_configs.bind('reset', this.refresh);
     },
 
     events: {
@@ -328,16 +328,16 @@ var BootimageSelectView = Backbone.View.extend({
         var self = this;
 
         // remove existing views, then add the whole new list of them
-        $.each(self.bootimage_views, function (v) { v.remove() });
-        window.bootimages.each(function (bootimage) {
-            var v = new BootimageOptionView({ model: bootimage });
+        $.each(self.pxe_config_views, function (v) { v.remove() });
+        window.pxe_configs.each(function (pxe_config) {
+            var v = new PxeConfigOptionView({ model: pxe_config });
             $(self.el).append(v.render().el);
-            self.bootimage_views.push(v);
+            self.pxe_config_views.push(v);
         });
     },
 
     selectChanged: function() {
-        window.selected_bootimage.set('name', this.$el.val());
+        window.selected_pxe_config.set('name', this.$el.val());
     }
 });
 

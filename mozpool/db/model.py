@@ -8,7 +8,7 @@ metadata = sa.MetaData()
 
 devices = sa.Table('devices', metadata,
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
-    sa.Column('name', sa.String(32), nullable=False),
+    sa.Column('name', sa.String(32), unique=True, nullable=False),
     sa.Column('fqdn', sa.String(256), nullable=False),
     sa.Column('inventory_id', sa.Integer(unsigned=True), nullable=False),
     sa.Column('status', sa.String(32), nullable=False),
@@ -35,12 +35,11 @@ imaging_servers = sa.Table('imaging_servers', metadata,
     sa.Column('fqdn', sa.String(256), nullable=False),
 )
 
-images = sa.Table('images', metadata,
+pxe_configs = sa.Table('pxe_configs', metadata,
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
-    sa.Column('name', sa.String(32), nullable=False),
-    sa.Column('version', sa.Integer(unsigned=True), nullable=False),
+    sa.Column('name', sa.String(32), unique=True, nullable=False),
     sa.Column('description', sa.Text, nullable=False),
-    sa.Column('pxe_config_filename', sa.String(256), nullable=False),
+    sa.Column('contents', sa.Text, nullable=False),
 )
 
 device_logs = sa.Table('device_logs', metadata,

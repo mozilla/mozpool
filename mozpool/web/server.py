@@ -9,13 +9,23 @@ import templeton.middleware
 import web
 import mozpool
 from mozpool.lifeguard import handlers as lifeguard_handlers
+from mozpool.bmm import handlers as bmm_handlers
 
 templeton.middleware.patch_middleware()
 
 def get_app():
     web.config.debug = False
-    urls = templeton.handlers.load_urls(lifeguard_handlers.urls)
-    return web.application(urls, lifeguard_handlers.__dict__)
+
+    # merge handlers and URLs from all layers
+    urls = ()
+    handlers = dict()
+    for mod in lifeguard_handlers, bmm_handlers:
+        urls = urls + mod.urls
+        handlers.update(mod.__dict__)
+
+    urls = lifeguard_handlers.urls + bmm_handlers.urls
+    loaded_urls = templeton.handlers.load_urls(urls)
+    return web.application(loaded_urls, handlers)
 
 def main():
     # templeton uses $PWD/../html to serve /, so put PWD in a subdirectory of

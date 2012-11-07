@@ -2,9 +2,7 @@ function show_error(errmsg) {
     $('#error').append('\n' + errmsg).show();
 }
 
-function model_loader(name) {
-    // get the capitalized class name
-    var class_name = name.charAt(0).toUpperCase() + name.slice(1);
+function model_loader(name, class_name) {
     return function(next) {
         var model = eval('new ' + class_name + '()');
         model.fetch({
@@ -34,18 +32,18 @@ load(
     '/js/controllers.js')
 // fetch data for our models
 .thenRun(
-    model_loader('devices'),
-    model_loader('bootimages'))
+    model_loader('devices', 'Devices'),
+    model_loader('pxe_configs', 'PxeConfigs'))
 .thenRun(function(next) {
     // client-side models
-    window.selected_bootimage = new SelectedBootimage();
+    window.selected_pxe_config = new SelectedPxeConfig();
     window.job_queue = new JobQueue();
 
     // create the required views
     new TableView({ el: $('#container'), }).render();
-    new BootimageSelectView({ el: $('#reimage-bootimage'), }).render();
+    new PxeConfigSelectView({ el: $('#pxe-pxe-config'), }).render();
+    new PxeBootButtonView({ el: $('#pxe-button'), }).render();
     new PowerCycleButtonView({ el: $('#power-cycle-button'), }).render();
-    new ReimageButtonView({ el: $('#reimage-button'), }).render();
     new JobQueueView({ el: $('#job-queue'), }).render();
 
     // and the job runner

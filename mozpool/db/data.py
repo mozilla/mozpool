@@ -153,13 +153,18 @@ def device_config(device):
         config_data = json.loads(row['boot_config'].encode('utf-8'))
     return {'config': config_data}
 
-def set_device_config(device, config_data):
+def set_device_config(device, pxe_config_name, config_data):
     """
     Set the config parameters for the /boot/ API for device.
     """
-    sql.get_conn().execute(model.devices.update().
-                           where(model.devices.c.name==device).
-                           values(boot_config=json.dumps(config_data)))
+    conn = sql.get_conn()
+    res = conn.execute(select([model.pxe_configs.c.id]).
+            where(model.pxe_configs.c.name==pxe_config_name))
+    pxe_config_id = res.fetchall()[0][0]
+    conn.execute(model.devices.update().
+                 where(model.devices.c.name==device).
+                 values(last_pxe_config_id=pxe_config_id,
+                         boot_config=json.dumps(config_data)))
     return config
 
 def device_relay_info(device):
@@ -187,19 +192,19 @@ def device_mac_address(device):
     row = res.fetchone()
     return row['mac_address'].encode('utf-8')
 
-def list_bootimages():
+def list_pxe_configs():
     conn = sql.get_conn()
-    res = conn.execute(select([model.images.c.name]))
-    return {'bootimages': [row[0].encode('utf-8') for row in res]}
+    res = conn.execute(select([model.pxe_configs.c.name]))
+    return {'pxe_configs': [row[0].encode('utf-8') for row in res]}
 
-def bootimage_details(image):
+def pxe_config_details(image):
     conn = sql.get_conn()
-    res = conn.execute(select([model.images],
-                              model.images.c.name==image))
+    res = conn.execute(select([model.pxe_configs],
+                              model.pxe_configs.c.name==image))
     row = res.fetchone()
     if row is None:
         raise NotFound
-    return {'details': row_to_dict(row, model.images, omit_cols=['id'])}
+    return {'details': row_to_dict(row, model.pxe_configs, omit_cols=['id'])}
 
 def get_unassigned_devices():
     conn = sql.get_conn()

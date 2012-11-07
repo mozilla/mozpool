@@ -117,21 +117,26 @@ CREATE TABLE devices (
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
   -- path to the device's power relay; format TBD; NULL=no control
   relay_info text,
+  -- last PXE config set up for this device
+  last_pxe_config_id integer unsigned,
+  foreign key (last_pxe_config_id) references pxe_configs(id) on delete restrict,
   -- config the device will use on its next boot (JSON blob)
-  boot_config text
+  boot_config text,
+
+  unique index name_idx (name)
 );
 
-DROP TABLE IF EXISTS images;
-CREATE TABLE images (
+DROP TABLE IF EXISTS pxe_configs;
+CREATE TABLE pxe_configs (
   id integer unsigned not null primary key auto_increment,
   -- short identifier
   name varchar(32) not null,
   -- version, scoped to the name
-  version integer not null,
-  -- larger description of the image; visible on web
   description text not null,
-  -- pxe configuration file (absolute path) to use for this image
-  pxe_config_filename varchar(256) not null
+  -- pxe configuration text
+  config_content TEXT not null,
+
+  unique index name_idx (name)
 );
 
 DROP TABLE IF EXISTS requests;

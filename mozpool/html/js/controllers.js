@@ -56,7 +56,7 @@ $.extend(JobRunner.prototype, {
 
         var job_args = this.running.get('job_args');
         var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
-            + this.running.get('device_name') + '/boot/' + job_args.bootimage;
+            + this.running.get('device_name') + '/boot/' + job_args.pxe_config;
         $.ajax(url, {
             type: 'POST',
             data: JSON.stringify(job_args.config),

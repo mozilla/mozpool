@@ -24,7 +24,7 @@ from mozpool.db import model
 from mozpool.bmm import relay
 from mozpool.bmm import pxe
 from mozpool.lifeguard import inventorysync
-from mozpool.test.util import add_server, add_device, add_bootimage, setup_db
+from mozpool.test.util import add_server, add_device, add_pxe_config, setup_db
 from mozpool.test import fakerelay
 import mozpool.bmm.api
 
@@ -212,7 +212,7 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         self.pxefile = "image1"
         # create a file for the boot image.
         open(os.path.join(config.get('paths', 'image_store'), self.pxefile), "w").write("abc")
-        add_bootimage("image1", pxe_config_filename=self.pxefile)
+        add_pxe_config("image1")
 
     @patch("mozpool.bmm.api.powercycle")
     @patch("mozpool.bmm.api.set_pxe")
@@ -258,7 +258,7 @@ class TestBoardRedirects(ConfigMixin, unittest.TestCase):
         add_server("server2")
         add_device("device1", server="server1")
         add_device("device2", server="server2")
-        add_bootimage("image1")
+        add_pxe_config("image1")
 
     def testRedirectBoard(self):
         r = self.app.post("/api/device/device2/reboot/")
@@ -712,21 +712,18 @@ class TestBmmPxe(ConfigMixin, unittest.TestCase):
         add_server("server1")
         add_device("device1", server="server1", relayinfo="relay-1:bank1:relay1",
                             mac_address='aabbccddeeff')
-        add_bootimage('img1', pxe_config_filename='/a/b/img1')
-        cfg_dir = os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg')
-        add_bootimage('img2', pxe_config_filename=os.path.join(cfg_dir, 'img2'))
+        add_pxe_config('img1', contents='IMG1')
 
     def test_set_pxe(self):
         pxe.set_pxe('device1', 'img1', 'config')
-        cfg_dir = os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg')
-        cfg_filename = os.path.join(cfg_dir, '01-aa-bb-cc-dd-ee-ff')
-        self.assertEqual(os.readlink(cfg_filename), '/a/b/img1')
+        cfg_filename = os.path.join(os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg'), '01-aa-bb-cc-dd-ee-ff')
+        self.assertEqual(open(cfg_filename).read(), 'IMG1')
 
     def test_clear_pxe(self):
         cfg_dir = os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg')
         cfg_filename = os.path.join(cfg_dir, '01-aa-bb-cc-dd-ee-ff')
         os.makedirs(cfg_dir)
-        open(cfg_filename, "w")
+        open(cfg_filename, "w").write("IMG2")
         pxe.clear_pxe('device1')
         self.assertFalse(os.path.exists(cfg_filename))
 

@@ -1,5 +1,5 @@
 // NOTE: all top-level models appear as attributes of window, using the
-// lower-cased name.  So the Bootimages instance is window.bootimages.
+// lower-cased name.  So the Devices instance is window.devices.
 
 // db-backed models
 
@@ -60,20 +60,20 @@ var Devices = Backbone.Collection.extend({
     }
 });
 
-var Bootimage = Backbone.Model.extend({
+var PxeConfig = Backbone.Model.extend({
 });
 
-var Bootimages = Backbone.Collection.extend({
-    url: '/api/bootimage/list/',
-    model: Bootimage,
+var PxeConfigs = Backbone.Collection.extend({
+    url: '/api/bmm/pxe_config/list/',
+    model: PxeConfig,
     parse: function(response) {
-        return $.map(response.bootimages, function(name, id) { return { name: name, id: id }; });
+        return $.map(response.pxe_configs, function(name, id) { return { name: name, id: id }; });
     }
 });
 
 // client-only models
 
-var SelectedBootimage = Backbone.Model.extend({
+var SelectedPxeConfig = Backbone.Model.extend({
     // currently-selected boot image in the <select>; name can be '' when no
     // image is selected
     initialize: function (args) {
