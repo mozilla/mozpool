@@ -139,6 +139,9 @@ CREATE TABLE requests (
   id integer unsigned not null primary key auto_increment,
   -- assigned device, if any
   device_id integer not null references devices.id on delete restrict,
+  -- fqdn of imaging server
+  imaging_server_id integer unsigned not null,
+  foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
   -- short identifier for the requester/assignee
   assignee varchar(255) not null,
   -- current status of the request (part of the state machine)
