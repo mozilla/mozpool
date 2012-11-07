@@ -99,6 +99,19 @@ CREATE TABLE imaging_servers (
   fqdn varchar(256) not null
 );
 
+DROP TABLE IF EXISTS pxe_configs;
+CREATE TABLE pxe_configs (
+  id integer unsigned not null primary key auto_increment,
+  -- short identifier
+  name varchar(32) not null,
+  -- version, scoped to the name
+  description text not null,
+  -- pxe configuration text
+  config_content TEXT not null,
+
+  unique index name_idx (name)
+);
+
 DROP TABLE IF EXISTS devices;
 CREATE TABLE devices (
   id integer UNSIGNED not null primary key auto_increment,
@@ -122,19 +135,6 @@ CREATE TABLE devices (
   foreign key (last_pxe_config_id) references pxe_configs(id) on delete restrict,
   -- config the device will use on its next boot (JSON blob)
   boot_config text,
-
-  unique index name_idx (name)
-);
-
-DROP TABLE IF EXISTS pxe_configs;
-CREATE TABLE pxe_configs (
-  id integer unsigned not null primary key auto_increment,
-  -- short identifier
-  name varchar(32) not null,
-  -- version, scoped to the name
-  description text not null,
-  -- pxe configuration text
-  config_content TEXT not null,
 
   unique index name_idx (name)
 );
