@@ -17,7 +17,7 @@ from mozpool import config
 #  - imaging_server (from system.imaging_server.0)
 #  - relay_info (from system.relay.0)
 
-def get_boards(url, filter, username, password, verbose=False):
+def get_devices(url, filter, username, password, verbose=False):
     """
     Return a list of hosts from inventory.  FILTER is a tastypie-style filter for
     the desired hosts.  Any hosts without 'system.relay.0' are ignored.
@@ -57,7 +57,7 @@ def get_boards(url, filter, username, password, verbose=False):
 
     return rv
 
-def merge_boards(from_db, from_inv):
+def merge_devices(from_db, from_inv):
     """
     Merge a list of hosts in the DB with those in inventory.  This yields a
     list of instructions of the form ('insert', dict), ('delete', id, dict), or
@@ -87,26 +87,26 @@ def merge_boards(from_db, from_inv):
             yield ('update', id, inv_row)
 
 def sync(verbose=False):
-    from_inv = get_boards(
+    from_inv = get_devices(
             config.get('inventory', 'url'),
             config.get('inventory', 'filter'),
             config.get('inventory', 'username'),
             config.get('inventory', 'password'),
             verbose=verbose)
     # dump the db second, since otherwise the mysql server can go away while
-    # get_boards is still running, which is no fun
-    from_db = data.dump_boards()
+    # get_devices is still running, which is no fun
+    from_db = data.dump_devices()
 
-    for task in merge_boards(from_db, from_inv):
+    for task in merge_devices(from_db, from_inv):
         if task[0] == 'insert':
-            if verbose: print "insert board", task[1]['fqdn']
-            data.insert_board(task[1])
+            if verbose: print "insert device", task[1]['fqdn']
+            data.insert_device(task[1])
         elif task[0] == 'delete':
-            if verbose: print "delete board", task[2]
-            data.delete_board(task[1])
+            if verbose: print "delete device", task[2]
+            data.delete_device(task[1])
         elif task[0] == 'update':
-            if verbose: print "update board", task[2]
-            data.update_board(task[1], task[2])
+            if verbose: print "update device", task[2]
+            data.update_device(task[1], task[2])
         else:
             raise AssertionError('%s is not a task' % task[0])
 

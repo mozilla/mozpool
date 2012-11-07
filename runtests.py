@@ -24,7 +24,7 @@ from mozpool.db import model
 from mozpool.bmm import relay
 from mozpool.bmm import pxe
 from mozpool.lifeguard import inventorysync
-from mozpool.test.util import add_server, add_board, add_bootimage, setup_db
+from mozpool.test.util import add_server, add_device, add_bootimage, setup_db
 from mozpool.test import fakerelay
 import mozpool.bmm.api
 
@@ -55,64 +55,64 @@ class TestData(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestData, self).setUp()
         add_server("server1")
-        add_board("board1", server="server1", relayinfo="relay-1:bank1:relay1")
+        add_device("device1", server="server1", relayinfo="relay-1:bank1:relay1")
 
     def testRelayInfo(self):
         self.assertEquals(("relay-1", 1, 1),
-                          data.board_relay_info("board1"))
+                          data.device_relay_info("device1"))
 
     def testDumpBoards(self):
         self.assertEquals([
-            dict(id=1, name='board1', fqdn='board1', inventory_id=1, mac_address='000000000000',
+            dict(id=1, name='device1', fqdn='device1', inventory_id=1, mac_address='000000000000',
                 imaging_server='server1', relay_info='relay-1:bank1:relay1', status='offline'),
             ],
-            data.dump_boards())
+            data.dump_devices())
 
     def testInsertBoard(self):
-        data.insert_board(dict(name='board2', fqdn='board2.fqdn', inventory_id=23,
+        data.insert_device(dict(name='device2', fqdn='device2.fqdn', inventory_id=23,
             mac_address='aabbccddeeff', imaging_server='server2',
                 relay_info='relay-2:bank2:relay2'))
-        # board with existing imaging_server to test the insert-if-not-found behavior
-        data.insert_board(dict(name='board3', fqdn='board3.fqdn', inventory_id=24,
+        # device with existing imaging_server to test the insert-if-not-found behavior
+        data.insert_device(dict(name='device3', fqdn='device3.fqdn', inventory_id=24,
             mac_address='aabbccddeeff', imaging_server='server1',
                 relay_info='relay-2:bank2:relay2'))
         conn = sql.get_conn()
-        res = conn.execute(model.boards.select())
+        res = conn.execute(model.devices.select())
         self.assertEquals(sorted([ dict(r) for r in res.fetchall() ]),
         sorted([
-            {u'status': u'new', u'relay_info': u'relay-2:bank2:relay2', u'name': u'board2',
-             u'fqdn': u'board2.fqdn', u'inventory_id': 23, u'imaging_server_id': 2,
+            {u'status': u'new', u'relay_info': u'relay-2:bank2:relay2', u'name': u'device2',
+             u'fqdn': u'device2.fqdn', u'inventory_id': 23, u'imaging_server_id': 2,
              u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 2},
-            {u'status': u'new', u'relay_info': u'relay-2:bank2:relay2', u'name': u'board3',
-             u'fqdn': u'board3.fqdn', u'inventory_id': 24, u'imaging_server_id': 1,
+            {u'status': u'new', u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
+             u'fqdn': u'device3.fqdn', u'inventory_id': 24, u'imaging_server_id': 1,
              u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 3},
-            {u'status': u'offline', u'relay_info': u'relay-1:bank1:relay1', u'name': u'board1',
-             u'fqdn': u'board1', u'inventory_id': 1, u'imaging_server_id': 1,
+            {u'status': u'offline', u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
+             u'fqdn': u'device1', u'inventory_id': 1, u'imaging_server_id': 1,
              u'boot_config': u'{}', u'mac_address': u'000000000000', u'id': 1},
             ]))
 
     def testDeleteBoard(self):
         conn = sql.get_conn()
         now = datetime.datetime.now()
-        conn.execute(model.board_logs.insert(), [
-            dict(board_id=1, ts=now, source='test', message='hi'),
-            dict(board_id=1, ts=now, source='test', message='world'),
+        conn.execute(model.device_logs.insert(), [
+            dict(device_id=1, ts=now, source='test', message='hi'),
+            dict(device_id=1, ts=now, source='test', message='world'),
         ])
-        data.delete_board(1)
+        data.delete_device(1)
 
-        # check that both logs and boards were deleted
-        res = conn.execute(model.boards.select())
+        # check that both logs and devices were deleted
+        res = conn.execute(model.devices.select())
         self.assertEquals(res.fetchall(), [])
-        res = conn.execute(model.board_logs.select())
+        res = conn.execute(model.device_logs.select())
         self.assertEquals(res.fetchall(), [])
 
     def testUpdateBoard(self):
         conn = sql.get_conn()
-        data.update_board(1, dict(fqdn='board1.fqdn', imaging_server='server9', mac_address='aabbccddeeff'))
-        res = conn.execute(model.boards.select())
+        data.update_device(1, dict(fqdn='device1.fqdn', imaging_server='server9', mac_address='aabbccddeeff'))
+        res = conn.execute(model.devices.select())
         self.assertEquals([ dict(r) for r in res.fetchall() ], [
-            {u'status': u'offline', u'relay_info': u'relay-1:bank1:relay1', u'name': u'board1',
-             u'fqdn': u'board1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
+            {u'status': u'offline', u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
+             u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
              u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1},
         ])
 
@@ -120,69 +120,69 @@ class TestBoardList(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardList, self).setUp()
         add_server("server1")
-        add_board("board1", server="server1")
-        add_board("board2", server="server1")
+        add_device("device1", server="server1")
+        add_device("device2", server="server1")
         add_server("server2")
-        add_board("board3", server="server2")
-        add_board("board4", server="server2")
+        add_device("device3", server="server2")
+        add_device("device4", server="server2")
 
     def testBoardList(self):
         """
-        /board/list/ should list all boards for all servers.
+        /device/list/ should list all devices for all servers.
         """
-        r = self.app.get("/api/board/list/")
+        r = self.app.get("/api/device/list/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertTrue("boards" in body)
-        self.assertTrue("board1" in body["boards"])
-        self.assertTrue("board2" in body["boards"])
-        self.assertTrue("board3" in body["boards"])
-        self.assertTrue("board4" in body["boards"])
+        self.assertTrue("devices" in body)
+        self.assertTrue("device1" in body["devices"])
+        self.assertTrue("device2" in body["devices"])
+        self.assertTrue("device3" in body["devices"])
+        self.assertTrue("device4" in body["devices"])
 
-        r = self.app.get("/api/board/list/")
+        r = self.app.get("/api/device/list/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertTrue("boards" in body)
-        self.assertTrue("board1" in body["boards"])
-        self.assertTrue("board2" in body["boards"])
-        self.assertTrue("board3" in body["boards"])
-        self.assertTrue("board4" in body["boards"])
+        self.assertTrue("devices" in body)
+        self.assertTrue("device1" in body["devices"])
+        self.assertTrue("device2" in body["devices"])
+        self.assertTrue("device3" in body["devices"])
+        self.assertTrue("device4" in body["devices"])
 
 class TestBoardStatus(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardStatus, self).setUp()
         add_server("server1")
-        add_board("board1", server="server1", status="running")
-        add_board("board2", server="server1", status="freaking_out")
+        add_device("device1", server="server1", status="running")
+        add_device("device2", server="server1", status="freaking_out")
         add_server("server2")
-        add_board("board3", server="server2", status="running")
+        add_device("device3", server="server2", status="running")
 
     def testBoardStatus(self):
         """
-        /board/status/ should work for any board on any server.
+        /device/status/ should work for any device on any server.
         """
-        r = self.app.get("/api/board/board1/status/")
+        r = self.app.get("/api/device/device1/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertEquals("running", body["status"])
 
-        r = self.app.get("/api/board/board2/status/")
+        r = self.app.get("/api/device/device2/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertEquals("freaking_out", body["status"])
 
-        r = self.app.get("/api/board/board3/status/")
+        r = self.app.get("/api/device/device3/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertEquals("running", body["status"])
 
     def testSetBoardStatus(self):
-        r = self.app.get("/api/board/board1/status/")
+        r = self.app.get("/api/device/device1/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertEquals("running", body["status"])
 
-        r = self.app.post("/api/board/board1/status/",
+        r = self.app.post("/api/device/device1/status/",
                           headers={"Content-Type": "application/json"},
                           params='{"status":"offline"}')
         self.assertEqual(200, r.status)
@@ -193,10 +193,10 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardConfig, self).setUp()
         add_server("server1")
-        add_board("board1", server="server1", config={"abc": "xyz"})
+        add_device("device1", server="server1", config={"abc": "xyz"})
 
     def testBoardConfig(self):
-        r = self.app.get("/api/board/board1/config/")
+        r = self.app.get("/api/device/device1/config/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertEquals({"abc": "xyz"}, body["config"])
@@ -205,9 +205,9 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardBoot, self).setUp()
         add_server("server1")
-        self.board_mac = "001122334455"
-        add_board("board1", server="server1", status="running",
-                  mac_address=self.board_mac,
+        self.device_mac = "001122334455"
+        add_device("device1", server="server1", status="running",
+                  mac_address=self.device_mac,
                   relayinfo="relay-1:bank1:relay1")
         self.pxefile = "image1"
         # create a file for the boot image.
@@ -218,57 +218,57 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
     @patch("mozpool.bmm.api.set_pxe")
     def testBoardBoot(self, set_pxe, powercycle):
         config_data = {"foo":"bar"}
-        r = self.app.post("/api/board/board1/boot/image1/",
+        r = self.app.post("/api/device/device1/boot/image1/",
                           headers={"Content-Type": "application/json"},
                           params=json.dumps(config_data))
         self.assertEqual(200, r.status)
         # Nothing in the response body currently
-        set_pxe.assert_called_with('board1', 'image1', config_data)
-        powercycle.assert_called_with('board1')
+        set_pxe.assert_called_with('device1', 'image1', config_data)
+        powercycle.assert_called_with('device1')
 
 class TestBoardReboot(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardReboot, self).setUp()
         add_server("server1")
-        add_board("board1", server="server1", status="running",
+        add_device("device1", server="server1", status="running",
                   relayinfo="relay-1:bank1:relay1")
 
     @patch("mozpool.bmm.api.powercycle")
     @patch("mozpool.bmm.api.clear_pxe")
     def testBoardReboot(self, clear_pxe, powercycle):
-        r = self.app.post("/api/board/board1/reboot/")
+        r = self.app.post("/api/device/device1/reboot/")
         self.assertEqual(200, r.status)
         # Nothing in the response body currently
-        clear_pxe.assert_called_with('board1')
-        powercycle.assert_called_with('board1')
+        clear_pxe.assert_called_with('device1')
+        powercycle.assert_called_with('device1')
 
     def testBoardRebootNotFound(self):
-        r = self.app.post("/api/board/board2/reboot/", expect_errors=True)
+        r = self.app.post("/api/device/device2/reboot/", expect_errors=True)
         self.assertEqual(404, r.status)
 
 class TestBoardRedirects(ConfigMixin, unittest.TestCase):
     """
     The /boot/ and /reboot/ commands should 302 redirect to the
     correct server if the current server isn't the server that
-    controls the board in question.
+    controls the device in question.
     """
     def setUp(self):
         super(TestBoardRedirects, self).setUp()
         add_server("server1")
         add_server("server2")
-        add_board("board1", server="server1")
-        add_board("board2", server="server2")
+        add_device("device1", server="server1")
+        add_device("device2", server="server2")
         add_bootimage("image1")
 
     def testRedirectBoard(self):
-        r = self.app.post("/api/board/board2/reboot/")
+        r = self.app.post("/api/device/device2/reboot/")
         self.assertEqual(302, r.status)
-        self.assertEqual("http://server2/api/board/board2/reboot/",
+        self.assertEqual("http://server2/api/device/device2/reboot/",
                          r.header("Location"))
 
-        r = self.app.post("/api/board/board2/boot/image1/")
+        r = self.app.post("/api/device/device2/boot/image1/")
         self.assertEqual(302, r.status)
-        self.assertEqual("http://server2/api/board/board2/boot/image1/",
+        self.assertEqual("http://server2/api/device/device2/boot/image1/",
                          r.header("Location"))
 
 class TestInvSyncMerge(unittest.TestCase):
@@ -296,40 +296,40 @@ class TestInvSyncMerge(unittest.TestCase):
         self.panda2_db['id'] = 402
         self.panda2_db['status'] = 'old'
 
-    def test_merge_boards_no_change(self):
-        commands = list(inventorysync.merge_boards(
+    def test_merge_devices_no_change(self):
+        commands = list(inventorysync.merge_devices(
             [self.panda1_db, self.panda2_db],
             [self.panda1_inv, self.panda2_inv]))
         self.assertEqual(commands, [])
 
-    def test_merge_boards_insert(self):
-        commands = list(inventorysync.merge_boards(
+    def test_merge_devices_insert(self):
+        commands = list(inventorysync.merge_devices(
             [self.panda1_db],
             [self.panda1_inv, self.panda2_inv]))
         self.assertEqual(commands, [
             ('insert', self.panda2_inv),
         ])
 
-    def test_merge_boards_delete(self):
-        commands = list(inventorysync.merge_boards(
+    def test_merge_devices_delete(self):
+        commands = list(inventorysync.merge_devices(
             [self.panda1_db, self.panda2_db],
             [self.panda2_inv]))
         self.assertEqual(sorted(commands), [
             ('delete', 401, self.panda1_db),
         ])
 
-    def test_merge_boards_update(self):
+    def test_merge_devices_update(self):
         self.panda2_inv['mac_address'] = '1a2b3c4d5e6f'
-        commands = list(inventorysync.merge_boards(
+        commands = list(inventorysync.merge_devices(
             [self.panda1_db, self.panda2_db],
             [self.panda1_inv, self.panda2_inv]))
         self.assertEqual(sorted(commands), [
             ('update', 402, self.panda2_inv),
         ])
 
-    def test_merge_boards_combo(self):
+    def test_merge_devices_combo(self):
         self.panda2_inv['mac_address'] = '1a2b3c4d5e6f'
-        commands = list(inventorysync.merge_boards(
+        commands = list(inventorysync.merge_devices(
             [self.panda1_db, self.panda2_db],
             [self.panda2_inv]))
         self.assertEqual(sorted(commands), [
@@ -379,7 +379,7 @@ class TestInvSyncGet(unittest.TestCase):
         self.set_responses([
             [ self.make_host('panda-001'), self.make_host('panda-002') ],
         ])
-        hosts = list(inventorysync.get_boards('https://inv', 'filter', 'me', 'pass'))
+        hosts = list(inventorysync.get_devices('https://inv', 'filter', 'me', 'pass'))
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
@@ -399,7 +399,7 @@ class TestInvSyncGet(unittest.TestCase):
             [ self.make_host('panda-003'), self.make_host('panda-004', want_relay_info=False) ],
             [ self.make_host('panda-005'), self.make_host('panda-006', want_mac_address=False) ],
         ])
-        hosts = inventorysync.get_boards('https://inv', 'filter', 'me', 'pass')
+        hosts = inventorysync.get_devices('https://inv', 'filter', 'me', 'pass')
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
@@ -420,35 +420,35 @@ class TestInvSyncGet(unittest.TestCase):
             mock.call('https://inv/path2', auth=('me', 'pass')),
         ])
 
-@patch('mozpool.db.data.dump_boards')
-@patch('mozpool.db.data.insert_board')
-@patch('mozpool.db.data.update_board')
-@patch('mozpool.db.data.delete_board')
-@patch('mozpool.lifeguard.inventorysync.get_boards')
-@patch('mozpool.lifeguard.inventorysync.merge_boards')
+@patch('mozpool.db.data.dump_devices')
+@patch('mozpool.db.data.insert_device')
+@patch('mozpool.db.data.update_device')
+@patch('mozpool.db.data.delete_device')
+@patch('mozpool.lifeguard.inventorysync.get_devices')
+@patch('mozpool.lifeguard.inventorysync.merge_devices')
 class TestInvSyncSync(unittest.TestCase):
 
-    def test_sync(self, merge_boards, get_boards, delete_board,
-                        update_board, insert_board, dump_boards):
+    def test_sync(self, merge_devices, get_devices, delete_device,
+                        update_device, insert_device, dump_devices):
         config.reset()
         config.set('inventory', 'url', 'http://foo/')
         config.set('inventory', 'filter', 'hostname__startswith=panda-')
         config.set('inventory', 'username', 'u')
         config.set('inventory', 'password', 'p')
-        dump_boards.return_value = 'dumped boards'
-        get_boards.return_value = 'gotten boards'
-        merge_boards.return_value = [
+        dump_devices.return_value = 'dumped devices'
+        get_devices.return_value = 'gotten devices'
+        merge_devices.return_value = [
             ('insert', dict(insert=1)),
             ('delete', 10, dict(delete=2)),
             ('update', 11, dict(update=3)),
         ]
         inventorysync.sync()
-        dump_boards.assert_called_with()
-        get_boards.assert_called_with('http://foo/', 'hostname__startswith=panda-', 'u', 'p', verbose=False)
-        merge_boards.assert_called_with('dumped boards', 'gotten boards')
-        insert_board.assert_called_with(dict(insert=1))
-        delete_board.assert_called_with(10)
-        update_board.assert_called_with(11, dict(update=3))
+        dump_devices.assert_called_with()
+        get_devices.assert_called_with('http://foo/', 'hostname__startswith=panda-', 'u', 'p', verbose=False)
+        merge_devices.assert_called_with('dumped devices', 'gotten devices')
+        insert_device.assert_called_with(dict(insert=1))
+        delete_device.assert_called_with(10)
+        update_device.assert_called_with(11, dict(update=3))
 
 
 class StateMachineSubclass(statemachine.StateMachine):
@@ -621,29 +621,29 @@ class TestBmmApi(unittest.TestCase):
 
     @patch('mozpool.db.logs.Logs.add')
     @patch('mozpool.bmm.relay.powercycle')
-    @patch('mozpool.db.data.board_relay_info')
-    def test_good(self, board_relay_info, powercycle, logs_add):
-        board_relay_info.return_value = ('relay1', 1, 3)
+    @patch('mozpool.db.data.device_relay_info')
+    def test_good(self, device_relay_info, powercycle, logs_add):
+        device_relay_info.return_value = ('relay1', 1, 3)
         powercycle.return_value = True
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=30), True)
-        board_relay_info.assert_called_with('dev1')
+        device_relay_info.assert_called_with('dev1')
         powercycle.assert_called_with('relay1', 1, 3, 30)
         logs_add.assert_called()
 
     @patch('mozpool.db.logs.Logs.add')
     @patch('mozpool.bmm.relay.powercycle')
-    @patch('mozpool.db.data.board_relay_info')
-    def test_bad(self, board_relay_info, powercycle, logs_add):
-        board_relay_info.return_value = ('relay1', 1, 3)
+    @patch('mozpool.db.data.device_relay_info')
+    def test_bad(self, device_relay_info, powercycle, logs_add):
+        device_relay_info.return_value = ('relay1', 1, 3)
         powercycle.return_value = False
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=30), False)
         logs_add.assert_called()
 
     @patch('mozpool.db.logs.Logs.add')
     @patch('mozpool.bmm.relay.powercycle')
-    @patch('mozpool.db.data.board_relay_info')
-    def test_exceptions(self, board_relay_info, powercycle, logs_add):
-        board_relay_info.return_value = ('relay1', 1, 3)
+    @patch('mozpool.db.data.device_relay_info')
+    def test_exceptions(self, device_relay_info, powercycle, logs_add):
+        device_relay_info.return_value = ('relay1', 1, 3)
         powercycle.return_value = False
         powercycle.side_effect = lambda *args : 11/0 # ZeroDivisionError
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=0.01), False)
@@ -652,15 +652,15 @@ class TestBmmApi(unittest.TestCase):
     @patch('mozpool.db.logs.Logs.add')
     @patch('mozpool.bmm.pxe.set_pxe')
     def test_set_pxe(self, pxe_set_pxe, logs_add):
-        mozpool.bmm.pxe.set_pxe('board1', 'img1', 'cfg')
-        pxe_set_pxe.assert_called_with('board1', 'img1', 'cfg')
+        mozpool.bmm.pxe.set_pxe('device1', 'img1', 'cfg')
+        pxe_set_pxe.assert_called_with('device1', 'img1', 'cfg')
         logs_add.assert_called()
 
     @patch('mozpool.db.logs.Logs.add')
     @patch('mozpool.bmm.pxe.clear_pxe')
     def test_clear_pxe(self, pxe_clear_pxe, logs_add):
-        mozpool.bmm.pxe.clear_pxe('board1')
-        pxe_clear_pxe.assert_called_with('board1')
+        mozpool.bmm.pxe.clear_pxe('device1')
+        pxe_clear_pxe.assert_called_with('device1')
         logs_add.assert_called()
 
 class TestBmmRelay(unittest.TestCase):
@@ -710,14 +710,14 @@ class TestBmmPxe(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBmmPxe, self).setUp()
         add_server("server1")
-        add_board("board1", server="server1", relayinfo="relay-1:bank1:relay1",
+        add_device("device1", server="server1", relayinfo="relay-1:bank1:relay1",
                             mac_address='aabbccddeeff')
         add_bootimage('img1', pxe_config_filename='/a/b/img1')
         cfg_dir = os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg')
         add_bootimage('img2', pxe_config_filename=os.path.join(cfg_dir, 'img2'))
 
     def test_set_pxe(self):
-        pxe.set_pxe('board1', 'img1', 'config')
+        pxe.set_pxe('device1', 'img1', 'config')
         cfg_dir = os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg')
         cfg_filename = os.path.join(cfg_dir, '01-aa-bb-cc-dd-ee-ff')
         self.assertEqual(os.readlink(cfg_filename), '/a/b/img1')
@@ -727,12 +727,12 @@ class TestBmmPxe(ConfigMixin, unittest.TestCase):
         cfg_filename = os.path.join(cfg_dir, '01-aa-bb-cc-dd-ee-ff')
         os.makedirs(cfg_dir)
         open(cfg_filename, "w")
-        pxe.clear_pxe('board1')
+        pxe.clear_pxe('device1')
         self.assertFalse(os.path.exists(cfg_filename))
 
     def test_clear_pxe_nonexistent(self):
         # just has to not fail!
-        pxe.clear_pxe('board1')
+        pxe.clear_pxe('device1')
 
 if __name__ == "__main__":
     unittest.main()

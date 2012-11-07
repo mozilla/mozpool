@@ -99,8 +99,8 @@ CREATE TABLE imaging_servers (
   fqdn varchar(256) not null
 );
 
-DROP TABLE IF EXISTS boards;
-CREATE TABLE boards (
+DROP TABLE IF EXISTS devices;
+CREATE TABLE devices (
   id integer UNSIGNED not null primary key auto_increment,
   -- short name (no dots)
   name varchar(32) not null,
@@ -115,9 +115,9 @@ CREATE TABLE boards (
   -- fqdn of imaging server
   imaging_server_id integer unsigned not null,
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
-  -- path to the board's power relay; format TBD; NULL=no control
+  -- path to the device's power relay; format TBD; NULL=no control
   relay_info text,
-  -- config the board will use on its next boot (JSON blob)
+  -- config the device will use on its next boot (JSON blob)
   boot_config text
 );
 
@@ -137,8 +137,8 @@ CREATE TABLE images (
 DROP TABLE IF EXISTS requests;
 CREATE TABLE requests (
   id integer unsigned not null primary key auto_increment,
-  -- assigned board, if any
-  board_id integer not null references boards.id on delete restrict,
+  -- assigned device, if any
+  device_id integer not null references devices.id on delete restrict,
   -- short identifier for the requester/assignee
   assignee varchar(255) not null,
   -- current status of the request (part of the state machine)
@@ -146,23 +146,23 @@ CREATE TABLE requests (
   -- time at which the request will expire (if not renewed)
   expires datetime not null,
 
-  unique index board_id_idx (board_id)
+  unique index device_id_idx (device_id)
 );
 
-DROP TABLE IF EXISTS board_logs;
-CREATE TABLE board_logs (
-    -- foreign key for the board
-    board_id integer not null,
+DROP TABLE IF EXISTS device_logs;
+CREATE TABLE device_logs (
+    -- foreign key for the device
+    device_id integer not null,
     ts timestamp not null,
     -- short string giving the origin of the message (syslog, api, etc.)
     source varchar(32) not null,
     -- the message itself
     message text not null,
     -- indices
-    index board_id_idx (board_id),
+    index device_id_idx (device_id),
     index ts_idx (ts)
 );
-CALL init_log_partitions('board_logs', 14, 1);
+CALL init_log_partitions('device_logs', 14, 1);
 
 DROP TABLE IF EXISTS request_logs;
 CREATE TABLE request_logs (
@@ -190,7 +190,7 @@ DELIMITER $$
 DROP EVENT IF EXISTS update_log_partitions $$
 CREATE EVENT update_log_partitions  ON SCHEDULE EVERY 1 day
 DO BEGIN
-    CALL update_log_partitions('board_logs', 14, 1);
+    CALL update_log_partitions('device_logs', 14, 1);
     CALL update_log_partitions('request_logs', 14, 1);
     -- TODO: optimize requests and any other tables that get lots of deletes
 END $$
@@ -203,20 +203,20 @@ DELIMITER ;
 
 DELIMITER $$
 
--- Procedure to insert a log entry given a board name.  This silently drops log entries for
--- boards that are not configured.
+-- Procedure to insert a log entry given a device name.  This silently drops log entries for
+-- devices that are not configured.
 DROP PROCEDURE IF EXISTS insert_log_entry $$
-CREATE PROCEDURE insert_log_entry(board TEXT, ts TIMESTAMP, source TEXT, message TEXT)
+CREATE PROCEDURE insert_log_entry(device TEXT, ts TIMESTAMP, source TEXT, message TEXT)
 BEGIN
-    DECLARE boardid integer;
-    SELECT id from boards where name=board INTO boardid;
-    IF boardid is not NULL THEN BEGIN
+    DECLARE deviceid integer;
+    SELECT id from devices where name=device INTO deviceid;
+    IF deviceid is not NULL THEN BEGIN
         -- 1526 occurs when there's no matching partition; in this case, use NOW() instead of the timestamp
         DECLARE CONTINUE HANDLER FOR 1526 BEGIN
-            INSERT INTO board_logs (board_id, ts, source, message) values (boardid, NOW(), source, ltrim(message));
+            INSERT INTO device_logs (device_id, ts, source, message) values (deviceid, NOW(), source, ltrim(message));
         END;
         -- trim the message since rsyslogd prepends a space
-        INSERT INTO board_logs (board_id, ts, source, message) values (boardid, ts, source, ltrim(message));
+        INSERT INTO device_logs (device_id, ts, source, message) values (deviceid, ts, source, ltrim(message));
     END;
     END IF; 
 END $$

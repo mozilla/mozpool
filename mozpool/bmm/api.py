@@ -24,11 +24,11 @@ def start_powercycle(device_name, callback, max_time=30):
 
     # TODO: call this in the thread so it doesn't block and gets counted in the
     # total request time
-    hostname, bnk, rly = data.board_relay_info(device_name)
+    hostname, bnk, rly = data.device_relay_info(device_name)
 
     # TODO: verify this device belongs to this imaging server
 
-    logs.board_logs.add(device_name, "initiating power cycle")
+    logs.device_logs.add(device_name, "initiating power cycle")
     def try_powercycle():
         res = False
         try:
@@ -66,7 +66,7 @@ def set_pxe(device_name, image_name, config):
     Set the boot configuration for the given device to the start up with PXE
     config from IMAGE_NAME and supply an additional JSON configuratoin CONFIG.
     """
-    logs.board_logs.add(device_name, "setting PXE config to image %s" % (image_name,))
+    logs.device_logs.add(device_name, "setting PXE config to image %s" % (image_name,))
     pxe.set_pxe(device_name, image_name, config)
 
 def clear_pxe(device_name):
@@ -74,5 +74,5 @@ def clear_pxe(device_name):
     Clear a device's boot configuration, allowing it to boot from its internal
     storage.
     """
-    logs.board_logs.add(device_name, "clearing PXE config")
+    logs.device_logs.add(device_name, "clearing PXE config")
     pxe.clear_pxe(device_name)

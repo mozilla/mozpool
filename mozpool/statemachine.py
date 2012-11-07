@@ -154,11 +154,11 @@ class State(object):
     # hook methods
 
     def on_entry(self):
-        "The board has just entered this state"
+        "The machine has just entered this state"
         pass
 
     def on_exit(self):
-        "The board is about to leave this state"
+        "The machine is about to leave this state"
         pass
 
     # magic mechanics
@@ -194,7 +194,7 @@ def event_method(event):
     return wrap
 
 def timeout_method(duration):
-    """Decorator -- designate this method to be called when the board is in this state for
+    """Decorator -- designate this method to be called when the machine is in this state for
     DURATION or more seconds"""
     def wrap(fn):
         fn.timeout_duration = duration

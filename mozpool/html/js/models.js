@@ -3,7 +3,7 @@
 
 // db-backed models
 
-var Board = Backbone.Model.extend({
+var Device = Backbone.Model.extend({
     // in addition to all of the attributes from the REST API, this has a
     // 'selected' attribute that is local to the client
     initialize: function(args) {
@@ -11,15 +11,15 @@ var Board = Backbone.Model.extend({
     },
 });
 
-var Boards = Backbone.Collection.extend({
-    url: '/api/board/list/?details=true',
-    model: Board,
+var Devices = Backbone.Collection.extend({
+    url: '/api/device/list/?details=true',
+    model: Device,
     refreshInterval: 30000,
 
     initialize: function (args) {
         _.bindAll(this, 'update', 'parse');
 
-        // boards automatically update themselves; set up to update
+        // devices automatically update themselves; set up to update
         // TODO: this could be done better with fetch({merge:true}), but that's
         // not in backbone-0.9.2
         window.setTimeout(this.update, this.refreshInterval);
@@ -28,23 +28,23 @@ var Boards = Backbone.Collection.extend({
     parse: function(response) {
         var self = this;
         var old_ids = self.map(function(b) { return b.get('id'); });
-        var new_ids = _.map(response.boards, function (b) { return b.id; });
+        var new_ids = _.map(response.devices, function (b) { return b.id; });
 
         // calculate added and removed elements from differences
         _.each(_.difference(old_ids, new_ids), function (id) {
             self.get(id).remove();
         });
         _.each(_.difference(new_ids, old_ids), function (id) {
-            var board_attrs = response.boards[_.indexOf(new_ids, id)];
-            self.push(new self.model(board_attrs));
+            var device_attrs = response.devices[_.indexOf(new_ids, id)];
+            self.push(new self.model(device_attrs));
         });
 
-        // then any updates to the individual boards that haven't been added or
+        // then any updates to the individual devices that haven't been added or
         // removed
         _.each(_.intersection(new_ids, old_ids), function (id) {
-            var board_attrs = response.boards[_.indexOf(new_ids, id)];
+            var device_attrs = response.devices[_.indexOf(new_ids, id)];
             var model = self.get(id);
-            model.set(board_attrs);
+            model.set(device_attrs);
         });
 
         // this just instructs the fetch/add to not anything else:
@@ -83,10 +83,10 @@ var SelectedBootimage = Backbone.Model.extend({
 
 var Job = Backbone.Model.extend({
     initialize: function (args) {
-        this.board = args.board;
+        this.device = args.device;
         this.set('job_type', args.job_type);
         this.set('job_args', args.job_args);
-        this.set('board_name', this.board.get('name'));
+        this.set('device_name', this.device.get('name'));
     },
 });
 

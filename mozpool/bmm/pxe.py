@@ -11,7 +11,7 @@ def _get_symlink_path(device_name):
     Get the path where the PXE boot symlink should be placed
     for a specific device.
     """
-    mac_address = data.mac_with_dashes(data.board_mac_address(device_name))
+    mac_address = data.mac_with_dashes(data.device_mac_address(device_name))
     symlink_dir = os.path.join(config.get('paths', 'tftp_root'), "pxelinux.cfg")
     return os.path.join(symlink_dir, "01-" + mac_address)
 
@@ -24,7 +24,7 @@ def set_pxe(device_name, image_name, config_data):
     pxe_config_filename = image_details['pxe_config_filename']
 
     # Set the config in the database before writing to disk.
-    data.set_board_config(device_name, config_data)
+    data.set_device_config(device_name, config_data)
     image_fullpath = os.path.join(config.get('paths', 'image_store'), pxe_config_filename)
 
     # Make the link to the PXE config in the proper location

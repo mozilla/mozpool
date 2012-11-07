@@ -34,7 +34,7 @@ class Logs(object):
         sql.get_conn().execute(self.logs_table.delete().where(self.foreign_key_col==object_id))
 
     def get(self, name, timeperiod=datetime.timedelta(hours=1)):
-        """Get log entries for a board for the past timeperiod."""
+        """Get log entries for a device for the past timeperiod."""
         from_time = datetime.datetime.utcnow() - timeperiod
         res = sql.get_conn().execute(
             select([self.logs_table.c.ts,
@@ -60,7 +60,7 @@ class LogsByObjectName(Logs):
                                               self.object_table.c.name==object_name)).fetchone()[0]
 
 
-board_logs = LogsByObjectName(model.board_logs, model.boards,
-                        model.board_logs.c.board_id)
+device_logs = LogsByObjectName(model.device_logs, model.devices,
+                        model.device_logs.c.device_id)
 request_logs = Logs(model.request_logs, model.requests,
                     model.request_logs.c.request_id)

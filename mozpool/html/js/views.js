@@ -21,7 +21,7 @@ var TableView = Backbone.View.extend({
         this.render = $.proxy(this, 'render');
         _.bindAll(this, 'domObjectChanged');
 
-        window.boards.bind('refresh', this.refresh);
+        window.devices.bind('refresh', this.refresh);
     },
 
     render: function() {
@@ -48,7 +48,7 @@ var TableView = Backbone.View.extend({
                 if (col.renderFn) {
                     rv.bUseRendered = false;
                     rv.fnRender = function(oObj) {
-                        var model = window.boards.get(oObj.aData[0]);
+                        var model = window.devices.get(oObj.aData[0]);
                         return self[col.renderFn].apply(self, [ model ]);
                     };
                 } 
@@ -83,7 +83,7 @@ var TableView = Backbone.View.extend({
     refresh : function (args) {
         var self = this;
 
-        var newData = window.boards.map(function(instance_model) {
+        var newData = window.devices.map(function(instance_model) {
             // put the id in the hidden column 0
             var row = [ instance_model.id ];
             // data columns
@@ -99,7 +99,7 @@ var TableView = Backbone.View.extend({
         self.dataTable.fnAddData(newData);
         $.each(self.dataTable.fnGetNodes(), function (i, tr) {
             var row = self.dataTable.fnGetData(tr);
-            var instance_model = window.boards.get(row[0]);
+            var instance_model = window.devices.get(row[0]);
             var view = new TableRowView({
                 model: instance_model,
                 el: tr,
@@ -115,7 +115,7 @@ var TableView = Backbone.View.extend({
         if (model.get('selected')) {
             checked = ' checked=1';
         }
-        var checkbox = '<input type="checkbox" id="board-' + model.get('id') + '"' + checked + '>';
+        var checkbox = '<input type="checkbox" id="device-' + model.get('id') + '"' + checked + '>';
         return checkbox;
     },
 
@@ -166,7 +166,7 @@ var TableView = Backbone.View.extend({
 
         // figure out the id
         var dom_id = evt.target.id;
-        var id = /board-(\d+)/.exec(dom_id)[1];
+        var id = /device-(\d+)/.exec(dom_id)[1];
         if (id == '') {
             return;
         }
@@ -174,8 +174,8 @@ var TableView = Backbone.View.extend({
         // get the checked status
         var checked = this.$('#' + dom_id).is(':checked')? true : false;
 
-        var board = window.boards.get(id);
-        board.set('selected', checked);
+        var device = window.devices.get(id);
+        device.set('selected', checked);
     }
 });
 
@@ -214,7 +214,7 @@ var TableRowView = Backbone.View.extend({
 var PowerCycleButtonView = Backbone.View.extend({
     initialize: function() {
         _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
-        window.boards.bind('change', this.refreshButtonStatus);
+        window.devices.bind('change', this.refreshButtonStatus);
     },
 
     events: {
@@ -226,9 +226,9 @@ var PowerCycleButtonView = Backbone.View.extend({
     },
 
     refreshButtonStatus: function() {
-        // only enable the button if at least one board is selected
+        // only enable the button if at least one device is selected
         var any_selected = false;
-        window.boards.each(function (b) {
+        window.devices.each(function (b) {
             any_selected = any_selected ? true : b.get('selected');
         });
         this.$el.attr('disabled', !any_selected);
@@ -236,10 +236,10 @@ var PowerCycleButtonView = Backbone.View.extend({
 
     buttonClicked: function() {
         var selected_bootimage = window.selected_bootimage.get('name');
-        window.boards.each(function (b) {
+        window.devices.each(function (b) {
             if (b.get('selected')) {
                 job_queue.push({
-                    board: b,
+                    device: b,
                     job_type: 'power-cycle',
                     job_args: null
                 });
@@ -252,7 +252,7 @@ var PowerCycleButtonView = Backbone.View.extend({
 var ReimageButtonView = Backbone.View.extend({
     initialize: function() {
         _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
-        window.boards.bind('change', this.refreshButtonStatus);
+        window.devices.bind('change', this.refreshButtonStatus);
         window.selected_bootimage.bind('change', this.refreshButtonStatus);
     },
 
@@ -265,13 +265,13 @@ var ReimageButtonView = Backbone.View.extend({
     },
 
     refreshButtonStatus: function() {
-        // only enable the button if at least one board is selected, and we have a boot image
+        // only enable the button if at least one device is selected, and we have a boot image
 
         var bootimage_selected = (window.selected_bootimage.get('name') != '');
         var any_selected = false;
 
         if (bootimage_selected) {
-            window.boards.each(function (b) {
+            window.devices.each(function (b) {
                 any_selected = any_selected ? true : b.get('selected');
             });
         }
@@ -281,10 +281,10 @@ var ReimageButtonView = Backbone.View.extend({
 
     buttonClicked: function() {
         var selected_bootimage = window.selected_bootimage.get('name');
-        window.boards.each(function (b) {
+        window.devices.each(function (b) {
             if (b.get('selected')) {
                 job_queue.push({
-                    board: b,
+                    device: b,
                     job_type: 'reimage',
                     job_args: { bootimage: selected_bootimage, config: {} }
                 });

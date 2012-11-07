@@ -6,7 +6,7 @@ import sqlalchemy as sa
 
 metadata = sa.MetaData()
 
-boards = sa.Table('boards', metadata,
+devices = sa.Table('devices', metadata,
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
     sa.Column('name', sa.String(32), nullable=False),
     sa.Column('fqdn', sa.String(256), nullable=False),
@@ -22,8 +22,8 @@ boards = sa.Table('boards', metadata,
 
 requests = sa.Table('requests', metadata,
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
-    sa.Column('board_id', sa.Integer(unsigned=True),
-        sa.ForeignKey('boards.id', ondelete='RESTRICT'),
+    sa.Column('device_id', sa.Integer(unsigned=True),
+        sa.ForeignKey('devices.id', ondelete='RESTRICT'),
         unique=True, nullable=False),
     sa.Column('assignee', sa.String(256), nullable=False),
     sa.Column('status', sa.String(32), nullable=False),
@@ -43,8 +43,8 @@ images = sa.Table('images', metadata,
     sa.Column('pxe_config_filename', sa.String(256), nullable=False),
 )
 
-board_logs = sa.Table('board_logs', metadata,
-    sa.Column('board_id', sa.Integer(unsigned=True), nullable=False),
+device_logs = sa.Table('device_logs', metadata,
+    sa.Column('device_id', sa.Integer(unsigned=True), nullable=False),
     sa.Column('ts', sa.DateTime, nullable=False),
     sa.Column('source', sa.String(32), nullable=False),
     sa.Column('message', sa.Text, nullable=False),

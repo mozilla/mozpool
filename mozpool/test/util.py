@@ -31,7 +31,7 @@ def add_server(hostname):
     """
     sql.get_conn().execute(model.imaging_servers.insert(), fqdn=hostname)
 
-def add_board(board, server="server", status="offline",
+def add_device(device, server="server", status="offline",
               mac_address="000000000000",
               log=[], config={}, relayinfo=""):
     global inventory_id
@@ -40,9 +40,9 @@ def add_board(board, server="server", status="offline",
                               model.imaging_servers.c.fqdn==server)).fetchone()[0]
     if id is None:
         raise data.NotFound
-    conn.execute(model.boards.insert(),
-                 name=board,
-                 fqdn=board, #XXX
+    conn.execute(model.devices.insert(),
+                 name=device,
+                 fqdn=device, #XXX
                  inventory_id=inventory_id,
                  status=status,
                  mac_address=mac_address,

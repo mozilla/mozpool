@@ -39,27 +39,27 @@ def row_to_dict(row, table, omit_cols=[]):
         result[col.name] = coldata
     return result
 
-def list_boards():
+def list_devices():
     """
-    Get the list of all boards known to the system.
-    Returns a dict whose 'boards' entry is the list of boards.
+    Get the list of all devices known to the system.
+    Returns a dict whose 'devices' entry is the list of devices.
     """
     conn = sql.get_conn()
-    res = conn.execute(select([model.boards.c.name]))
-    return {'boards': [row[0].encode('utf-8') for row in res]}
+    res = conn.execute(select([model.devices.c.name]))
+    return {'devices': [row[0].encode('utf-8') for row in res]}
 
-def dump_boards():
+def dump_devices():
     """
-    Dump all boards.  This returns a list of dictionaries with keys id, name,
+    Dump all devices.  This returns a list of dictionaries with keys id, name,
     fqdn, invenetory_id, mac_address, imaging_server, relay_info, and status.
     """
     conn = sql.get_conn()
-    boards = model.boards
+    devices = model.devices
     img_svrs = model.imaging_servers
     res = conn.execute(sqlalchemy.select(
-        [ boards.c.id, boards.c.name, boards.c.fqdn, boards.c.inventory_id, boards.c.mac_address,
-          img_svrs.c.fqdn.label('imaging_server'), boards.c.relay_info, boards.c.status ],
-        from_obj=[boards.join(img_svrs)]))
+        [ devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id, devices.c.mac_address,
+          img_svrs.c.fqdn.label('imaging_server'), devices.c.relay_info, devices.c.status ],
+        from_obj=[devices.join(img_svrs)]))
     return [ dict(row) for row in res ]
 
 def find_imaging_server_id(name):
@@ -77,8 +77,8 @@ def find_imaging_server_id(name):
                         whereclause=(model.imaging_servers.c.fqdn==name)))
     return res.fetchall()[0].id
 
-def insert_board(values):
-    """Insert a new board into the DB.  VALUES should be in the dictionary
+def insert_device(values):
+    """Insert a new device into the DB.  VALUES should be in the dictionary
     format used for inventorysync - see inventorysync.py"""
     values = values.copy()
 
@@ -86,19 +86,19 @@ def insert_board(values):
     values['imaging_server_id'] = find_imaging_server_id(values.pop('imaging_server'))
     values['status'] = 'new'
 
-    sql.get_conn().execute(model.boards.insert(), [ values ])
+    sql.get_conn().execute(model.devices.insert(), [ values ])
 
-def delete_board(id):
-    """Delete the board with the given ID"""
+def delete_device(id):
+    """Delete the device with the given ID"""
     conn = sql.get_conn()
     # foreign keys don't automatically delete log entries, so do it manually.
     # This table is partitioned, so there's no need to later optimize these
     # deletes - they'll get flushed when their parititon is dropped.
-    logs.board_logs.delete_all(id)
-    conn.execute(model.boards.delete(), whereclause=(model.boards.c.id==id))
+    logs.device_logs.delete_all(id)
+    conn.execute(model.devices.delete(), whereclause=(model.devices.c.id==id))
 
-def update_board(id, values):
-    """Update an existing board with id ID into the DB.  VALUES should be in
+def update_device(id, values):
+    """Update an existing device with id ID into the DB.  VALUES should be in
     the dictionary format used for inventorysync - see inventorysync.py"""
     values = values.copy()
 
@@ -107,64 +107,64 @@ def update_board(id, values):
     if 'id' in values:
         values.pop('id')
 
-    sql.get_conn().execute(model.boards.update(whereclause=(model.boards.c.id==id)), **values)
+    sql.get_conn().execute(model.devices.update(whereclause=(model.devices.c.id==id)), **values)
 
-def get_server_for_board(board):
+def get_server_for_device(device):
     """
-    Get the name of the imaging server associated with this board.
+    Get the name of the imaging server associated with this device.
     """
     res = sql.get_conn().execute(select([model.imaging_servers.c.fqdn],
-                                        from_obj=[model.boards.join(model.imaging_servers)]).where(model.boards.c.name == board))
+                                        from_obj=[model.devices.join(model.imaging_servers)]).where(model.devices.c.name == device))
     row = res.fetchone()
     if row is None:
         raise NotFound
     return row[0].encode('utf-8')
 
-# The rest of the board methods should not have to check for a valid board.
+# The rest of the device methods should not have to check for a valid device.
 # Handler methods will check before calling.
-def board_status(board):
+def device_status(device):
     """
-    Get the status of board.
+    Get the status of device.
     """
-    res = sql.get_conn().execute(select([model.boards.c.status],
-                                        model.boards.c.name==board))
+    res = sql.get_conn().execute(select([model.devices.c.status],
+                                        model.devices.c.name==device))
     row = res.fetchall()[0]
     return {"status": row['status'].encode('utf-8'),
-            "log": logs.board_logs.get(board)}
+            "log": logs.device_logs.get(device)}
 
-def set_board_status(board, status):
+def set_device_status(device, status):
     """
-    Set the status of board to status.
+    Set the status of device to status.
     """
-    sql.get_conn().execute(model.boards.update().
-                           where(model.boards.c.name==board).
+    sql.get_conn().execute(model.devices.update().
+                           where(model.devices.c.name==device).
                            values(status=status))
     return status
 
-def board_config(board):
+def device_config(device):
     """
-    Get the config parameters passed to the /boot/ API for board.
+    Get the config parameters passed to the /boot/ API for device.
     """
-    res = sql.get_conn().execute(select([model.boards.c.boot_config],
-                                        model.boards.c.name==board))
+    res = sql.get_conn().execute(select([model.devices.c.boot_config],
+                                        model.devices.c.name==device))
     row = res.fetchone()
     config_data = {}
     if row:
         config_data = json.loads(row['boot_config'].encode('utf-8'))
     return {'config': config_data}
 
-def set_board_config(board, config_data):
+def set_device_config(device, config_data):
     """
-    Set the config parameters for the /boot/ API for board.
+    Set the config parameters for the /boot/ API for device.
     """
-    sql.get_conn().execute(model.boards.update().
-                           where(model.boards.c.name==board).
+    sql.get_conn().execute(model.devices.update().
+                           where(model.devices.c.name==device).
                            values(boot_config=json.dumps(config_data)))
     return config
 
-def board_relay_info(board):
-    res = sql.get_conn().execute(select([model.boards.c.relay_info],
-                                        model.boards.c.name==board))
+def device_relay_info(device):
+    res = sql.get_conn().execute(select([model.devices.c.relay_info],
+                                        model.devices.c.name==device))
     info = res.fetchone()[0]
     hostname, bank, relay = info.split(":", 2)
     assert bank.startswith("bank") and relay.startswith("relay")
@@ -178,12 +178,12 @@ def mac_with_dashes(mac):
     # From the itertools docs.
     return "-".join("%s%s" % i for i in izip_longest(fillvalue=None, *[iter(mac)]*2))
 
-def board_mac_address(board):
+def device_mac_address(device):
     """
-    Get the mac address of board.
+    Get the mac address of device.
     """
-    res = sql.get_conn().execute(select([model.boards.c.mac_address],
-                                        model.boards.c.name==board))
+    res = sql.get_conn().execute(select([model.devices.c.mac_address],
+                                        model.devices.c.name==device))
     row = res.fetchone()
     return row['mac_address'].encode('utf-8')
 
@@ -201,18 +201,18 @@ def bootimage_details(image):
         raise NotFound
     return {'details': row_to_dict(row, model.images, omit_cols=['id'])}
 
-def get_unassigned_boards():
+def get_unassigned_devices():
     conn = sql.get_conn()
-    res = conn.execute(select([model.boards.c.name]).where(not_(exists(select([model.requests.c.id]).where(model.requests.c.board_id==model.boards.c.id)))))
-    return {'boards': [row[0].encode('utf-8') for row in res]}
+    res = conn.execute(select([model.devices.c.name]).where(not_(exists(select([model.requests.c.id]).where(model.requests.c.device_id==model.devices.c.id)))))
+    return {'devices': [row[0].encode('utf-8') for row in res]}
 
-def reserve_board(board, assignee, duration):
+def reserve_device(device, assignee, duration):
     conn = sql.get_conn()
     try:
-        board_id = conn.execute(select([model.boards.c.id]).where(model.boards.c.name==board)).fetchall()[0][0]
+        device_id = conn.execute(select([model.devices.c.id]).where(model.devices.c.name==device)).fetchall()[0][0]
     except IndexError:
         raise NotFound
-    reservation = {'board_id': board_id,
+    reservation = {'device_id': device_id,
                    'assignee': assignee,
                    'status': 'pending',
                    'expires': datetime.datetime.now() +
@@ -221,7 +221,7 @@ def reserve_board(board, assignee, duration):
         res = conn.execute(model.requests.insert(), reservation)
     except sqlalchemy.exc.IntegrityError:
         return None
-    return conn.execute(select([model.requests.c.id]).where(model.requests.c.board_id==board_id)).fetchall()[0][0]
+    return conn.execute(select([model.requests.c.id]).where(model.requests.c.device_id==device_id)).fetchall()[0][0]
 
 def end_request(request_id):
     conn = sql.get_conn()

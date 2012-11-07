@@ -14,10 +14,10 @@ class DeviceStateMachine(statemachine.StateMachine):
         self.device_id = device_id
 
     def read_state(self):
-        return data.board_status(self.device_name)
+        return data.device_status(self.device_name)
 
     def write_state(self, new_state, timeout_duration):
-        return data.update_board(self.device_id, dict(status=new_state))
+        return data.update_device(self.device_id, dict(status=new_state))
 
     def read_counters(self):
         return {} # TODO: temp pending a schema change
@@ -41,17 +41,17 @@ class AllowReboot(object):
 
 @DeviceStateMachine.state_class
 class new(AllowReboot, statemachine.State):
-    "This board is newly installed.  Await instructions."
+    "This device is newly installed.  Await instructions."
 
 
 @DeviceStateMachine.state_class
 class unknown(AllowReboot, statemachine.State):
-    "This board is in an unknown state.  Await instructions."
+    "This device is in an unknown state.  Await instructions."
 
 
 @DeviceStateMachine.state_class
 class ready(AllowReboot, statemachine.State):
-    "This board is production-ready."
+    "This device is production-ready."
 
     TIMEOUT = 300
 
@@ -82,7 +82,7 @@ class ready(AllowReboot, statemachine.State):
 
 @DeviceStateMachine.state_class
 class pc_rebooting(statemachine.State):
-    "A reboot has been requested, and the board is being power-cycled."
+    "A reboot has been requested, and the device is being power-cycled."
 
     # wait for 60 seconds for a poer cycle to succeed, and do this a bunch of
     # times; failures here are likely a problem with the network or relay board,
@@ -150,10 +150,10 @@ class failed(AllowReboot, statemachine.State):
 
 @DeviceStateMachine.state_class
 class failed_reboot_rebooting(failed):
-    "While rebooting, power-cycling the board has failed multiple times"
+    "While rebooting, power-cycling the device has failed multiple times"
 
 
 @DeviceStateMachine.state_class
 class failed_reboot_complete(failed):
-    "While rebooting, board has been power-cycled multiple times, but the image has not run."
+    "While rebooting, device has been power-cycled multiple times, but the image has not run."
 

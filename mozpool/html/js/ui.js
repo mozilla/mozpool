@@ -34,7 +34,7 @@ load(
     '/js/controllers.js')
 // fetch data for our models
 .thenRun(
-    model_loader('boards'),
+    model_loader('devices'),
     model_loader('bootimages'))
 .thenRun(function(next) {
     // client-side models
