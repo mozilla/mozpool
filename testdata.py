@@ -15,7 +15,7 @@ from mozpool.db import model
 from optparse import OptionParser
 
 parser = OptionParser()
-parser.add_option('-b', '--devices', dest='devices', action='store', type='int',
+parser.add_option('-d', '--devices', dest='devices', action='store', type='int',
                   default=1)
 parser.add_option('-r', '--requests', dest='requests', action='store',
                   type='int', default=0)
@@ -25,22 +25,23 @@ fqdn = socket.getfqdn()
 r = conn.execute(model.imaging_servers.insert(), fqdn=fqdn)
 img_svr_id = r.inserted_primary_key[0]
 
-for board_id in range(1, options.devices+1):
+for device_id in range(1, options.devices+1):
     conn.execute(model.devices.insert(),
-                 name='board%d' % board_id,
-                 fqdn='board%d.fqdn' % board_id,
-                 inventory_id=1111 * board_id,
+                 name='device%d' % device_id,
+                 fqdn='device%d.fqdn' % device_id,
+                 inventory_id=1111 * device_id,
                  status='new',
-                 mac_address='%012x' % board_id,
+                 mac_address='%012x' % device_id,
                  imaging_server_id=img_svr_id,
-                 relay_info='relay%d' % board_id,
-                 boot_config=None)
+                 relay_info='relay%d' % device_id,
+                 boot_config='')
 
 for request_id in range(1, options.requests+1):
     conn.execute(model.requests.insert(),
-                 board_id=request_id,
+                 device_id=request_id,
                  assignee='slave%d' % request_id,
                  status='inuse',
+                 imaging_server_id=img_svr_id,
                  expires=datetime.datetime.now() +
                          datetime.timedelta(seconds=12*60*60))
 

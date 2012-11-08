@@ -12,6 +12,7 @@ import tempfile
 import mock
 import datetime
 import threading
+import urlparse
 from mock import patch
 from paste.fixture import TestApp
 
@@ -24,7 +25,7 @@ from mozpool.db import model
 from mozpool.bmm import relay
 from mozpool.bmm import pxe
 from mozpool.lifeguard import inventorysync
-from mozpool.test.util import add_server, add_device, add_pxe_config, setup_db
+from mozpool.test.util import add_server, add_device, add_pxe_config, add_request, setup_db
 from mozpool.test import fakerelay
 import mozpool.bmm.api
 
@@ -200,6 +201,65 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertEquals({"abc": "xyz"}, body["config"])
+
+class TestRequests(ConfigMixin, unittest.TestCase): 
+    def setUp(self):
+        super(TestRequests, self).setUp()
+        add_server("server1")
+        add_server("server2")
+        add_device("device1", server="server1")
+        add_device("device2", server="server1")
+        add_device("device3", server="server1")
+        add_request("device3", "server2")
+   
+    def testRequestDevice(self):
+        request_params = {"assignee": "slave1", "duration": 3600}
+        r = self.app.post("/api/device/device1/request/",
+                          json.dumps(request_params))
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEqual(body["device"]["name"], "device1")
+        self.assertEqual(urlparse.urlparse(body["request_url"]).path,
+                         "/api/request/2/")
+        r = self.app.post("/api/device/device1/request/",
+                          json.dumps(request_params), expect_errors=True)
+        self.assertEqual(409, r.status)
+
+        # test "any" request
+        r = self.app.post("/api/device/any/request/",
+                          json.dumps(request_params))
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEqual(body["device"]["name"], "device2")
+
+        # test details for found and not found devices
+        r = self.app.get("/api/request/10/details/", expect_errors=True)
+        self.assertEqual(404, r.status)
+        r = self.app.get("/api/request/3/details/")
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertGreater(body["expires"], datetime.datetime.now().isoformat())
+        self.assertLessEqual(body["expires"], (datetime.datetime.now() +
+                             datetime.timedelta(seconds=3600)).isoformat())
+
+        # test renew
+        r = self.app.post("/api/request/3/renew/",
+                          json.dumps({"duration": 360}))
+        self.assertEqual(204, r.status)
+        r = self.app.get("/api/request/3/details/")
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertGreater(body["expires"], datetime.datetime.now().isoformat())
+        self.assertLessEqual(body["expires"], (datetime.datetime.now() +
+                             datetime.timedelta(seconds=360)).isoformat())
+
+        # test redirects
+        r = self.app.post("/api/request/1/renew/",
+                          json.dumps({"duration": 360}))
+        self.assertEqual(302, r.status)
+        r = self.app.post("/api/request/1/return/")
+        self.assertEqual(302, r.status)
+        
 
 class TestBoardBoot(ConfigMixin, unittest.TestCase):
     def setUp(self):

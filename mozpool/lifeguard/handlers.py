@@ -11,8 +11,6 @@ from mozpool.bmm import api as bmm_api
 # URLs go here. "/api/" will be automatically prepended to each.
 urls = (
   # /device methods
-  "/device/list/?", "device_list",
-  "/device/([^/]+)/status/?", "device_status",
   "/device/([^/]+)/boot/([^/]+)/?", "device_boot",
   "/device/([^/]+)/reboot/?", "device_reboot",
   "/device/([^/]+)/bootcomplete/?", "device_bootcomplete",
@@ -35,25 +33,6 @@ def deviceredirect(function):
     return wrapped
 
 # device handlers
-class device_list:
-    @templeton.handlers.json_response
-    def GET(self):
-        args, _ = templeton.handlers.get_request_parms()
-        if 'details' in args:
-            return dict(devices=data.dump_devices())
-        else:
-            return data.list_devices()
-
-class device_status:
-    @templeton.handlers.json_response
-    def GET(self, id):
-        return data.device_status(id)
-
-    @templeton.handlers.json_response
-    def POST(self, id):
-        args, body = templeton.handlers.get_request_parms()
-        return {"status": data.set_device_status(id, body["status"])}
-
 class device_boot:
     @deviceredirect
     @templeton.handlers.json_response

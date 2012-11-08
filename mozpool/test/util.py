@@ -6,6 +6,7 @@ Functions for testing. Used by the unit tests, but also useful for
 manual testing.
 """
 
+import datetime
 import os
 import json
 from sqlalchemy.sql import select
@@ -62,3 +63,22 @@ def add_pxe_config(name, description="Boot image",
     sql.get_conn().execute(model.pxe_configs.insert(), name=name,
                            description=description,
                            contents=contents)
+def add_request(device, server, assignee="slave", status="pending",
+                expires=None):
+    if not expires:
+        expires = datetime.datetime.now() + datetime.timedelta(hours=1)
+    conn = sql.get_conn()
+    device_id = conn.execute(select([model.devices.c.id],
+                                    model.devices.c.name==device)).fetchone()[0]
+    if device_id is None:
+        raise data.NotFound
+    server_id = conn.execute(select([model.imaging_servers.c.id],
+                                    model.imaging_servers.c.fqdn==server)).fetchone()[0]
+    if server_id is None:
+        raise data.NotFound
+    conn.execute(model.requests.insert(),
+                 device_id=device_id,
+                 imaging_server_id=server_id,
+                 assignee=assignee,
+                 status=status,
+                 expires=expires)

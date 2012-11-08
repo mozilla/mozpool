@@ -5,7 +5,7 @@
 import datetime
 import json
 import sqlalchemy
-from sqlalchemy.sql import exists, not_, select
+from sqlalchemy.sql import exists, not_, or_, select
 from itertools import izip_longest
 from mozpool.db import logs, model, sql
 from mozpool import config
@@ -48,19 +48,32 @@ def list_devices():
     res = conn.execute(select([model.devices.c.name]))
     return {'devices': [row[0].encode('utf-8') for row in res]}
 
-def dump_devices():
+def dump_devices(*device_names):
     """
-    Dump all devices.  This returns a list of dictionaries with keys id, name,
+    Dump device data.  This returns a list of dictionaries with keys id, name,
     fqdn, invenetory_id, mac_address, imaging_server, relay_info, and status.
+    Zero or more device names should be passed in as positional arguments.  If
+    none are given, dumps all device data.
     """
     conn = sql.get_conn()
     devices = model.devices
     img_svrs = model.imaging_servers
-    res = conn.execute(sqlalchemy.select(
-        [ devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id, devices.c.mac_address,
-          img_svrs.c.fqdn.label('imaging_server'), devices.c.relay_info, devices.c.status ],
-        from_obj=[devices.join(img_svrs)]))
-    return [ dict(row) for row in res ]
+    stmt = sqlalchemy.select(
+        [devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id,
+         devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
+         devices.c.relay_info, devices.c.status],
+        from_obj=[devices.join(img_svrs)])
+    if device_names:
+        id_exprs = []
+        for i in device_names:
+            id_exprs.append('devices.name=="%s"' % i)
+        if len(id_exprs) == 1:
+            id_exprs = id_exprs[0]
+        else:
+            id_exprs = or_(*id_exprs)
+        stmt = stmt.where(id_exprs)
+    res = conn.execute(stmt)
+    return [dict(row) for row in res]
 
 def find_imaging_server_id(name):
     """Given an imaging server name, either return the existing ID, or a new ID."""
@@ -209,35 +222,60 @@ def pxe_config_details(image):
 def get_unassigned_devices():
     conn = sql.get_conn()
     res = conn.execute(select([model.devices.c.name]).where(not_(exists(select([model.requests.c.id]).where(model.requests.c.device_id==model.devices.c.id)))))
-    return {'devices': [row[0].encode('utf-8') for row in res]}
+    return [row[0] for row in res]
 
-def reserve_device(device, assignee, duration):
+def reserve_device(device_id, assignee, duration):
     conn = sql.get_conn()
-    try:
-        device_id = conn.execute(select([model.devices.c.id]).where(model.devices.c.name==device)).fetchall()[0][0]
-    except IndexError:
-        raise NotFound
+    server_id = conn.execute(select([model.imaging_servers.c.id],
+                                    model.imaging_servers.c.fqdn==config.get('server', 'fqdn'))).fetchall()[0][0]
     reservation = {'device_id': device_id,
                    'assignee': assignee,
                    'status': 'pending',
                    'expires': datetime.datetime.now() +
-                   datetime.timedelta(seconds=duration)}
+                   datetime.timedelta(seconds=duration),
+                   'imaging_server_id': server_id}
     try:
         res = conn.execute(model.requests.insert(), reservation)
     except sqlalchemy.exc.IntegrityError:
         return None
     return conn.execute(select([model.requests.c.id]).where(model.requests.c.device_id==device_id)).fetchall()[0][0]
 
+def get_server_for_request(request_id):
+    """
+    Get the name of the imaging server associated with this device.
+    """
+    res = sql.get_conn().execute(select([model.imaging_servers.c.fqdn],
+                                        from_obj=[model.requests.join(model.imaging_servers)]).where(model.requests.c.id == request_id))
+    row = res.fetchone()
+    if row is None:
+        raise NotFound
+    return row[0].encode('utf-8')
+
 def end_request(request_id):
     conn = sql.get_conn()
     conn.execute(model.requests.delete().where(model.requests.c.id==request_id))
 
-def dump_requests():
+def dump_requests(*request_ids):
     conn = sql.get_conn()
-    return [row_to_dict(x, model.requests) for x in
-            conn.execute(select([model.requests]))]
+    requests = model.requests
+    stmt = sqlalchemy.select(
+        [requests.c.id, model.devices.c.name.label('device'),
+         model.imaging_servers.c.fqdn.label('imaging_server'),
+         requests.c.assignee, requests.c.status, requests.c.expires],
+        from_obj=[requests.join(model.imaging_servers).join(model.devices)])
+    if request_ids:
+        id_exprs = []
+        for i in request_ids:
+            id_exprs.append('requests.id=="%s"' % i)
+        if len(id_exprs) == 1:
+            id_exprs = id_exprs[0]
+        else:
+            id_exprs = or_(*id_exprs)
+        stmt = stmt.where(id_exprs)
+    res = conn.execute(stmt)
+    return [dict(row) for row in res]
 
-def update_request_duration(request_id, duration):
+def renew_request(request_id, duration):
     conn = sql.get_conn()
     conn.execute(model.requests.update(model.requests).values(expires=datetime.datetime.now() + datetime.timedelta(seconds=duration)).where(model.requests.c.id==request_id))
 
