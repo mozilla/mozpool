@@ -60,7 +60,7 @@ Note that a request will be automatically terminated once it expires. The
 /api/request/{id}/details/
 * GET returns a JSON response body whose "request" key contains an object
   representing the given request with the keys id, device_id, assignee, 
-  expires, and status.
+  expires, and status.  The expires field is given as an ISO-formatted time.
 
 /api/request/{id}/renew/
 * POST requests that the request's lifetime be updated. The request body
