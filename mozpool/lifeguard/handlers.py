@@ -11,7 +11,6 @@ from mozpool.bmm import api as bmm_api
 # URLs go here. "/api/" will be automatically prepended to each.
 urls = (
   # /device methods
-  "/device/([^/]+)/boot/([^/]+)/?", "device_boot",
   "/device/([^/]+)/reboot/?", "device_reboot",
   "/device/([^/]+)/bootcomplete/?", "device_bootcomplete",
   "/device/([^/]+)/config/?", "device_config",

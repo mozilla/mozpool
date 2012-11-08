@@ -4,12 +4,36 @@
 
 import templeton
 from mozpool.db import data
+from mozpool.bmm import api
 
 # URLs go here. "/api/" will be automatically prepended to each.
 urls = (
+  "/device/([^/]+)/power-cycle/?", "power_cycle",
+  "/device/([^/]+)/clear-pxe/?", "clear_pxe",
   "/bmm/pxe_config/list/?", "pxe_config_list",
   "/bmm/pxe_config/([^/]+)/details/?", "pxe_config_details",
 )
+
+class power_cycle:
+    @templeton.handlers.json_response
+    def POST(self, device_name):
+        # TODO: verify we own this device
+        args, body = templeton.handlers.get_request_parms()
+        if 'pxe_config' in body:
+            api.set_pxe(device_name, body['pxe_config'],
+                    body.get('boot_config', ''))
+        else:
+            api.clear_pxe(device_name)
+        # start the power cycle and ignore the result
+        api.start_powercycle(device_name, lambda *args : None)
+        return {}
+
+class clear_pxe:
+    @templeton.handlers.json_response
+    def POST(self, device_name):
+        # TODO: verify we own this device
+        api.clear_pxe(device_name)
+        return {}
 
 class pxe_config_list:
     @templeton.handlers.json_response

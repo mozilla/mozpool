@@ -15,7 +15,7 @@ def _get_device_config_path(device_name):
     symlink_dir = os.path.join(config.get('paths', 'tftp_root'), "pxelinux.cfg")
     return os.path.join(symlink_dir, "01-" + mac_address)
 
-def set_pxe(device_name, pxe_config_name, config_data):
+def set_pxe(device_name, pxe_config_name, boot_config):
     """
     Set up the PXE configuration for the device as directed.  Note that this does *not*
     reboot the device.
@@ -24,7 +24,7 @@ def set_pxe(device_name, pxe_config_name, config_data):
     pxe_config_contents = image_details['contents']
 
     # Set the config in the database before writing to disk.
-    data.set_device_config(device_name, pxe_config_name, config_data)
+    data.set_device_config(device_name, pxe_config_name, boot_config)
 
     # Write out the config file
     device_config_path = _get_device_config_path(device_name)

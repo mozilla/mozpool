@@ -61,13 +61,13 @@ def powercycle(device_name, max_time=30):
 
     return result[0]
 
-def set_pxe(device_name, image_name, config):
+def set_pxe(device_name, image_name, boot_config):
     """
     Set the boot configuration for the given device to the start up with PXE
-    config from IMAGE_NAME and supply an additional JSON configuratoin CONFIG.
+    config from IMAGE_NAME and supply an additional JSON configuration BOOT_CONFIG.
     """
     logs.device_logs.add(device_name, "setting PXE config to image %s" % (image_name,))
-    pxe.set_pxe(device_name, image_name, config)
+    pxe.set_pxe(device_name, image_name, boot_config)
 
 def clear_pxe(device_name):
     """

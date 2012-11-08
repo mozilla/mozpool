@@ -39,29 +39,18 @@ $.extend(JobRunner.prototype, {
     runPowerCycle: function() {
         var self = this;
 
-        var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
-            + this.running.get('device_name') + '/reboot/';
-        $.ajax(url, {
-            type: 'POST',
-            data: '',
-            error: function (jqxhr, textStatus, errorThrown) {
-                self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
-            },
-            complete: this.jobFinished
-        });
-    },
-
-    runReimage: function() {
-        var self = this;
-
         var job_args = this.running.get('job_args');
         var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
-            + this.running.get('device_name') + '/boot/' + job_args.pxe_config;
+            + this.running.get('device_name') + '/power-cycle/';
+        var post_params = {};
+        if (job_args['pxe_config']) {
+            post_params['pxe_config'] = job_args['pxe_config'];
+            post_params['boot_config'] = JSON.stringify(job_args['boot_config']);
+        }
         $.ajax(url, {
             type: 'POST',
-            data: JSON.stringify(job_args.config),
+            data: JSON.stringify(post_params),
             error: function (jqxhr, textStatus, errorThrown) {
-                window.goterror = errorThrown;
                 self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
             },
             complete: this.jobFinished

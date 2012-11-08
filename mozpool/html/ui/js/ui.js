@@ -41,8 +41,7 @@ load(
 
     // create the required views
     new TableView({ el: $('#container'), }).render();
-    new PxeConfigSelectView({ el: $('#pxe-pxe-config'), }).render();
-    new PxeBootButtonView({ el: $('#pxe-button'), }).render();
+    new PxeConfigSelectView({ el: $('#pxe-config'), }).render();
     new PowerCycleButtonView({ el: $('#power-cycle-button'), }).render();
     new JobQueueView({ el: $('#job-queue'), }).render();
 

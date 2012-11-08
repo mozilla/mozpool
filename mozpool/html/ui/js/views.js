@@ -241,51 +241,6 @@ var PowerCycleButtonView = Backbone.View.extend({
                 job_queue.push({
                     device: b,
                     job_type: 'power-cycle',
-                    job_args: null
-                });
-                b.set('selected', false);
-            }
-        });
-    }
-});
-
-var PxeBootButtonView = Backbone.View.extend({
-    initialize: function() {
-        _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
-        window.devices.bind('change', this.refreshButtonStatus);
-        window.selected_pxe_config.bind('change', this.refreshButtonStatus);
-    },
-
-    events: {
-        'click': 'buttonClicked'
-    },
-
-    render: function() {
-        this.refreshButtonStatus();
-    },
-
-    refreshButtonStatus: function() {
-        // only enable the button if at least one device is selected, and we have a boot image
-
-        var pxe_config_selected = (window.selected_pxe_config.get('name') != '');
-        var any_selected = false;
-
-        if (pxe_config_selected) {
-            window.devices.each(function (b) {
-                any_selected = any_selected ? true : b.get('selected');
-            });
-        }
-
-        this.$el.attr('disabled', !(any_selected && pxe_config_selected));
-    },
-
-    buttonClicked: function() {
-        var selected_pxe_config = window.selected_pxe_config.get('name');
-        window.devices.each(function (b) {
-            if (b.get('selected')) {
-                job_queue.push({
-                    device: b,
-                    job_type: 'reimage',
                     job_args: { pxe_config: selected_pxe_config, config: {} }
                 });
                 b.set('selected', false);

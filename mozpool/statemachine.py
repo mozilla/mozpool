@@ -43,23 +43,38 @@ class StateMachine(object):
 
     def handle_event(self, event):
         "Act on an event for this machine, specified by name"
-        self._lock()
+        self.lock()
         self.state = self._make_state_instance()
         try:
             self.state.handle_event(event)
         finally:
             self.state = None
-            self._unlock()
+            self.unlock()
 
     def handle_timeout(self):
         "The current state for this machine has timed out"
-        self._lock()
+        self.lock()
         self.state = self._make_state_instance()
         try:
             self.state.handle_timeout()
         finally:
             self.state = None
-            self._unlock()
+            self.unlock()
+
+    def conditional_goto_state(self, old_state, new_state):
+        """
+        Transition to NEW_STATE only if the device is in OLD_STATE.  Returns
+        True on success, False on failure.
+        """
+        self.lock()
+        self.state = self._make_state_instance()
+        try:
+            if old_state != self.state.__name__:
+                return False
+            self.state.goto_state(new_state)
+        finally:
+            self.state = None
+            self.unlock()
 
     # virtual methods
 
@@ -128,10 +143,16 @@ class StateMachine(object):
             state_cls = self.statesByName['unknown']
         return state_cls(self)
 
-    def _lock(self):
+    def lock(self):
+        """
+        Lock this machine.  This should be used any time a state transition is processed.
+        """
         self.locksByMachine.acquire(self.machine_name)
 
-    def _unlock(self):
+    def unlock(self):
+        """
+        Unlock this machine.  Call this after the state transition is complete.
+        """
         self.locksByMachine.release(self.machine_name)
 
 

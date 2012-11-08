@@ -64,6 +64,14 @@ class LifeguardDriver(threading.Thread):
         machine = self._get_machine(device_name)
         machine.handle_event(event)
 
+    def conditional_goto_state(self, device_name, old_state, new_state):
+        """
+        Transition to NEW_STATE only if the device is in OLD_STATE.  Returns
+        True on success, False on failure.
+        """
+        machine = self._get_machine(device_name)
+        return machine.conditional_goto_state(old_state, new_state)
+
     def _get_machine(self, device_name):
         return DeviceStateMachine(device_name)
 

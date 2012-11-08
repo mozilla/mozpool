@@ -256,9 +256,9 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         self.assertEqual(302, r.status)
         
 
-class TestBoardBoot(ConfigMixin, unittest.TestCase):
+class TestDevicePowerCycle(ConfigMixin, unittest.TestCase):
     def setUp(self):
-        super(TestBoardBoot, self).setUp()
+        super(TestDevicePowerCycle, self).setUp()
         add_server("server1")
         self.device_mac = "001122334455"
         add_device("device1", server="server1", state="running",
@@ -269,17 +269,17 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         open(os.path.join(config.get('paths', 'image_store'), self.pxefile), "w").write("abc")
         add_pxe_config("image1")
 
-    @patch("mozpool.bmm.api.powercycle")
+    @patch("mozpool.bmm.api.start_powercycle")
     @patch("mozpool.bmm.api.set_pxe")
-    def testBoardBoot(self, set_pxe, powercycle):
-        config_data = {"foo":"bar"}
-        r = self.app.post("/api/device/device1/boot/image1/",
+    def testDevicePowerCycle(self, set_pxe, start_powercycle):
+        body = {"pxe_config":"image1", "boot_config":"abcd"}
+        r = self.app.post("/api/device/device1/power-cycle/",
                           headers={"Content-Type": "application/json"},
-                          params=json.dumps(config_data))
+                          params=json.dumps(body))
         self.assertEqual(200, r.status)
         # Nothing in the response body currently
-        set_pxe.assert_called_with('device1', 'image1', config_data)
-        powercycle.assert_called_with('device1')
+        set_pxe.assert_called_with('device1', 'image1', 'abcd')
+        start_powercycle.assert_called_with('device1', mock.ANY)
 
 class TestBoardReboot(ConfigMixin, unittest.TestCase):
     def setUp(self):
@@ -319,11 +319,6 @@ class TestBoardRedirects(ConfigMixin, unittest.TestCase):
         r = self.app.post("/api/device/device2/reboot/")
         self.assertEqual(302, r.status)
         self.assertEqual("http://server2/api/device/device2/reboot/",
-                         r.header("Location"))
-
-        r = self.app.post("/api/device/device2/boot/image1/")
-        self.assertEqual(302, r.status)
-        self.assertEqual("http://server2/api/device/device2/boot/image1/",
                          r.header("Location"))
 
 class TestInvSyncMerge(unittest.TestCase):

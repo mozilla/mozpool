@@ -71,19 +71,6 @@ Note that a request will be automatically terminated once it expires. The
 * POST returns the device to the pool and deletes the request. Returns
   204 No Content.
 
-== Boot images ==
-
-/api/bootimage/list/
-* GET returns a JSON response body whose "bootimages" key
-  contains an array of the names of boot images known to the system.
-  Bootimage names can be passed as the id in the following bootimage APIs.
-
-/api/bootimage/{id}/details/
-* GET returns a JSON response body whose "details" key contains
-  an object that provides information about this boot image.
-  The keys of this object are: "name", "version", "description" and
-  "pxe_config_filename".
-
 
 = LifeGuard =
 
@@ -99,8 +86,11 @@ a MozPool server or the device itself.
   to provide extra data to the image on boot. The image is intended
   to GET this during the boot process.
 
-/api/device/{id}/reboot/
-* POST to power-cycle this device via the relay controller.
+/api/device/{id}/setstate/
+* POST to conditionally set the state of a device.  The POST body is a JSON
+  object with keys `old_state` and `new_state`.  The state is set to
+  `new_state` if and only if the current state is `old_state`.
+
   204 No Content is returned as the response status.
 
 /api/device/{id}/boot/{image}/
@@ -112,3 +102,37 @@ a MozPool server or the device itself.
 /api/device/{id}/bootcomplete/
 * POST to indicate that the boot of this device has completed and
   the PXE boot data can be removed. No request body is required.
+
+= Black Mobile Magic =
+
+Black Mobile Magic handles the hardware directly: power control and network
+boot configuration.
+
+== Operations ==
+
+/api/device/{id}/power-cycle/
+* POST to initiate a power-cycle this device.  The POST body is a JSON object,
+  with optional keys `pxe_config` and `boot_config`.  If `pxe_config` is
+  specified, then the device is configured to boot with that PXE config;
+  otherwise, the device boots from its internal storage.  If `boot_config` is
+  supplied (as a string), it is stored for later use by the device via
+  `/api/device/{id}/config/`.
+
+/api/device/{id}/clear-pxe/
+* POST to clear the PXE configuration for the device.  Call this after a
+  `power_cycle` operation with a `pxe_config` argument has been successful, so
+  that any subsequent device-initiated reboots will not PXE boot.
+
+== PXE Configs ==
+
+/api/pxe_configs/list/
+* GET returns a JSON response body whose "pxe_configs" key
+  contains an array of the names of boot images known to the system.
+  Bootimage names can be passed as the id in the following bootimage APIs.
+
+/api/pxe_configs/{id}/details/
+* GET returns a JSON response body whose "details" key contains
+  an object that provides information about this PXE config.
+  The keys of this object are: "name", "version", "description" and
+  "content".
+
