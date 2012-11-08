@@ -217,6 +217,9 @@ def get_status(host, bank, relay, timeout):
     except ConnectionLostError:
         print "connection to %s:%d lost" % (host, PORT) # TODO: mozlog
         return None
+    except socket.error, e:
+        print "error connecting to relay host:", e # TODO: mozlog
+        return None
 
 def set_status(host, bank, relay, status, timeout):
     """
@@ -256,6 +259,9 @@ def set_status(host, bank, relay, status, timeout):
         return False
     except ConnectionLostError:
         print "connection to %s:%d lost" % (host, PORT) # TODO: mozlog
+        return False
+    except socket.error, e:
+        print "error connecting to relay host:", e # TODO: mozlog
         return False
 
 def powercycle(host, bank, relay, timeout):
@@ -307,3 +313,7 @@ def powercycle(host, bank, relay, timeout):
         return False
     except ConnectionLostError:
         print "connection to %s:%d lost" % (host, PORT) # TODO: mozlog
+        return False
+    except socket.error, e:
+        print "error connecting to relay host:", e # TODO: mozlog
+        return False
