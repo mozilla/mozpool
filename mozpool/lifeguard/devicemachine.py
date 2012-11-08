@@ -124,7 +124,7 @@ class ready(AllowReboot, statemachine.State):
     ## TODO: polling stuff isn't implemented yet
 
     def on_entry(self):
-        self.clear_counter()
+        self.machine.clear_counter()
         #start_polling()
 
     def on_exit(self):
@@ -176,7 +176,7 @@ class pc_rebooting(statemachine.State):
 
     @statemachine.event_method('power-cycle-ok')
     def on_power_cycle_ok(self):
-        self.clear_counter('pc_rebooting')
+        self.machine.clear_counter('pc_rebooting')
         self.machine.goto_state(pc_complete)
 
 
@@ -200,7 +200,7 @@ class pc_complete(statemachine.State):
     # https://github.com/jedie/python-ping/blob/master/ping.py
     @statemachine.event_method('image-running')
     def on_image_running(self):
-        self.clear_counter('pc_complete')
+        self.machine.clear_counter('pc_complete')
         self.machine.goto_state(ready)
 
 ####
