@@ -61,17 +61,22 @@ class StateMachine(object):
             self.state = None
             self.unlock()
 
-    def conditional_goto_state(self, old_state, new_state):
+    def conditional_goto_state(self, old_state, new_state, call_first=None):
         """
         Transition to NEW_STATE only if the device is in OLD_STATE.  Returns
-        True on success, False on failure.
+        True on success, False on failure.  If CALL_FIRST is given, it is
+        called with no arguments after the state change is guaranteed to go
+        forward, but before it is actually performed.
         """
         self.lock()
         self.state = self._make_state_instance()
+        print self.state
         try:
-            if old_state != self.state.__name__:
+            if old_state != self.state.state_name:
                 return False
-            self.state.goto_state(new_state)
+            call_first()
+            self.goto_state(new_state)
+            return True
         finally:
             self.state = None
             self.unlock()
@@ -96,7 +101,7 @@ class StateMachine(object):
         """Transition the machine to a new state.  The caller should return
         immediately after calling this method."""
         if isinstance(new_state_name_or_class, type) and issubclass(new_state_name_or_class, State):
-            new_state_name_or_class = new_state_name_or_class.__name__
+            new_state_name_or_class = new_state_name_or_class.state_name
 
         self.state.on_exit()
 
@@ -131,6 +136,7 @@ class StateMachine(object):
     def state_class(machine_class, state_class):
         """Decorator -- decorates a class as a state for a particular machine."""
         machine_class.statesByName[state_class.__name__] = state_class
+        state_class.state_name = state_class.__name__
         return state_class
 
     # utilities

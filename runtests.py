@@ -28,6 +28,8 @@ from mozpool.lifeguard import inventorysync
 from mozpool.test.util import add_server, add_device, add_pxe_config, add_request, setup_db
 from mozpool.test import fakerelay
 import mozpool.bmm.api
+import mozpool.lifeguard
+from mozpool.lifeguard import devicemachine
 
 class ConfigMixin(object):
     def setUp(self):
@@ -281,31 +283,41 @@ class TestDevicePowerCycle(ConfigMixin, unittest.TestCase):
         set_pxe.assert_called_with('device1', 'image1', 'abcd')
         start_powercycle.assert_called_with('device1', mock.ANY)
 
-class TestBoardReboot(ConfigMixin, unittest.TestCase):
+class TestDeviceStateChange(ConfigMixin, unittest.TestCase):
     def setUp(self):
-        super(TestBoardReboot, self).setUp()
-        add_server("server1")
-        add_device("device1", server="server1", state="running",
+        super(TestDeviceStateChange, self).setUp()
+        mozpool.lifeguard.driver = devicemachine.LifeguardDriver()
+        add_device("device1", server="server1", state="unknown",
                   relayinfo="relay-1:bank1:relay1")
 
-    @patch("mozpool.bmm.api.powercycle")
-    @patch("mozpool.bmm.api.clear_pxe")
-    def testBoardReboot(self, clear_pxe, powercycle):
-        r = self.app.post("/api/device/device1/reboot/")
+    @patch('mozpool.bmm.api.clear_pxe')
+    @patch('mozpool.statemachine.StateMachine.goto_state')
+    def testStateChange(self, goto_state, clear_pxe):
+        r = self.app.post("/api/device/device1/state-change/unknown/to/new/",
+                params='{}')
         self.assertEqual(200, r.status)
-        # Nothing in the response body currently
+        goto_state.assert_called_with('new')
         clear_pxe.assert_called_with('device1')
-        powercycle.assert_called_with('device1')
 
-    def testBoardRebootNotFound(self):
-        r = self.app.post("/api/device/device2/reboot/", expect_errors=True)
-        self.assertEqual(404, r.status)
+    @patch('mozpool.bmm.api.set_pxe')
+    @patch('mozpool.statemachine.StateMachine.goto_state')
+    def testStateChangeWithPxe(self, goto_state, set_pxe):
+        r = self.app.post("/api/device/device1/state-change/unknown/to/new/",
+                params=json.dumps(dict(pxe_config='p', boot_config='b')))
+        self.assertEqual(200, r.status)
+        goto_state.assert_called_with('new')
+        set_pxe.assert_called_with('device1', 'p', 'b')
+
+    @patch('mozpool.statemachine.StateMachine.goto_state')
+    def testStateChangeConflict(self, goto_state):
+        r = self.app.post("/api/device/device1/state-change/notthis/to/new/",
+                params='{}', expect_errors=True)
+        self.assertEqual(409, r.status)
 
 class TestBoardRedirects(ConfigMixin, unittest.TestCase):
     """
-    The /boot/ and /reboot/ commands should 302 redirect to the
-    correct server if the current server isn't the server that
-    controls the device in question.
+    Lifeguard commands should 302 redirect to the correct server if the current
+    server isn't the server that controls the device in question.
     """
     def setUp(self):
         super(TestBoardRedirects, self).setUp()
@@ -316,9 +328,9 @@ class TestBoardRedirects(ConfigMixin, unittest.TestCase):
         add_pxe_config("image1")
 
     def testRedirectBoard(self):
-        r = self.app.post("/api/device/device2/reboot/")
+        r = self.app.post("/api/device/device2/bootcomplete/")
         self.assertEqual(302, r.status)
-        self.assertEqual("http://server2/api/device/device2/reboot/",
+        self.assertEqual("http://server2/api/device/device2/bootcomplete/",
                          r.header("Location"))
 
 class TestInvSyncMerge(unittest.TestCase):

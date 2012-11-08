@@ -7,11 +7,12 @@ import web
 from mozpool import config
 from mozpool.db import data
 from mozpool.bmm import api as bmm_api
+import mozpool.lifeguard
 
 # URLs go here. "/api/" will be automatically prepended to each.
 urls = (
   # /device methods
-  "/device/([^/]+)/reboot/?", "device_reboot",
+  "/device/([^/]+)/state-change/([^/]+)/to/([^/]+)/?", "state_change",
   "/device/([^/]+)/bootcomplete/?", "device_bootcomplete",
   "/device/([^/]+)/config/?", "device_config",
 )
@@ -32,23 +33,22 @@ def deviceredirect(function):
     return wrapped
 
 # device handlers
-class device_boot:
+class state_change:
     @deviceredirect
     @templeton.handlers.json_response
-    def POST(self, name, image):
+    def POST(self, device_name, from_state, to_state):
+        # TODO: verify we own this device
         args, body = templeton.handlers.get_request_parms()
-        # TODO: verify we own this device
-        bmm_api.set_pxe(name, image, body)
-        bmm_api.powercycle(name)
-        return {}
-
-class device_reboot:
-    @deviceredirect
-    @templeton.handlers.json_response
-    def POST(self, name):
-        # TODO: verify we own this device
-        bmm_api.clear_pxe(name)
-        bmm_api.powercycle(name)
+        if 'pxe_config' in body:
+            pxe_config = body['pxe_config']
+            boot_config = body.get('boot_config', '')
+        else:
+            pxe_config = None
+            boot_config = None
+        success = mozpool.lifeguard.driver.conditional_state_change(
+            device_name, from_state, to_state, pxe_config, boot_config) 
+        if not success:
+            raise web.conflict()
         return {}
 
 class device_bootcomplete:

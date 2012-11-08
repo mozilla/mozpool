@@ -64,13 +64,21 @@ class LifeguardDriver(threading.Thread):
         machine = self._get_machine(device_name)
         machine.handle_event(event)
 
-    def conditional_goto_state(self, device_name, old_state, new_state):
+    def conditional_state_change(self, device_name, old_state, new_state,
+                new_pxe_config, new_boot_config):
         """
-        Transition to NEW_STATE only if the device is in OLD_STATE.  Returns
-        True on success, False on failure.
+        Transition to NEW_STATE only if the device is in OLD_STATE.
+        Simultaneously set the PXE config and boot config as described, or
+        clears the PXE config if new_pxe_config is None.
+        Returns True on success, False on failure.
         """
         machine = self._get_machine(device_name)
-        return machine.conditional_goto_state(old_state, new_state)
+        def call_first():
+            if new_pxe_config is None:
+                bmm_api.clear_pxe(device_name)
+            else:
+                bmm_api.set_pxe(device_name, new_pxe_config, new_boot_config)
+        return machine.conditional_goto_state(old_state, new_state, call_first)
 
     def _get_machine(self, device_name):
         return DeviceStateMachine(device_name)
@@ -89,7 +97,10 @@ class DeviceStateMachine(statemachine.StateMachine):
         return state
 
     def write_state(self, new_state, timeout_duration):
-        state_timeout = datetime.datetime.now() + datetime.timedelta(seconds=timeout_duration)
+        if timeout_duration:
+            state_timeout = datetime.datetime.now() + datetime.timedelta(seconds=timeout_duration)
+        else:
+            state_timeout = None
         data.set_device_state(self.device_name, new_state, state_timeout)
 
     def read_counters(self):

@@ -86,12 +86,13 @@ a MozPool server or the device itself.
   to provide extra data to the image on boot. The image is intended
   to GET this during the boot process.
 
-/api/device/{id}/setstate/
-* POST to conditionally set the state of a device.  The POST body is a JSON
-  object with keys `old_state` and `new_state`.  The state is set to
-  `new_state` if and only if the current state is `old_state`.
+/api/device/{id}/state-change/{old_state}/to/{new_state}/
 
-  204 No Content is returned as the response status.
+* POST to conditionally set the lifeguard state of a device from old_state to
+  new_state.  If the current state is not old_state, the request will fail.
+  The POST body is as described for `/api/device/{id}/power-cycle/`.
+
+  200 OK is returned on success; on failure, 409 Conflict.
 
 /api/device/{id}/boot/{image}/
 * POST to indicate that this device should be booted with this image.
