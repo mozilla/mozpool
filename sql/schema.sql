@@ -128,7 +128,7 @@ CREATE TABLE devices (
   state_counters text not null,
   state_timeout datetime,
   -- lower-case, no colons
-  mac_address varchar(10) not null,
+  mac_address varchar(12) not null,
   -- fqdn of imaging server
   imaging_server_id integer unsigned not null,
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
