@@ -68,6 +68,10 @@ def merge_devices(from_db, from_inv):
     from_db = dict([ (r['inventory_id'], r) for r in from_db ])
     from_inv = dict([ (r['inventory_id'], r) for r in from_inv ])
 
+    # drop the 'state' column from the db data, so it matches what we have from inventory
+    for r in from_db.itervalues():
+        del r['state']
+
     # get the insert and deletes out of the way
     for invid in set(from_db) - set(from_inv):
         yield ('delete', from_db[invid]['id'], from_db[invid])
@@ -92,10 +96,6 @@ def sync(verbose=False):
     # dump the db second, since otherwise the mysql server can go away while
     # get_devices is still running, which is no fun
     from_db = data.dump_devices()
-
-    # drop the 'state' column from the db data, so it matches what we have from inventory
-    for r in from_db:
-        del r['state']
 
     for task in merge_devices(from_db, from_inv):
         if task[0] == 'insert':

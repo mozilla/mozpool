@@ -334,7 +334,7 @@ class TestInvSyncMerge(unittest.TestCase):
             relay_info="relay-1:bank1:relay1")
         self.panda1_db = self.panda1_inv.copy()
         self.panda1_db['id'] = 401
-        self.panda1_db['status'] = 'new'
+        self.panda1_db['state'] = 'new'
 
         self.panda2_inv = dict(
             name='panda-0002',
@@ -345,7 +345,7 @@ class TestInvSyncMerge(unittest.TestCase):
             relay_info="relay-1:bank2:relay2")
         self.panda2_db = self.panda2_inv.copy()
         self.panda2_db['id'] = 402
-        self.panda2_db['status'] = 'old'
+        self.panda2_db['state'] = 'old'
 
     def test_merge_devices_no_change(self):
         commands = list(inventorysync.merge_devices(
