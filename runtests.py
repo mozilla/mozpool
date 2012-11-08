@@ -84,15 +84,18 @@ class TestData(ConfigMixin, unittest.TestCase):
             {u'state': u'new', u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device2',
              u'fqdn': u'device2.fqdn', u'inventory_id': 23, u'imaging_server_id': 2,
-             u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 2},
+             u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 2,
+             u'last_pxe_config_id': None},
             {u'state': u'new',u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
              u'fqdn': u'device3.fqdn', u'inventory_id': 24, u'imaging_server_id': 1,
-             u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 3},
+             u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 3,
+             u'last_pxe_config_id': None},
             {u'state': u'offline',u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1', u'inventory_id': 1, u'imaging_server_id': 1,
-             u'boot_config': u'{}', u'mac_address': u'000000000000', u'id': 1},
+             u'boot_config': u'{}', u'mac_address': u'000000000000', u'id': 1,
+             u'last_pxe_config_id': None},
             ]))
 
     def testDeleteBoard(self):
@@ -118,7 +121,8 @@ class TestData(ConfigMixin, unittest.TestCase):
             {u'state': u'offline', u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
-             u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1},
+             u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1,
+             u'last_pxe_config_id': None},
         ])
 
 class TestBoardList(ConfigMixin, unittest.TestCase):
