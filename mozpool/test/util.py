@@ -38,7 +38,7 @@ def add_server(hostname):
     """
     sql.get_conn().execute(model.imaging_servers.insert(), fqdn=hostname)
 
-def add_device(device, server="server", status="offline",
+def add_device(device, server="server", state="offline",
               mac_address="000000000000",
               log=[], config={}, relayinfo=""):
     global inventory_id
@@ -51,7 +51,8 @@ def add_device(device, server="server", status="offline",
                  name=device,
                  fqdn=device, #XXX
                  inventory_id=inventory_id,
-                 status=status,
+                 state=state,
+                 state_counters='{}',
                  mac_address=mac_address,
                  imaging_server_id=id,
                  relay_info=relayinfo,

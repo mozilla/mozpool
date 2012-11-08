@@ -51,7 +51,7 @@ def list_devices():
 def dump_devices(*device_names):
     """
     Dump device data.  This returns a list of dictionaries with keys id, name,
-    fqdn, invenetory_id, mac_address, imaging_server, relay_info, and status.
+    fqdn, invenetory_id, mac_address, imaging_server, relay_info, and state.
     Zero or more device names should be passed in as positional arguments.  If
     none are given, dumps all device data.
     """
@@ -61,7 +61,7 @@ def dump_devices(*device_names):
     stmt = sqlalchemy.select(
         [devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id,
          devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
-         devices.c.relay_info, devices.c.status],
+         devices.c.relay_info, devices.c.state],
         from_obj=[devices.join(img_svrs)])
     if device_names:
         id_exprs = []
@@ -95,9 +95,10 @@ def insert_device(values):
     format used for inventorysync - see inventorysync.py"""
     values = values.copy()
 
-    # convert imaging_server to its ID, and add a default status
+    # convert imaging_server to its ID, and add a default state and counters
     values['imaging_server_id'] = find_imaging_server_id(values.pop('imaging_server'))
-    values['status'] = 'new'
+    values['state'] = 'new'
+    values['state_counters'] = '{}'
 
     sql.get_conn().execute(model.devices.insert(), [ values ])
 
@@ -115,7 +116,7 @@ def update_device(id, values):
     the dictionary format used for inventorysync - see inventorysync.py"""
     values = values.copy()
 
-    # convert imaging_server to its ID, and add a default status
+    # convert imaging_server to its ID, and strip the id
     values['imaging_server_id'] = find_imaging_server_id(values.pop('imaging_server'))
     if 'id' in values:
         values.pop('id')
@@ -133,26 +134,66 @@ def get_server_for_device(device):
         raise NotFound
     return row[0].encode('utf-8')
 
+# state machine utilities
+
+def get_device_state(device_name):
+    """
+    Get the state of this device - (state, timeout, counters)
+    """
+    tbl = model.devices
+    res = sql.get_conn().execute(select(
+        [tbl.c.state, tbl.c.state_timeout, tbl.c.state_counters],
+        tbl.c.name==device_name))
+    row = res.fetchone()
+    if row is None:
+        raise NotFound
+    state_counters = row['state_counters']
+    if state_counters:
+        state_counters = json.loads(state_counters)
+    else:
+        state_counters = {}
+    return row['state'], row['state_timeout'], state_counters
+
+def set_device_state(device_name, state, timeout):
+    """
+    Set the state of this device, without counters
+    """
+    sql.get_conn().execute(model.devices.update().
+            where(model.devices.c.name==device_name).
+            values(state=state, state_timeout=timeout))
+
+def set_device_counters(device_name, counters):
+    """
+    Set the counters for this device
+    """
+    sql.get_conn().execute(model.devices.update().
+            where(model.devices.c.name==device_name).
+            values(state_counters=json.dumps(counters)))
+
+def get_timed_out_devices(imaging_server_id):
+    """
+    Get a list of all devices whose timeout is in the past, and which belong to
+    this imaging server.
+    """
+    now = datetime.datetime.now()
+    res = sql.get_conn().execute(select(
+        [model.devices.c.name],
+        (model.devices.c.state_timeout < now)
+            & (model.devices.c.imaging_server_id == imaging_server_id)))
+    timed_out = [ r[0] for r in res.fetchall() ]
+    return timed_out
+
 # The rest of the device methods should not have to check for a valid device.
 # Handler methods will check before calling.
 def device_status(device):
     """
     Get the status of device.
     """
-    res = sql.get_conn().execute(select([model.devices.c.status],
+    res = sql.get_conn().execute(select([model.devices.c.state],
                                         model.devices.c.name==device))
     row = res.fetchall()[0]
-    return {"status": row['status'].encode('utf-8'),
+    return {"state": row['state'].encode('utf-8'),
             "log": logs.device_logs.get(device)}
-
-def set_device_status(device, status):
-    """
-    Set the status of device to status.
-    """
-    sql.get_conn().execute(model.devices.update().
-                           where(model.devices.c.name==device).
-                           values(status=status))
-    return status
 
 def device_config(device):
     """
@@ -183,8 +224,10 @@ def set_device_config(device, pxe_config_name, config_data):
 def device_relay_info(device):
     res = sql.get_conn().execute(select([model.devices.c.relay_info],
                                         model.devices.c.name==device))
-    info = res.fetchone()[0]
-    hostname, bank, relay = info.split(":", 2)
+    row = res.fetchone()
+    if not row:
+        raise NotFound
+    hostname, bank, relay = row[0].split(":", 2)
     assert bank.startswith("bank") and relay.startswith("relay")
     return hostname, int(bank[4:]), int(relay[5:])
 

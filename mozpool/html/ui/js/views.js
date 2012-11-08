@@ -11,7 +11,7 @@ var TableView = Backbone.View.extend({
             renderFn: "renderImgServer" },
         { id: "relay_info", title: "Relay Info",
             renderFn: "renderRelayInfo" },
-        { id: "status", title: "Status" },
+        { id: "state", title: "State" },
         { id: "links", title: "Links",
             renderFn: "renderInvLink" },
     ],

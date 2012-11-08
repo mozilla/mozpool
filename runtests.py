@@ -65,7 +65,7 @@ class TestData(ConfigMixin, unittest.TestCase):
     def testDumpBoards(self):
         self.assertEquals([
             dict(id=1, name='device1', fqdn='device1', inventory_id=1, mac_address='000000000000',
-                imaging_server='server1', relay_info='relay-1:bank1:relay1', status='offline'),
+                imaging_server='server1', relay_info='relay-1:bank1:relay1', state='offline'),
             ],
             data.dump_devices())
 
@@ -81,13 +81,16 @@ class TestData(ConfigMixin, unittest.TestCase):
         res = conn.execute(model.devices.select())
         self.assertEquals(sorted([ dict(r) for r in res.fetchall() ]),
         sorted([
-            {u'status': u'new', u'relay_info': u'relay-2:bank2:relay2', u'name': u'device2',
+            {u'state': u'new', u'state_counters': u'{}', u'state_timeout': None,
+             u'relay_info': u'relay-2:bank2:relay2', u'name': u'device2',
              u'fqdn': u'device2.fqdn', u'inventory_id': 23, u'imaging_server_id': 2,
              u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 2},
-            {u'status': u'new', u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
+            {u'state': u'new',u'state_counters': u'{}', u'state_timeout': None,
+             u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
              u'fqdn': u'device3.fqdn', u'inventory_id': 24, u'imaging_server_id': 1,
              u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 3},
-            {u'status': u'offline', u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
+            {u'state': u'offline',u'state_counters': u'{}', u'state_timeout': None,
+             u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1', u'inventory_id': 1, u'imaging_server_id': 1,
              u'boot_config': u'{}', u'mac_address': u'000000000000', u'id': 1},
             ]))
@@ -112,7 +115,8 @@ class TestData(ConfigMixin, unittest.TestCase):
         data.update_device(1, dict(fqdn='device1.fqdn', imaging_server='server9', mac_address='aabbccddeeff'))
         res = conn.execute(model.devices.select())
         self.assertEquals([ dict(r) for r in res.fetchall() ], [
-            {u'status': u'offline', u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
+            {u'state': u'offline', u'state_counters': u'{}', u'state_timeout': None,
+             u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
              u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1},
         ])
@@ -153,10 +157,10 @@ class TestBoardStatus(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardStatus, self).setUp()
         add_server("server1")
-        add_device("device1", server="server1", status="running")
-        add_device("device2", server="server1", status="freaking_out")
+        add_device("device1", server="server1", state="running")
+        add_device("device2", server="server1", state="freaking_out")
         add_server("server2")
-        add_device("device3", server="server2", status="running")
+        add_device("device3", server="server2", state="running")
 
     def testBoardStatus(self):
         """
@@ -165,30 +169,17 @@ class TestBoardStatus(ConfigMixin, unittest.TestCase):
         r = self.app.get("/api/device/device1/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals("running", body["status"])
+        self.assertEquals("running", body["state"])
 
         r = self.app.get("/api/device/device2/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals("freaking_out", body["status"])
+        self.assertEquals("freaking_out", body["state"])
 
         r = self.app.get("/api/device/device3/status/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEquals("running", body["status"])
-
-    def testSetBoardStatus(self):
-        r = self.app.get("/api/device/device1/status/")
-        self.assertEqual(200, r.status)
-        body = json.loads(r.body)
-        self.assertEquals("running", body["status"])
-
-        r = self.app.post("/api/device/device1/status/",
-                          headers={"Content-Type": "application/json"},
-                          params='{"status":"offline"}')
-        self.assertEqual(200, r.status)
-        body = json.loads(r.body)
-        self.assertEquals("offline", body["status"])
+        self.assertEquals("running", body["state"])
 
 class TestBoardConfig(ConfigMixin, unittest.TestCase):
     def setUp(self):
@@ -266,7 +257,7 @@ class TestBoardBoot(ConfigMixin, unittest.TestCase):
         super(TestBoardBoot, self).setUp()
         add_server("server1")
         self.device_mac = "001122334455"
-        add_device("device1", server="server1", status="running",
+        add_device("device1", server="server1", state="running",
                   mac_address=self.device_mac,
                   relayinfo="relay-1:bank1:relay1")
         self.pxefile = "image1"
@@ -290,7 +281,7 @@ class TestBoardReboot(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardReboot, self).setUp()
         add_server("server1")
-        add_device("device1", server="server1", status="running",
+        add_device("device1", server="server1", state="running",
                   relayinfo="relay-1:bank1:relay1")
 
     @patch("mozpool.bmm.api.powercycle")

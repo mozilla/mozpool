@@ -83,11 +83,6 @@ class device_status:
     def GET(self, id):
         return data.device_status(id)
 
-    @templeton.handlers.json_response
-    def POST(self, id):
-        args, body = templeton.handlers.get_request_parms()
-        return {"status": data.set_device_status(id, body["status"])}
-
 def requestredirect(function):
     """
     Generate a redirect when a request is made for a device that is not

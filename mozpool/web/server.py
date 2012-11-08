@@ -8,7 +8,8 @@ import templeton.handlers
 import templeton.middleware
 import web
 import mozpool
-from mozpool.lifeguard import handlers as lifeguard_handlers
+import mozpool.lifeguard
+from mozpool.lifeguard import devicemachine, handlers as lifeguard_handlers
 from mozpool.bmm import handlers as bmm_handlers
 from mozpool.mozpool import handlers as mozpool_handlers
 
@@ -33,6 +34,12 @@ def main():
     # html directory itself
     os.chdir(os.path.join(os.path.dirname(mozpool.__file__), 'html'))
     app = get_app()
+
+    # start up the lifeguard driver
+    # TODO: make this configurable, as well as poll freq
+    mozpool.lifeguard.driver = devicemachine.LifeguardDriver()
+    mozpool.lifeguard.driver.start()
+
     app.run()
 
 if __name__ == '__main__':

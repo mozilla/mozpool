@@ -96,7 +96,9 @@ DROP TABLE IF EXISTS imaging_servers;
 CREATE TABLE imaging_servers (
   id integer UNSIGNED not null primary key auto_increment,
   -- fqdn of imaging server
-  fqdn varchar(256) not null
+  fqdn varchar(256) not null,
+
+  unique index fqdn_idx (fqdn)
 );
 
 DROP TABLE IF EXISTS pxe_configs;
@@ -121,8 +123,10 @@ CREATE TABLE devices (
   fqdn varchar(256) not null,
   -- "foreign key" to the inventory db
   inventory_id integer not null,
-  -- short descriptive string
-  status varchar(32),
+  -- state machine variables
+  state varchar(32) not null,
+  state_counters text not null,
+  state_timeout datetime,
   -- lower-case, no colons
   mac_address varchar(10) not null,
   -- fqdn of imaging server
@@ -136,7 +140,8 @@ CREATE TABLE devices (
   -- config the device will use on its next boot (JSON blob)
   boot_config text,
 
-  unique index name_idx (name)
+  unique index name_idx (name),
+  index state_timeout_idx (state_timeout)
 );
 
 DROP TABLE IF EXISTS requests;
