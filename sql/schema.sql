@@ -96,7 +96,7 @@ DROP TABLE IF EXISTS imaging_servers;
 CREATE TABLE imaging_servers (
   id integer UNSIGNED not null primary key auto_increment,
   -- fqdn of imaging server
-  fqdn varchar(256) not null,
+  fqdn varchar(255) not null,
 
   unique index fqdn_idx (fqdn)
 );
