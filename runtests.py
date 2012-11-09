@@ -13,6 +13,7 @@ import mock
 import datetime
 import threading
 import urlparse
+import logging
 from mock import patch
 from paste.fixture import TestApp
 
@@ -737,7 +738,8 @@ class TestBmmRelay(unittest.TestCase):
     def tearDown(self):
         relay.PORT = self.old_PORT
 
-    def test_get_status(self):
+    @patch('time.sleep')
+    def test_get_status(self, sleep):
         self.assertEqual(relay.get_status('127.0.0.1', 2, 2, 10), True)
         self.assertEqual(self.server.actions, [('get', 2, 2)])
 
@@ -745,11 +747,13 @@ class TestBmmRelay(unittest.TestCase):
         self.server.delay = 1
         self.assertEqual(relay.get_status('127.0.0.1', 2, 2, 0.1), None)
 
-    def test_set_status_on(self):
+    @patch('time.sleep')
+    def test_set_status_on(self, sleep):
         self.assertEqual(relay.set_status('127.0.0.1', 2, 2, True, 10), True)
         self.assertEqual(self.server.actions, [('set', 'panda-on', 2, 2)])
 
-    def test_set_status_off(self):
+    @patch('time.sleep')
+    def test_set_status_off(self, sleep):
         self.assertEqual(relay.set_status('127.0.0.1', 2, 2, False, 10), True)
         self.assertEqual(self.server.actions, [('set', 'panda-off', 2, 2)])
 
@@ -757,7 +761,8 @@ class TestBmmRelay(unittest.TestCase):
         self.server.delay = 1
         self.assertEqual(relay.set_status('127.0.0.1', 2, 2, True, 0.1), False)
 
-    def test_powercycle(self):
+    @patch('time.sleep')
+    def test_powercycle(self, sleep):
         self.assertEqual(relay.powercycle('127.0.0.1', 2, 2, 10), True)
         self.assertEqual(self.server.actions,
                 [('set', 'panda-off', 2, 2), ('get', 2, 2), ('set', 'panda-on', 2, 2), ('get', 2, 2)])
@@ -794,4 +799,17 @@ class TestBmmPxe(ConfigMixin, unittest.TestCase):
         pxe.clear_pxe('device1')
 
 if __name__ == "__main__":
-    unittest.main()
+    logging.basicConfig(level=logging.DEBUG, filename='test.log')
+    logger = logging.getLogger('runtests')
+
+    # subclasses to print test names to the log
+    class LoggingTextTestResult(unittest.TextTestResult):
+
+        def startTest(self, test):
+            logger.info("---- %s ----" % (self.getDescription(test),))
+            super(LoggingTextTestResult, self).startTest(test)
+
+    class LoggingTextTestRunner(unittest.TextTestRunner):
+        resultclass = LoggingTextTestResult
+
+    unittest.main(testRunner=LoggingTextTestRunner)

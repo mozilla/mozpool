@@ -2,12 +2,15 @@
 # Any copyright is dedicated to the Public Domain.
 # http://creativecommons.org/publicdomain/zero/1.0/
 
+import logging
 import time
 import threading
 import socket, sys, SocketServer
 
 PORT = 2101
 COMMAND_OK = chr(85)
+
+logger = logging.getLogger('fakerelay')
 
 # 4 banks of 8 relays
 relays = [[0]*8 for i in range(5)]
@@ -30,30 +33,30 @@ class RelayTCPHandler(SocketServer.BaseRequestHandler):
             if self.server.delay:
                 time.sleep(self.server.delay)
             if bank < 1 or bank > 4:
-                print "Invalid bank %d" % bank
+                logging.info("Invalid bank %d" % bank)
                 return
             if cmd >= 116 and cmd <= 123:
                 # read status
                 relay = cmd - 115
-                print "get status bank %d relay %d" % (bank, relay)
+                logging.info("get status bank %d relay %d" % (bank, relay))
                 self.server.actions.append(('get', bank, relay))
                 self.request.sendall(chr(relays[bank - 1][relay - 1]))
             elif cmd >= 108 and cmd <= 115:
                 # turn on
                 relay = cmd - 107
-                print "turn on bank %d relay %d (panda off)" % (bank, relay)
+                logging.info("turn on bank %d relay %d (panda off)" % (bank, relay))
                 relays[bank - 1][relay - 1] = 1
                 self.server.actions.append(('set', 'panda-off', bank, relay))
                 self.request.sendall(COMMAND_OK)
             elif cmd >= 100 and cmd <= 107:
                 # turn off
                 relay = cmd - 99
-                print "turn off bank %d relay %d (panda on)" % (bank, relay)
+                logging.info("turn off bank %d relay %d (panda on)" % (bank, relay))
                 relays[bank - 1][relay - 1] = 0
                 self.server.actions.append(('set', 'panda-on', bank, relay))
                 self.request.sendall(COMMAND_OK)
             else:
-                print "Unknown command %d" % cmd
+                logging.info("Unknown command %d" % cmd)
 
 class RelayTCPServer(SocketServer.TCPServer):
     allow_reuse_address = True
@@ -76,11 +79,12 @@ class RelayTCPServer(SocketServer.TCPServer):
         self.thd.start()
 
 def main():
+    logging.basicConfig()
     while True:
         server = RelayTCPServer(('', PORT))
         server.close_on_connect = True
         server.handle_request()
-        print "relay board resetting.."
+        logging.info("relay board resetting..")
         time.sleep(1)
 
 if __name__ == '__main__':

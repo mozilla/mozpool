@@ -4,3 +4,4 @@ bmm/config\.ini$
 dist
 MANIFEST
 mozpool.egg-info
+test.log

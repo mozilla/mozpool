@@ -25,6 +25,7 @@ transitions do not occur in other processes.
 """
 
 from __future__ import absolute_import
+import logging
 from mozpool import util
 
 ####
@@ -40,6 +41,7 @@ class StateMachine(object):
     def __init__(self, machine_name):
         self.machine_name = machine_name
         self.state = None
+        self.logger = logging.getLogger('statemachine.%s' % self.machine_name)
 
     def handle_event(self, event):
         "Act on an event for this machine, specified by name"
@@ -70,7 +72,6 @@ class StateMachine(object):
         """
         self.lock()
         self.state = self._make_state_instance()
-        print self.state
         try:
             if old_state != self.state.state_name:
                 return False
@@ -105,7 +106,7 @@ class StateMachine(object):
 
         self.state.on_exit()
 
-        print "%s entering state %s" % (self.machine_name, new_state_name_or_class) # TODO: mozlog
+        self.logger.info('entering state %s' % (new_state_name_or_class,))
 
         self.state = self._make_state_instance(new_state_name_or_class)
         self.write_state(new_state_name_or_class, self.state._timeout_duration)
@@ -172,8 +173,7 @@ class State(object):
         if handler:
             handler(self)
         else:
-            print "%s ignored event %s in state %s" % \
-                (self.machine.machine_name, event, self.__class__.__name__)
+            self.machine.logger.warning("ignored event %s in state %s" % (event, self.__class__.__name__))
 
     def handle_timeout(self):
         self._timeout_method()

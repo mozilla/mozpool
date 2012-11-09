@@ -5,7 +5,7 @@
 import time
 import threading
 import datetime
-import traceback
+import logging
 from mozpool.db import data
 from mozpool import statemachine
 from mozpool import config
@@ -33,6 +33,7 @@ class LifeguardDriver(threading.Thread):
         self.imaging_server_id = data.find_imaging_server_id(config.get('server', 'fqdn'))
         self._stop = False
         self.poll_frequency = poll_frequency
+        self.logger = logging.getLogger('lifeguard.driver')
 
     def stop(self):
         self._stop = True
@@ -54,8 +55,7 @@ class LifeguardDriver(threading.Thread):
                 try:
                     machine.handle_timeout()
                 except:
-                    print "Exception while polling:"
-                    traceback.print_exc()
+                    self.logger("(ignored) error while handling timeout:", exc_info=True)
 
     def handle_event(self, device_name, event):
         """
@@ -89,7 +89,7 @@ class LifeguardDriver(threading.Thread):
 class DeviceStateMachine(statemachine.StateMachine):
 
     def __init__(self, device_name):
-        statemachine.StateMachine.__init__(self, "device %s" % device_name)
+        statemachine.StateMachine.__init__(self, "device-%s" % device_name)
         self.device_name = device_name
 
     def read_state(self):

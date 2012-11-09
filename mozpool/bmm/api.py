@@ -2,13 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import logging
 import time
 import threading
-import traceback
 from mozpool.db import data
 from mozpool.db import logs
 from mozpool.bmm import relay
 from mozpool.bmm import pxe
+
+logger = logging.getLogger('bmm.api')
 
 def start_powercycle(device_name, callback, max_time=30):
     """
@@ -34,8 +36,7 @@ def start_powercycle(device_name, callback, max_time=30):
         try:
             res = relay.powercycle(hostname, bnk, rly, max_time)
         except:
-            traceback.print_exc()
-            print "(ignored)"
+            logger.error("(ignored) exception while running powercycle", exc_info=True)
 
         if time.time() < callback_before:
             callback(res)
