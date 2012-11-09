@@ -3,7 +3,6 @@
 
 from setuptools import setup, find_packages
 
-print setup.func_code
 setup(name='mozpool',
       version='0.3.1',
       description='System to manage a pool of cranky mobile devices',
