@@ -109,7 +109,7 @@ CREATE TABLE pxe_configs (
   -- version, scoped to the name
   description text not null,
   -- pxe configuration text
-  config_content TEXT not null,
+  contents TEXT not null,
 
   unique index name_idx (name)
 );
