@@ -77,12 +77,15 @@ def res2status(res):
 def serialize_by_host(hostname):
     """
     Ensure that exactly one enclosed block with the given hostname can run at a
-    time on this host.
+    time on this host.  This accounts for a small wait time *after* the connection
+    to allow the relay board to reset (its TCP stack appears to be single-threaded!)
     """
     locks.acquire(hostname)
     try:
         yield
     finally:
+        # sleep long enough for the relay board to recover after the TCP connection
+        time.sleep(1)
         locks.release(hostname)
 
 class TimeoutError(Exception):
@@ -298,7 +301,6 @@ def powercycle(host, bank, relay, timeout):
             yield client.write(chr(bank))
             res = yield client.read()
             if res != COMMAND_OK:
-                # TODO: mozlog
                 logger.info("Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res)))
                 logger.info("power-cycle of %s %s %s failed" % (host, bank, relay))
                 raise StopIteration(False)
