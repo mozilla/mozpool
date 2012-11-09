@@ -107,11 +107,7 @@ class request_details:
     @templeton.handlers.json_response
     def GET(self, request_id):
         try:
-            request = data.dump_requests(request_id)[0]
-            # convert expiration date to isoformat, since JSON won't serialize
-            # a datetime
-            request['expires'] = request['expires'].isoformat()
-            return request
+            return data.dump_requests(request_id)[0]
         except IndexError:
             raise web.notfound()
 
