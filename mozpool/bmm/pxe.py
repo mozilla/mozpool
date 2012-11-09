@@ -29,7 +29,8 @@ def set_pxe(device_name, pxe_config_name, boot_config):
     # Write out the config file
     device_config_path = _get_device_config_path(device_name)
     device_config_dir = os.path.dirname(device_config_path)
-    os.makedirs(device_config_dir)
+    if not os.path.exists(device_config_dir):
+        os.makedirs(device_config_dir)
 
     open(device_config_path, "w").write(pxe_config_contents)
 
