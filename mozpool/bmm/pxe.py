@@ -3,8 +3,11 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import os
+import logging
 from mozpool import config
 from mozpool.db import data
+
+logger = logging.getLogger('bmm.pxe')
 
 def _get_device_config_path(device_name):
     """
@@ -20,6 +23,8 @@ def set_pxe(device_name, pxe_config_name, boot_config):
     Set up the PXE configuration for the device as directed.  Note that this does *not*
     reboot the device.
     """
+    logger.info('setting pxe config for %s to %s%s' % (device_name, pxe_config_name,
+        ' with boot config' if boot_config else ''))
     image_details = data.pxe_config_details(pxe_config_name)['details']
     pxe_config_contents = image_details['contents']
 
@@ -36,6 +41,7 @@ def set_pxe(device_name, pxe_config_name, boot_config):
 
 def clear_pxe(device_name):
     """Remove symlink for this device's MAC address from TFTP."""
+    logger.info('clearing pxe config for %s' % (device_name,))
     tftp_symlink = _get_device_config_path(device_name)
     if os.path.exists(tftp_symlink):
         os.unlink(tftp_symlink)

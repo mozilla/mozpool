@@ -291,7 +291,7 @@ def powercycle(host, bank, relay, timeout):
 
     @RelayClient.generator(host, PORT, timeout)
     def gen(client):
-        logger.info("power-cycle of %s %s %s initiated" % (host, bank, relay))
+        logger.info("power-cycle on %s bank %s relay %s initiated" % (host, bank, relay))
         # sadly, because we don't have 'yield from' yet, this all has to happen
         # in one function body.
         for status in False, True:
@@ -302,7 +302,7 @@ def powercycle(host, bank, relay, timeout):
             res = yield client.read()
             if res != COMMAND_OK:
                 logger.info("Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res)))
-                logger.info("power-cycle of %s %s %s failed" % (host, bank, relay))
+                logger.info("power-cycle on %s bank %s relay %s failed" % (host, bank, relay))
                 raise StopIteration(False)
 
             # check the status
@@ -313,13 +313,13 @@ def powercycle(host, bank, relay, timeout):
             got_status = res2status(res)
             if (not status and got_status) or (status and not got_status):
                 logger.info("Bank %d relay %d on %s:%d did not change state" % (bank, relay, host, PORT))
-                logger.info("power-cycle of %s %s %s failed" % (host, bank, relay))
+                logger.info("power-cycle on %s bank %s relay %s failed" % (host, bank, relay))
                 raise StopIteration(False)
 
             # if we just turned the device off, give it a chance to rest
             if status is False:
                 time.sleep(1)
-        logger.info("power-cycle of %s %s %s successful" % (host, bank, relay))
+        logger.info("power-cycle on %s bank %s relay %s successful" % (host, bank, relay))
         raise StopIteration(True)
     try:
         with serialize_by_host(host):
