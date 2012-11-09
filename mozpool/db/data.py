@@ -248,6 +248,15 @@ def device_mac_address(device):
     row = res.fetchone()
     return row['mac_address'].encode('utf-8')
 
+def device_fqdn(device):
+    """
+    Get the fqdn of device.
+    """
+    res = sql.get_conn().execute(select([model.devices.c.fqdn],
+                                        model.devices.c.name==device))
+    row = res.fetchone()
+    return row['fqdn']
+
 def list_pxe_configs():
     conn = sql.get_conn()
     res = conn.execute(select([model.pxe_configs.c.name]))

@@ -9,6 +9,24 @@ from mozpool.db import data
 from mozpool.db import logs
 from mozpool.bmm import relay
 from mozpool.bmm import pxe
+from mozpool.bmm import ping as ping_module
+
+def _wait_for_async(start_fn):
+    done_cond = threading.Condition()
+
+    cb_result = []
+    def cb(arg):
+        cb_result.append(arg)
+        done_cond.acquire()
+        done_cond.notify()
+        done_cond.release()
+
+    done_cond.acquire()
+    start_fn(cb)
+    done_cond.wait()
+    done_cond.release()
+
+    return cb_result[0]
 
 logger = logging.getLogger('bmm.api')
 
@@ -24,11 +42,7 @@ def start_powercycle(device_name, callback, max_time=30):
     """
     callback_before = time.time() + max_time
 
-    # TODO: call this in the thread so it doesn't block and gets counted in the
-    # total request time
     hostname, bnk, rly = data.device_relay_info(device_name)
-
-    # TODO: verify this device belongs to this imaging server
 
     logs.device_logs.add(device_name, "initiating power cycle")
     def try_powercycle():
@@ -45,22 +59,8 @@ def start_powercycle(device_name, callback, max_time=30):
 def powercycle(device_name, max_time=30):
     """Like start_powercycle, but block until completion and return the success
     status"""
-    result = []
-    cond = threading.Condition()
-
-    def callback(success):
-        result.append(success)
-        cond.acquire()
-        cond.notify()
-        cond.release()
-
-    cond.acquire()
-    start_powercycle(device_name, callback, max_time)
-    while not result:
-        cond.wait()
-    cond.release()
-
-    return result[0]
+    return _wait_for_async(lambda cb :
+            start_powercycle(device_name, cb, max_time))
 
 def set_pxe(device_name, image_name, boot_config):
     """
@@ -77,3 +77,30 @@ def clear_pxe(device_name):
     """
     logs.device_logs.add(device_name, "clearing PXE config")
     pxe.clear_pxe(device_name)
+
+def start_ping(device_name, callback):
+    """
+    Begin pinging the device (using its fqdn, thus depending on DNS as well).
+    The callback will be invoked with a boolean success flag within ten seconds.
+    """
+    callback_before = time.time() + 10
+    fqdn = data.device_fqdn(device_name)
+
+    def try_ping():
+        try:
+            pingable = ping_module.ping(fqdn)
+        except:
+            traceback.print_exc()
+            print "(ignored)"
+            pingable = False
+
+        logs.device_logs.add(device_name, "ping of %s complete: %s" % (fqdn, 'ok' if pingable else 'failed'))
+        if time.time() < callback_before:
+            callback(pingable)
+    threading.Thread(target=try_ping).start()
+
+def ping(device_name):
+    """Like ping, but block until completion and return the success
+    status"""
+    return _wait_for_async(lambda cb :
+            start_ping(device_name, cb))

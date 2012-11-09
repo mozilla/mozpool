@@ -25,6 +25,7 @@ from mozpool.db import data, sql
 from mozpool.db import model
 from mozpool.bmm import relay
 from mozpool.bmm import pxe
+from mozpool.bmm import ping
 from mozpool.lifeguard import inventorysync
 from mozpool.test.util import add_server, add_device, add_pxe_config, add_request, setup_db
 from mozpool.test import fakerelay
@@ -283,6 +284,26 @@ class TestDevicePowerCycle(ConfigMixin, unittest.TestCase):
         # Nothing in the response body currently
         set_pxe.assert_called_with('device1', 'image1', 'abcd')
         start_powercycle.assert_called_with('device1', mock.ANY)
+
+class TestDevicePing(ConfigMixin, unittest.TestCase):
+    def setUp(self):
+        super(TestDevicePing, self).setUp()
+        add_server("server1")
+        self.device_mac = "001122334455"
+        add_device("device1", server="server1", state="running",
+                  mac_address=self.device_mac,
+                  relayinfo="relay-1:bank1:relay1")
+        self.pxefile = "image1"
+        # create a file for the boot image.
+        open(os.path.join(config.get('paths', 'image_store'), self.pxefile), "w").write("abc")
+        add_pxe_config("image1")
+
+    @patch("mozpool.bmm.api.ping")
+    def testDevicePing(self, ping):
+        ping.return_value = True
+        r = self.app.get("/api/device/device1/ping/")
+        self.assertEqual(200, r.status)
+        self.assertEqual(json.loads(r.body), {'success':True})
 
 class TestDeviceStateChange(ConfigMixin, unittest.TestCase):
     def setUp(self):
@@ -665,22 +686,26 @@ class TestLocksByName(unittest.TestCase):
 
 class TestBmmApi(unittest.TestCase):
 
-    def do_call_start_powercycle(self, device_name, max_time):
+    def wait_for_async(self, start_fn):
         done_cond = threading.Condition()
 
         cb_result = []
-        def cb(success):
-            cb_result.append(success)
+        def cb(arg):
+            cb_result.append(arg)
             done_cond.acquire()
             done_cond.notify()
             done_cond.release()
 
         done_cond.acquire()
-        mozpool.bmm.api.start_powercycle(device_name, cb, max_time)
+        start_fn(cb)
         done_cond.wait()
         done_cond.release()
 
         return cb_result[0]
+
+    def do_call_start_powercycle(self, device_name, max_time):
+        return self.wait_for_async(lambda cb :
+            mozpool.bmm.api.start_powercycle(device_name, cb, max_time))
 
     @patch('mozpool.db.logs.Logs.add')
     @patch('mozpool.bmm.relay.powercycle')
@@ -725,6 +750,33 @@ class TestBmmApi(unittest.TestCase):
         mozpool.bmm.pxe.clear_pxe('device1')
         pxe_clear_pxe.assert_called_with('device1')
         logs_add.assert_called()
+
+    def do_call_start_ping(self, device_name):
+        return self.wait_for_async(lambda cb :
+            mozpool.bmm.api.start_ping(device_name, cb))
+
+    @patch('mozpool.db.data.device_fqdn')
+    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.bmm.ping.ping')
+    def test_start_ping(self, ping, log_add, device_fqdn):
+        ping.return_value = True
+        device_fqdn.return_value = 'abcd'
+        self.do_call_start_ping('xyz')
+        device_fqdn.assert_called_with('xyz')
+        log_add.assert_called()
+        ping.assert_called_with('abcd')
+
+    @patch('mozpool.db.data.device_fqdn')
+    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.bmm.ping.ping')
+    def test_ping(self, ping, log_add, device_fqdn):
+        ping.return_value = True
+        device_fqdn.return_value = 'abcd'
+        mozpool.bmm.api.ping('xyz')
+        device_fqdn.assert_called_with('xyz')
+        log_add.assert_called()
+        ping.assert_called_with('abcd')
+
 
 class TestBmmRelay(unittest.TestCase):
 
@@ -797,6 +849,23 @@ class TestBmmPxe(ConfigMixin, unittest.TestCase):
     def test_clear_pxe_nonexistent(self):
         # just has to not fail!
         pxe.clear_pxe('device1')
+
+class TestBmmPing(unittest.TestCase):
+
+    fixed_args = '-q -r4 -t50'
+
+    @patch("os.system")
+    def test_ping_success(self, system):
+        system.return_value = 0
+        self.assertTrue(ping.ping('abcd'))
+        system.assert_called_with('fping %s abcd' % self.fixed_args)
+
+    @patch("os.system")
+    def test_ping_fails(self, system):
+        system.return_value = 256
+        self.assertFalse(ping.ping('abcd'))
+        system.assert_called_with('fping %s abcd' % self.fixed_args)
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, filename='test.log')
