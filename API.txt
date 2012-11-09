@@ -106,10 +106,14 @@ a MozPool server or the device itself.
 
 = Black Mobile Magic =
 
-Black Mobile Magic handles the hardware directly: power control and network
-boot configuration.
+Black Mobile Magic handles the hardware directly: power control, network boot
+configuration, and pings.
 
 == Operations ==
+
+These low-level BMM operations are useful for diagnostics and repairs, but
+using them on devices that are managed by Lifeguard may cause undesirable
+results, since lifeguard expects to be controlling the devices.
 
 /api/device/{id}/power-cycle/
 * POST to initiate a power-cycle this device.  The POST body is a JSON object,
@@ -123,6 +127,11 @@ boot configuration.
 * POST to clear the PXE configuration for the device.  Call this after a
   `power_cycle` operation with a `pxe_config` argument has been successful, so
   that any subsequent device-initiated reboots will not PXE boot.
+
+/api/device/{id}/ping/
+* GET to ping this device.  Returns a JSON object with a `success` key, and
+  value true or false.  The ping happens synchronously, and takes around a
+  half-second.
 
 == PXE Configs ==
 
