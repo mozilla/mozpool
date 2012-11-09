@@ -130,6 +130,7 @@ class StateMachine(object):
         counters = self.read_counters()
         counters[counter_name] = counters.get(counter_name, 0) + 1
         self.write_counters(counters)
+        return counters[counter_name]
 
     # decorator
 
