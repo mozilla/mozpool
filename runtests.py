@@ -738,7 +738,7 @@ class TestBmmRelay(unittest.TestCase):
         relay.PORT = self.old_PORT
 
     def test_get_status(self):
-        self.assertEqual(relay.get_status('127.0.0.1', 2, 2, 10), False)
+        self.assertEqual(relay.get_status('127.0.0.1', 2, 2, 10), True)
         self.assertEqual(self.server.actions, [('get', 2, 2)])
 
     def test_get_status_timeout(self):
@@ -747,11 +747,11 @@ class TestBmmRelay(unittest.TestCase):
 
     def test_set_status_on(self):
         self.assertEqual(relay.set_status('127.0.0.1', 2, 2, True, 10), True)
-        self.assertEqual(self.server.actions, [('set', 'on', 2, 2)])
+        self.assertEqual(self.server.actions, [('set', 'panda-on', 2, 2)])
 
     def test_set_status_off(self):
         self.assertEqual(relay.set_status('127.0.0.1', 2, 2, False, 10), True)
-        self.assertEqual(self.server.actions, [('set', 'off', 2, 2)])
+        self.assertEqual(self.server.actions, [('set', 'panda-off', 2, 2)])
 
     def test_set_status_timeout(self):
         self.server.delay = 1
@@ -760,7 +760,7 @@ class TestBmmRelay(unittest.TestCase):
     def test_powercycle(self):
         self.assertEqual(relay.powercycle('127.0.0.1', 2, 2, 10), True)
         self.assertEqual(self.server.actions,
-                [('set', 'off', 2, 2), ('get', 2, 2), ('set', 'on', 2, 2), ('get', 2, 2)])
+                [('set', 'panda-off', 2, 2), ('get', 2, 2), ('set', 'panda-on', 2, 2), ('get', 2, 2)])
 
     def test_powercycle_timeout(self):
         self.server.delay = 0.05

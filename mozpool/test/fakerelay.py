@@ -39,16 +39,16 @@ class RelayTCPHandler(SocketServer.BaseRequestHandler):
             elif cmd >= 108 and cmd <= 115:
                 # turn on
                 relay = cmd - 107
-                print "turn on bank %d relay %d" % (bank, relay)
+                print "turn on bank %d relay %d (panda off)" % (bank, relay)
                 relays[bank - 1][relay - 1] = 1
-                self.server.actions.append(('set', 'on', bank, relay))
+                self.server.actions.append(('set', 'panda-off', bank, relay))
                 self.request.sendall(COMMAND_OK)
             elif cmd >= 100 and cmd <= 107:
                 # turn off
                 relay = cmd - 99
-                print "turn off bank %d relay %d" % (bank, relay)
+                print "turn off bank %d relay %d (panda on)" % (bank, relay)
                 relays[bank - 1][relay - 1] = 0
-                self.server.actions.append(('set', 'off', bank, relay))
+                self.server.actions.append(('set', 'panda-on', bank, relay))
                 self.request.sendall(COMMAND_OK)
             else:
                 print "Unknown command %d" % cmd
