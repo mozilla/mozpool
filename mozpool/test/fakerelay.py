@@ -13,6 +13,8 @@ COMMAND_OK = chr(85)
 relays = [[0]*8 for i in range(5)]
 class RelayTCPHandler(SocketServer.BaseRequestHandler):
     def handle(self):
+        if self.server.close_on_connect:
+            self.server.server_close()
         data = []
         while True:
             b = self.request.recv(3)
@@ -59,7 +61,11 @@ class RelayTCPServer(SocketServer.TCPServer):
     def __init__(self, addr):
         SocketServer.TCPServer.__init__(self, addr, RelayTCPHandler)
         self.actions = []
+        # how long to delay between getting a command and executing it
         self.delay = 0
+        # if true, shut down the listening socket as soon as a connection comes in,
+        # emulating real relays a bit better
+        self.close_on_connect = False
 
     def get_port(self):
         return self.socket.getsockname()[1]
@@ -70,8 +76,12 @@ class RelayTCPServer(SocketServer.TCPServer):
         self.thd.start()
 
 def main():
-    server = RelayTCPServer(('', PORT))
-    server.serve_forever()
+    while True:
+        server = RelayTCPServer(('', PORT))
+        server.close_on_connect = True
+        server.handle_request()
+        print "relay board resetting.."
+        time.sleep(1)
 
 if __name__ == '__main__':
     main()
