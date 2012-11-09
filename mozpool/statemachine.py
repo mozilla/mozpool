@@ -168,16 +168,20 @@ class State(object):
 
     def __init__(self, machine):
         self.machine = machine
+        self.logger = machine.logger
 
     def handle_event(self, event):
         handler = self._event_methods.get(event)
         if handler:
             handler(self)
         else:
-            self.machine.logger.warning("ignored event %s in state %s" % (event, self.__class__.__name__))
+            self.logger.warning("ignored event %s in state %s" % (event, self.__class__.__name__))
 
     def handle_timeout(self):
-        self._timeout_method()
+        if self._timeout_method:
+            self._timeout_method()
+        else:
+            self.logger.warning("state %s encountered a timeout but has no timeout method" % (self.state_name))
 
     # hook methods
 
