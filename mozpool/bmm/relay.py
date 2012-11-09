@@ -67,6 +67,9 @@ def status2cmd(status, relay):
     else:
         return TURN_ON_RELAY_N_AT_BANK(relay)
 
+def res2status(res):
+    return False if ord(res[0]) == 1 else True
+
 @contextmanager
 def serialize_by_host(hostname):
     """
@@ -213,7 +216,7 @@ def get_status(host, bank, relay, timeout):
         yield client.write(chr(bank))
         # relay board will return 0 or 1 indicating its state
         res = yield client.read()
-        raise StopIteration(True if ord(res[0]) == 1 else False)
+        raise StopIteration(res2status(res))
     try:
         with serialize_by_host(host):
             return gen()
@@ -298,8 +301,9 @@ def powercycle(host, bank, relay, timeout):
             yield client.write(START_COMMAND)
             yield client.write(READ_RELAY_N_AT_BANK(relay))
             yield client.write(chr(bank))
-            res = ord((yield client.read()))
-            if (not status and res) or (status and not res):
+            res = yield client.read()
+            got_status = res2status(res)
+            if (not status and got_status) or (status and not got_status):
                 print "Bank %d relay %d on %s:%d did not change state" % (bank, relay, host, PORT)
                 raise StopIteration(False)
         raise StopIteration(True)
