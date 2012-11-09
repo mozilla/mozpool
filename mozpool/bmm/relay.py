@@ -22,6 +22,7 @@ that, regardless of network conditions.
 """
 
 from __future__ import with_statement
+import sys
 import time
 import socket
 import asyncore
@@ -294,7 +295,8 @@ def powercycle(host, bank, relay, timeout):
             res = yield client.read()
             if res != COMMAND_OK:
                 # TODO: mozlog
-                print "Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res))
+                print >>sys.stderr, "Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res))
+                print >>sys.stderr, "power-cycle of %s %s %s failed" % (host, bank, relay)
                 raise StopIteration(False)
 
             # check the status
@@ -304,8 +306,10 @@ def powercycle(host, bank, relay, timeout):
             res = yield client.read()
             got_status = res2status(res)
             if (not status and got_status) or (status and not got_status):
-                print "Bank %d relay %d on %s:%d did not change state" % (bank, relay, host, PORT)
+                print >>sys.stderr, "Bank %d relay %d on %s:%d did not change state" % (bank, relay, host, PORT)
+                print >>sys.stderr, "power-cycle of %s %s %s failed" % (host, bank, relay)
                 raise StopIteration(False)
+        print >>sys.stderr, "power-cycle of %s %s %s successful" % (host, bank, relay)
         raise StopIteration(True)
     try:
         with serialize_by_host(host):
