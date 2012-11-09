@@ -285,6 +285,7 @@ def powercycle(host, bank, relay, timeout):
 
     @RelayClient.generator(host, PORT, timeout)
     def gen(client):
+        print >>sys.stderr, "power-cycle of %s %s %s initiated" % (host, bank, relay)
         # sadly, because we don't have 'yield from' yet, this all has to happen
         # in one function body.
         for status in False, True:
@@ -309,6 +310,10 @@ def powercycle(host, bank, relay, timeout):
                 print >>sys.stderr, "Bank %d relay %d on %s:%d did not change state" % (bank, relay, host, PORT)
                 print >>sys.stderr, "power-cycle of %s %s %s failed" % (host, bank, relay)
                 raise StopIteration(False)
+
+            # if we just turned the device off, give it a chance to rest
+            if status is False:
+                time.sleep(1)
         print >>sys.stderr, "power-cycle of %s %s %s successful" % (host, bank, relay)
         raise StopIteration(True)
     try:
