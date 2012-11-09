@@ -4,6 +4,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import os
+import logging
+import sys
 import templeton.handlers
 import templeton.middleware
 import web
@@ -33,13 +35,16 @@ def main():
     # the directory containing our html data.  Easiest is to just change the the
     # html directory itself
     os.chdir(os.path.join(os.path.dirname(mozpool.__file__), 'html'))
-    app = get_app()
+
+    # Set up logging
+    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
     # start up the lifeguard driver
     # TODO: make this configurable, as well as poll freq
     mozpool.lifeguard.driver = devicemachine.LifeguardDriver()
     mozpool.lifeguard.driver.start()
 
+    app = get_app()
     app.run()
 
 if __name__ == '__main__':

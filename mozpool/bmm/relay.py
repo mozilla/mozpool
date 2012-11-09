@@ -26,6 +26,7 @@ import sys
 import time
 import socket
 import asyncore
+import logging
 from mozpool import util
 from contextlib import contextmanager
 
@@ -36,6 +37,7 @@ __all__ = ['get_status',
 PORT = 2101
 
 locks = util.LocksByName()
+logger = logging.getLogger('bmm.relay')
 
 # Some magic numbers from the manual
 # Command completed successfully
@@ -143,13 +145,15 @@ class RelayClient(asyncore.dispatcher):
         self._step()
 
     def handle_close(self):
-        self._step(exc=ConnectionLostError())
+        self._step(exc=(ConnectionLostError(),))
         self.close()
 
     def handle_timeout(self):
-        self._step(exc=TimeoutError())
+        self._step(exc=(TimeoutError(),))
         self.close()
 
+    def handle_error(self):
+        self._step(exc=sys.exc_info())
     def handle_read(self):
         if self.state != 'reading':
             return
@@ -187,10 +191,10 @@ class RelayClient(asyncore.dispatcher):
         if exc:
             to_call = self.coroutine.throw, exc
         else:
-            to_call = self.coroutine.send, value
+            to_call = self.coroutine.send, (value,)
 
         try:
-            to_call[0](to_call[1])
+            to_call[0](*to_call[1])
             assert self.state != 'idle', "coroutine yielded without anything to do"
         except StopIteration, e:
             self.close()
@@ -222,13 +226,13 @@ def get_status(host, bank, relay, timeout):
         with serialize_by_host(host):
             return gen()
     except TimeoutError:
-        print "timeout connecting to %s:%d" % (host, PORT) # TODO: mozlog
+        logger.error("timeout communicating with %s:%d" % (host, PORT))
         return None
     except ConnectionLostError:
-        print "connection to %s:%d lost" % (host, PORT) # TODO: mozlog
+        logger.error("connection to %s:%d lost" % (host, PORT))
         return None
     except socket.error, e:
-        print "error connecting to relay host:", e # TODO: mozlog
+        logger.error("error communicating with relay host:", exc_info=e)
         return None
 
 def set_status(host, bank, relay, status, timeout):
@@ -252,8 +256,7 @@ def set_status(host, bank, relay, status, timeout):
         yield client.write(chr(bank))
         res = yield client.read()
         if res != COMMAND_OK:
-            # TODO: mozlog
-            print "Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res))
+            logger.error("Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res)))
             raise StopIteration(False)
         else:
             raise StopIteration(True)
@@ -261,13 +264,13 @@ def set_status(host, bank, relay, status, timeout):
         with serialize_by_host(host):
             return gen()
     except TimeoutError:
-        print "timeout communicating with %s:%d" % (host, PORT) # TODO: mozlog
+        logger.error("timeout communicating with %s:%d" % (host, PORT))
         return False
     except ConnectionLostError:
-        print "connection to %s:%d lost" % (host, PORT) # TODO: mozlog
+        logger.error("connection to %s:%d lost" % (host, PORT))
         return False
     except socket.error, e:
-        print "error connecting to relay host:", e # TODO: mozlog
+        logger.error("error communicating with relay host:", exc_info=e)
         return False
 
 def powercycle(host, bank, relay, timeout):
@@ -285,7 +288,7 @@ def powercycle(host, bank, relay, timeout):
 
     @RelayClient.generator(host, PORT, timeout)
     def gen(client):
-        print >>sys.stderr, "power-cycle of %s %s %s initiated" % (host, bank, relay)
+        logger.info("power-cycle of %s %s %s initiated" % (host, bank, relay))
         # sadly, because we don't have 'yield from' yet, this all has to happen
         # in one function body.
         for status in False, True:
@@ -296,8 +299,8 @@ def powercycle(host, bank, relay, timeout):
             res = yield client.read()
             if res != COMMAND_OK:
                 # TODO: mozlog
-                print >>sys.stderr, "Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res))
-                print >>sys.stderr, "power-cycle of %s %s %s failed" % (host, bank, relay)
+                logger.info("Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res)))
+                logger.info("power-cycle of %s %s %s failed" % (host, bank, relay))
                 raise StopIteration(False)
 
             # check the status
@@ -307,24 +310,24 @@ def powercycle(host, bank, relay, timeout):
             res = yield client.read()
             got_status = res2status(res)
             if (not status and got_status) or (status and not got_status):
-                print >>sys.stderr, "Bank %d relay %d on %s:%d did not change state" % (bank, relay, host, PORT)
-                print >>sys.stderr, "power-cycle of %s %s %s failed" % (host, bank, relay)
+                logger.info("Bank %d relay %d on %s:%d did not change state" % (bank, relay, host, PORT))
+                logger.info("power-cycle of %s %s %s failed" % (host, bank, relay))
                 raise StopIteration(False)
 
             # if we just turned the device off, give it a chance to rest
             if status is False:
                 time.sleep(1)
-        print >>sys.stderr, "power-cycle of %s %s %s successful" % (host, bank, relay)
+        logger.info("power-cycle of %s %s %s successful" % (host, bank, relay))
         raise StopIteration(True)
     try:
         with serialize_by_host(host):
             return gen()
     except TimeoutError:
-        print "timeout communicating with %s:%d" % (host, PORT) # TODO: mozlog
+        logger.error("timeout communicating with %s:%d" % (host, PORT))
         return False
     except ConnectionLostError:
-        print "connection to %s:%d lost" % (host, PORT) # TODO: mozlog
+        logger.error("connection to %s:%d lost" % (host, PORT))
         return False
     except socket.error, e:
-        print "error connecting to relay host:", e # TODO: mozlog
+        logger.error("error communicating with relay host:", exc_info=e)
         return False
