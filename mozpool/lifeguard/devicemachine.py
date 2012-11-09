@@ -55,7 +55,7 @@ class LifeguardDriver(threading.Thread):
                 try:
                     machine.handle_timeout()
                 except:
-                    self.logger("(ignored) error while handling timeout:", exc_info=True)
+                    self.logger.error("(ignored) error while handling timeout:", exc_info=True)
 
     def handle_event(self, device_name, event):
         """
@@ -196,30 +196,39 @@ class pc_rebooting(statemachine.State):
     @statemachine.event_method('power-cycle-ok')
     def on_power_cycle_ok(self):
         self.machine.clear_counter('pc_rebooting')
-        self.machine.goto_state(pc_complete)
+        self.machine.goto_state(pc_pinging)
 
 
 @DeviceStateMachine.state_class
-class pc_complete(statemachine.State):
-    "A reboot has been requested, and the power cycle is complete."
+class pc_pinging(statemachine.State):
+    "A reboot has been requested, and the power cycle is complete.  Ping until successful."
 
-    # give the image ample time to come up and tell us that it's running, but if
-    # that doesn't work after a few reboots, the image itself is probably bad
-    TIMEOUT = 600
-    PERMANENT_FAILURE_COUNT = 10
+    # ping every 10s, failing 12 times
+    TIMEOUT = 10
+    PERMANENT_FAILURE_COUNT = 3
+
+    def on_entry(self):
+        def ping_complete(success):
+            # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
+            if success:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping-ok')
+        bmm_api.start_ping(self.machine.device_name, ping_complete)
 
     @statemachine.timeout_method(TIMEOUT)
     def on_timeout(self):
-        if self.machine.increment_counter('pc_complete') > self.PERMANENT_FAILURE_COUNT:
-            self.machine.goto_state(failed_reboot_complete)
-        else:
+        if self.machine.increment_counter('pc_pinging') > self.PERMANENT_FAILURE_COUNT:
+            # after enough ping failures, try rebooting again (and clear the ping counter)
+            self.machine.clear_counter('pc_pinging')
             self.machine.goto_state(pc_rebooting)
+        else:
+            # otherwise, re-enter this state and ping again
+            self.machine.goto_state(pc_pinging)
 
     # TODO: not clear how to know the image is running -- ping?
     # https://github.com/jedie/python-ping/blob/master/ping.py
-    @statemachine.event_method('image-running')
+    @statemachine.event_method('ping-ok')
     def on_image_running(self):
-        self.machine.clear_counter('pc_complete')
+        self.machine.clear_counter('pc_pinging')
         self.machine.goto_state(ready)
 
 ####
