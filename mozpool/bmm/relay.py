@@ -61,6 +61,12 @@ def TURN_OFF_RELAY_N_AT_BANK(N):
     """
     return chr(99 + N)
 
+def status2cmd(status, relay):
+    if status:
+        return TURN_OFF_RELAY_N_AT_BANK(relay)
+    else:
+        return TURN_ON_RELAY_N_AT_BANK(relay)
+
 @contextmanager
 def serialize_by_host(hostname):
     """
@@ -237,12 +243,8 @@ def set_status(host, bank, relay, status, timeout):
 
     @RelayClient.generator(host, PORT, timeout)
     def gen(client):
-        if status:
-            cmd = TURN_ON_RELAY_N_AT_BANK(relay)
-        else:
-            cmd = TURN_OFF_RELAY_N_AT_BANK(relay)
         yield client.write(START_COMMAND)
-        yield client.write(cmd)
+        yield client.write(status2cmd(status, relay))
         yield client.write(chr(bank))
         res = yield client.read()
         if res != COMMAND_OK:
@@ -283,12 +285,8 @@ def powercycle(host, bank, relay, timeout):
         # in one function body.
         for status in False, True:
             # set the status
-            if status:
-                cmd = TURN_ON_RELAY_N_AT_BANK(relay)
-            else:
-                cmd = TURN_OFF_RELAY_N_AT_BANK(relay)
             yield client.write(START_COMMAND)
-            yield client.write(cmd)
+            yield client.write(status2cmd(status, relay))
             yield client.write(chr(bank))
             res = yield client.read()
             if res != COMMAND_OK:
