@@ -25,8 +25,6 @@ class LifeguardDriver(threading.Thread):
     The server code sets up an instance of this object as mozpool.lifeguard.driver.
     """
 
-    # TODO: abstract and put in statemachine.py
-
     def __init__(self, poll_frequency=POLL_FREQUENCY):
         threading.Thread.__init__(self, name='LifeguardDriver')
         self.setDaemon(True)
@@ -57,12 +55,13 @@ class LifeguardDriver(threading.Thread):
                 except:
                     self.logger.error("(ignored) error while handling timeout:", exc_info=True)
 
-    def handle_event(self, device_name, event):
+    def handle_event(self, device_name, event, args):
         """
-        Handle an event for a particular device.
+        Handle an event for a particular device, with optional arguments
+        specific to the event.
         """
         machine = self._get_machine(device_name)
-        machine.handle_event(event)
+        machine.handle_event(event, args)
 
     def conditional_state_change(self, device_name, old_state, new_state,
                 new_pxe_config, new_boot_config):
@@ -114,52 +113,44 @@ class DeviceStateMachine(statemachine.StateMachine):
 ####
 # Mixins
 
-class AllowReboot(object):
+class AllowPowerCycle(object):
 
-    @statemachine.event_method('rq-reboot')
-    def on_rq_reboot(self):
+    def on_please_power_cycle(self, args):
         self.machine.goto_state(pc_rebooting)
-
 
 ####
 # Initial and steady states
 
 @DeviceStateMachine.state_class
-class new(AllowReboot, statemachine.State):
+class new(AllowPowerCycle, statemachine.State):
     "This device is newly installed.  Await instructions."
 
 
 @DeviceStateMachine.state_class
-class unknown(AllowReboot, statemachine.State):
+class unknown(AllowPowerCycle, statemachine.State):
     "This device is in an unknown state.  Await instructions."
 
 
 @DeviceStateMachine.state_class
-class ready(AllowReboot, statemachine.State):
+class ready(AllowPowerCycle, statemachine.State):
     "This device is production-ready."
 
     TIMEOUT = 300
 
-    ## TODO: polling stuff isn't implemented yet
-
     def on_entry(self):
         self.machine.clear_counter()
-        #start_polling()
+        def ping_complete(success):
+            # if the ping succeeds, great - wait for a timeout.  Otherwise, try to power-cycle.
+            # TODO: not sure this is a great idea, but here goes..
+            if not success:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ready_ping_failed', {})
+        bmm_api.start_ping(self.machine.device_name, ping_complete)
 
-    def on_exit(self):
-        #stop_polling()
-        pass
-
-    @statemachine.timeout_method(TIMEOUT)
     def on_timeout(self):
+        # re-enter the 'ready' state, beginning the ping again
         self.machine.goto_state(ready)
 
-    @statemachine.event_method('poll-ok')
-    def on_poll_ok(self):
-        pass # wait for the timeout to expire, rather than immediately re-polling
-
-    @statemachine.event_method('poll-failure')
-    def on_poll_failure(self):
+    def on_ready_ping_failed(self, args):
         self.machine.goto_state(pc_rebooting)
 
 
@@ -182,19 +173,17 @@ class pc_rebooting(statemachine.State):
         def powercycle_done(success):
             # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
             if success:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'power-cycle-ok')
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'power_cycle_ok', {})
         bmm_api.clear_pxe(self.machine.device_name)
         bmm_api.start_powercycle(self.machine.device_name, powercycle_done)
 
-    @statemachine.timeout_method(TIMEOUT)
     def on_timeout(self):
         if self.machine.increment_counter('pc_rebooting') > self.PERMANENT_FAILURE_COUNT:
             self.machine.goto_state(failed_reboot_rebooting)
         else:
             self.machine.goto_state(pc_rebooting)
 
-    @statemachine.event_method('power-cycle-ok')
-    def on_power_cycle_ok(self):
+    def on_power_cycle_ok(self, args):
         self.machine.clear_counter('pc_rebooting')
         self.machine.goto_state(pc_pinging)
 
@@ -211,10 +200,9 @@ class pc_pinging(statemachine.State):
         def ping_complete(success):
             # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
             if success:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping-ok')
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
         bmm_api.start_ping(self.machine.device_name, ping_complete)
 
-    @statemachine.timeout_method(TIMEOUT)
     def on_timeout(self):
         if self.machine.increment_counter('pc_pinging') > self.PERMANENT_FAILURE_COUNT:
             # after enough ping failures, try rebooting again (and clear the ping counter)
@@ -224,22 +212,18 @@ class pc_pinging(statemachine.State):
             # otherwise, re-enter this state and ping again
             self.machine.goto_state(pc_pinging)
 
-    # TODO: not clear how to know the image is running -- ping?
-    # https://github.com/jedie/python-ping/blob/master/ping.py
-    @statemachine.event_method('ping-ok')
-    def on_image_running(self):
+    def on_ping_ok(self, args):
         self.machine.clear_counter('pc_pinging')
         self.machine.goto_state(ready)
 
 ####
 # Failure states
 
-class failed(AllowReboot, statemachine.State):
+class failed(statemachine.State):
     "Parent class for failed_.. classes"
 
     def on_entry(self):
-        # TODO: log the state
-        pass
+        self.logger.error("device has failed")
 
 
 @DeviceStateMachine.state_class

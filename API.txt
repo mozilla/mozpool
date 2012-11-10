@@ -86,6 +86,18 @@ a MozPool server or the device itself.
   to provide extra data to the image on boot. The image is intended
   to GET this during the boot process.
 
+/api/device/{id}/event/{event}
+
+* POST to communicate a state-machine event to this device.  This may come
+  from external sources, a higher level (mozpool), or from the device itself
+  to indicate its state has changed.  The request body contains a JSON object
+  which is transmitted to the state machine's event method.  Most methods
+  ignore their arguments.
+
+* GET is identical to a POST with an empty request body.
+
+  200 OK is returned.
+
 /api/device/{id}/state-change/{old_state}/to/{new_state}/
 
 * POST to conditionally set the lifeguard state of a device from old_state to

@@ -11,9 +11,9 @@ import mozpool.lifeguard
 
 # URLs go here. "/api/" will be automatically prepended to each.
 urls = (
-  # /device methods
-  "/device/([^/]+)/state-change/([^/]+)/to/([^/]+)/?", "state_change",
-  "/device/([^/]+)/bootcomplete/?", "device_bootcomplete",
+  "/device/([^/]+)/event/([^/]+)/?", "event",
+  "/device/([^/]+)/state-change/([^/]+)/to/([^/]+)/?", "state_change", # TODO: debugging only; mozpool should use events
+  "/device/([^/]+)/bootcomplete/?", "device_bootcomplete", # TODO: replace with events
   "/device/([^/]+)/config/?", "device_config",
 )
 
@@ -33,11 +33,11 @@ def deviceredirect(function):
     return wrapped
 
 # device handlers
+
 class state_change:
     @deviceredirect
     @templeton.handlers.json_response
     def POST(self, device_name, from_state, to_state):
-        # TODO: verify we own this device
         args, body = templeton.handlers.get_request_parms()
         if 'pxe_config' in body:
             pxe_config = body['pxe_config']
@@ -51,11 +51,24 @@ class state_change:
             raise web.conflict()
         return {}
 
+class event:
+    @deviceredirect
+    @templeton.handlers.json_response
+    def POST(self, device_name, event):
+        args, body = templeton.handlers.get_request_parms()
+        mozpool.lifeguard.driver.handle_event(device_name, event, body)
+        return {}
+
+    @deviceredirect
+    @templeton.handlers.json_response
+    def GET(self, device_name, event):
+        mozpool.lifeguard.driver.handle_event(device_name, event, {})
+        return {}
+
 class device_bootcomplete:
     @deviceredirect
     @templeton.handlers.json_response
     def POST(self, name):
-        # TODO: verify we own this device
         bmm_api.clear_pxe(name)
         return {}
 

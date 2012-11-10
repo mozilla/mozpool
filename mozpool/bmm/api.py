@@ -90,8 +90,7 @@ def start_ping(device_name, callback):
         try:
             pingable = ping_module.ping(fqdn)
         except:
-            traceback.print_exc()
-            print "(ignored)"
+            logger.error("(ignored) exception while running powercycle", exc_info=True)
             pingable = False
 
         logs.device_logs.add(device_name, "ping of %s complete: %s" % (fqdn, 'ok' if pingable else 'failed'))

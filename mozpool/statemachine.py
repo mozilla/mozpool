@@ -43,12 +43,12 @@ class StateMachine(object):
         self.state = None
         self.logger = logging.getLogger('statemachine.%s' % self.machine_name)
 
-    def handle_event(self, event):
+    def handle_event(self, event, args):
         "Act on an event for this machine, specified by name"
         self.lock()
         self.state = self._make_state_instance()
         try:
-            self.state.handle_event(event)
+            self.state.handle_event(event, args)
         finally:
             self.state = None
             self.unlock()
@@ -109,7 +109,7 @@ class StateMachine(object):
         self.logger.info('entering state %s' % (new_state_name_or_class,))
 
         self.state = self._make_state_instance(new_state_name_or_class)
-        self.write_state(new_state_name_or_class, self.state._timeout_duration)
+        self.write_state(new_state_name_or_class, self.state.TIMEOUT)
 
         self.state.on_entry()
 
@@ -166,22 +166,21 @@ class StateMachine(object):
 
 class State(object):
 
+    TIMEOUT = None
+
     def __init__(self, machine):
         self.machine = machine
         self.logger = machine.logger
 
-    def handle_event(self, event):
+    def handle_event(self, event, args):
         handler = self._event_methods.get(event)
         if handler:
-            handler(self)
+            handler(self, args)
         else:
             self.logger.warning("ignored event %s in state %s" % (event, self.__class__.__name__))
 
     def handle_timeout(self):
-        if self._timeout_method:
-            self._timeout_method()
-        else:
-            self.logger.warning("state %s encountered a timeout but has no timeout method" % (self.state_name))
+        self.on_timeout()
 
     # hook methods
 
@@ -193,42 +192,23 @@ class State(object):
         "The machine is about to leave this state"
         pass
 
+    def on_timeout(self):
+        "The machine's state has timed out"
+        self.logger.warning("state %s encountered a timeout but has no timeout method" % (self.state_name,))
+        self.write_state(self.state_name, None) # kill the timeout
+
     # magic mechanics
 
     class __metaclass__(type):
         def __new__(meta, classname, bases, classDict):
-            # extract the timeout method
-            timeout_methods = [ m for m in classDict.itervalues()
-                               if hasattr(m, 'timeout_duration') ]
-            assert len(timeout_methods) <= 1
-            if timeout_methods:
-                classDict['_timeout_method'] = timeout_methods[0]
-                classDict['_timeout_duration'] = timeout_methods[0].timeout_duration
-            else:
-                classDict['_timeout_method'] = None
-                classDict['_timeout_duration'] = None
-
-            # extract API event methods
-            apiMethods = dict([ (m.event_name, m) for m in classDict.itervalues()
-                           if hasattr(m, 'event_name') ])
-            classDict['_event_methods'] = apiMethods
-
             cls = type.__new__(meta, classname, bases, classDict)
+
+            # extract API event methods, using dir() to get parent-class methods
+            eventMethods = dict([ (n[3:], getattr(cls, n)) for n in dir(cls) if n.startswith('on_') ])
+            del eventMethods['entry']
+            del eventMethods['exit']
+            del eventMethods['timeout']
+            cls._event_methods = eventMethods
+
             return cls
 
-
-def event_method(event):
-    """Decorator -- designate this method to be called when the given API
-    event is submitted"""
-    def wrap(fn):
-        fn.event_name = event
-        return fn
-    return wrap
-
-def timeout_method(duration):
-    """Decorator -- designate this method to be called when the machine is in this state for
-    DURATION or more seconds"""
-    def wrap(fn):
-        fn.timeout_duration = duration
-        return fn
-    return wrap

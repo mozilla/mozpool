@@ -557,42 +557,38 @@ class StateMachineSubclass(statemachine.StateMachine):
 @StateMachineSubclass.state_class
 class state1(statemachine.State):
 
-    on_poke_called = False
-    on_timeout_called = False
+    TIMEOUT = 10
 
-    @statemachine.event_method('poke')
-    def on_poke(self):
-        state1.on_poke_called = True
+    called_on_poke = False
+    called_on_timeout = False
 
-    @statemachine.event_method('goto2')
-    def on_goto2(self):
+    def on_poke(self, args):
+        state1.called_on_poke = True
+
+    def on_goto2(self, args):
         self.machine.goto_state('state2')
 
-    @statemachine.event_method('goto2_class')
-    def on_goto2_class(self):
+    def on_goto2_class(self, args):
         self.machine.goto_state(state2)
 
-    @statemachine.event_method('inc')
-    def on_inc(self):
+    def on_inc(self, args):
         self.machine.increment_counter('x')
 
-    @statemachine.event_method('clear')
-    def on_clear(self):
+    def on_clear(self, args):
         self.machine.clear_counter('x')
 
-    @statemachine.event_method('clear_all')
-    def on_clear_all(self):
+    def on_clear_all(self, args):
         self.machine.clear_counter()
 
-    @statemachine.timeout_method(10)
     def on_timeout(self):
-        state1.on_timeout_called = True
+        state1.called_on_timeout = True
 
 
 @StateMachineSubclass.state_class
 class state2(statemachine.State):
 
-    @statemachine.timeout_method(20)
+    TIMEOUT = 20
+
     def on_timeout(self):
         pass
 
@@ -603,51 +599,51 @@ class TestStateSubclasses(unittest.TestCase):
         self.machine = StateMachineSubclass('machine')
 
     def test_event(self):
-        state1.on_poke_called = False
-        self.machine.handle_event('poke')
-        self.assertTrue(state1.on_poke_called)
+        state1.called_on_poke = False
+        self.machine.handle_event('poke', {})
+        self.assertTrue(state1.called_on_poke)
 
     def test_unknown_event(self):
-        self.machine.handle_event('never-heard-of-it')
+        self.machine.handle_event('never-heard-of-it', {})
         # TODO: assert logged
 
     def test_timeout(self):
-        state1.on_timeout_called = False
+        state1.called_on_timeout = False
         self.machine.handle_timeout()
-        self.assertTrue(state1.on_timeout_called)
+        self.assertTrue(state1.called_on_timeout)
 
     def test_state_transition(self):
         # also tests on_exit and on_entry
         with mock.patch.object(state1, 'on_exit') as on_exit:
             with mock.patch.object(state2, 'on_entry') as on_entry:
-                self.machine.handle_event('goto2')
+                self.machine.handle_event('goto2', {})
                 on_exit.assert_called()
                 on_entry.assert_called()
         self.assertEqual(self.machine._state_name, 'state2')
         self.assertEqual(self.machine._state_timeout_dur, 20)
 
     def test_state_transition_class_name(self):
-        self.machine.handle_event('goto2_class')
+        self.machine.handle_event('goto2_class', {})
         self.assertEqual(self.machine._state_name, 'state2')
         self.assertEqual(self.machine._state_timeout_dur, 20)
 
     def test_increment_counter(self):
-        self.machine.handle_event('inc')
-        self.machine.handle_event('inc')
+        self.machine.handle_event('inc', {})
+        self.machine.handle_event('inc', {})
         self.assertEqual(self.machine._counters['x'], 2)
 
     def test_clear_counter_not_set(self):
-        self.machine.handle_event('clear')
+        self.machine.handle_event('clear', {})
         self.assertFalse('x' in self.machine._counters)
 
     def test_clear_counter_set(self):
         self.machine._counters = dict(x=10)
-        self.machine.handle_event('clear')
+        self.machine.handle_event('clear', {})
         self.assertFalse('x' in self.machine._counters)
 
     def test_clear_counter_all(self):
         self.machine._counters = dict(x=10, y=20)
-        self.machine.handle_event('clear_all')
+        self.machine.handle_event('clear_all', {})
         self.assertEqual(self.machine._counters, {})
 
 class TestLocksByName(unittest.TestCase):
