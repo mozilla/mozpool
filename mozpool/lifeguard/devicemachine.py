@@ -143,13 +143,17 @@ class PowerCycleMixin(object):
     # TODO: add a *second* counter to count number of round-trips into this
     # state, maybe just based on the state name?
 
+    def setup_pxe(self):
+        # hook for subclasses
+        bmm_api.clear_pxe(self.machine.device_name)
+
     def on_entry(self):
         # kick off a power cycle on entry
         def powercycle_done(success):
             # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
             if success:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'power_cycle_ok', {})
-        bmm_api.clear_pxe(self.machine.device_name)
+        self.setup_pxe()
         bmm_api.start_powercycle(self.machine.device_name, powercycle_done)
 
     def on_timeout(self):
@@ -262,15 +266,12 @@ class pxe_power_cycling(PowerCycleMixin, statemachine.State):
 
     power_cycle_complete_state = 'pxe_booting'
 
-    def on_entry(self):
+    def setup_pxe(self):
         # set the pxe config based on what's in the DB
         cfg = data.device_config(self.machine.device_name)
         bmm_api.set_pxe(self.machine.device_name,
                 cfg['pxe_config'],
                 cfg['config'])
-
-        # and chain up
-        PowerCycleMixin.on_entry(self)
 
 
 @DeviceStateMachine.state_class
