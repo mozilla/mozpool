@@ -291,6 +291,11 @@ class pxe_booting(statemachine.State):
         bmm_api.clear_pxe(self.machine.device_name)
         self.machine.goto_state(android_downloading)
 
+    def on_maint_mode(self, args):
+        # note we do not clear the PXE config here, so it will
+        # continue to boot into maintenance mode
+        self.machine.goto_state(maintenance_mode)
+
     def on_timeout(self):
         self.machine.goto_state(pxe_power_cycling)
 
@@ -381,6 +386,18 @@ class android_pinging(statemachine.State):
         self.machine.goto_state(ready)
 
     # TODO: also try a SUT agent connection here
+
+####
+# PXE Booting :: Maintenance Mode
+
+@DeviceStateMachine.state_class
+class maintenance_mode(AcceptPleaseRequests, statemachine.State):
+    """
+    The panda has successfully booted into maintenance mode, and has a waiting
+    SSH prompt.  There is no timeout here; one of the 'please_' events must be used
+    to move the device back into a 'normal' state.
+    """
+
 
 ####
 # Failure states
