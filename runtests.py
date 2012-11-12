@@ -193,6 +193,7 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardConfig, self).setUp()
         add_server("server1")
+        add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%')
         add_device("device1", server="server1", config={"abc": "xyz"})
 
     def testBoardConfig(self):

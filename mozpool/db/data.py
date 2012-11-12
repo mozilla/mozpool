@@ -197,15 +197,18 @@ def device_status(device):
 
 def device_config(device):
     """
-    Get the config parameters passed to the /boot/ API for device.
+    Get the boot config and last pxe_config for this device.
     """
-    res = sql.get_conn().execute(select([model.devices.c.boot_config],
-                                        model.devices.c.name==device))
+    res = sql.get_conn().execute(select(
+        [model.devices.c.boot_config, model.pxe_configs.c.name],
+         model.devices.c.name==device))
     row = res.fetchone()
     config_data = {}
     if row:
         config_data = json.loads(row['boot_config'].encode('utf-8'))
-    return {'config': config_data}
+        return {'config': config_data, 'pxe_config': row['name']}
+    else:
+        return {}
 
 def set_device_config(device, pxe_config_name, config_data):
     """

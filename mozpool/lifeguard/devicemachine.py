@@ -262,7 +262,15 @@ class pxe_power_cycling(PowerCycleMixin, statemachine.State):
 
     power_cycle_complete_state = 'pxe_booting'
 
-    # TODO XXX: set_pxe
+    def on_entry(self):
+        # set the pxe config based on what's in the DB
+        cfg = data.device_config(self.machine.device_name)
+        bmm_api.set_pxe(self.machine.device_name,
+                cfg['pxe_config'],
+                cfg['config'])
+
+        # and chain up
+        PowerCycleMixin.on_entry(self)
 
 
 @DeviceStateMachine.state_class
@@ -279,7 +287,7 @@ class pxe_booting(statemachine.State):
     TIMEOUT = 180
 
     def on_android_downloading(self, args):
-        #bmm_api.clear_pxe() ## TODO
+        bmm_api.clear_pxe()
         self.machine.goto_state(android_downloading)
 
     def on_timeout(self):
