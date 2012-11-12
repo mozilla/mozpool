@@ -288,7 +288,7 @@ class pxe_booting(statemachine.State):
     TIMEOUT = 180
 
     def on_android_downloading(self, args):
-        bmm_api.clear_pxe()
+        bmm_api.clear_pxe(self.machine.device_name)
         self.machine.goto_state(android_downloading)
 
     def on_timeout(self):
