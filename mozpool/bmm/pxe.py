@@ -37,10 +37,13 @@ def set_pxe(device_name, pxe_config_name, boot_config):
     if not os.path.exists(device_config_dir):
         os.makedirs(device_config_dir)
 
+    # apply ipaddress substitution to the config contents
+    pxe_config_contents = pxe_config_contents.replace('%IPADDRESS%', config.get('server', 'ipaddress'))
+
     open(device_config_path, "w").write(pxe_config_contents)
 
 def clear_pxe(device_name):
-    """Remove symlink for this device's MAC address from TFTP."""
+    """Remove config for this device's MAC address from TFTP."""
     logger.info('clearing pxe config for %s' % (device_name,))
     tftp_symlink = _get_device_config_path(device_name)
     if os.path.exists(tftp_symlink):

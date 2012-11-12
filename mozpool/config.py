@@ -23,6 +23,13 @@ def _load():
         else:
             config_path = os.path.join(os.path.dirname(__file__), "config.ini")
         _config.read(config_path)
+        # apply defaults *after*, since they're hard to calculate
+        if not _config.has_section('server'):
+            _config.add_section('server')
+        if not _config.has_option('server', 'fqdn'):
+            _config.set('server', 'fqdn', socket.getfqdn())
+        if not _config.has_option('server', 'ipaddress'):
+            _config.set('server', 'ipaddress', socket.gethostbyname(socket.getfqdn()))
     return _config
 
 def reset():

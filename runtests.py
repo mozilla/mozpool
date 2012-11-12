@@ -824,15 +824,16 @@ class TestBmmPxe(ConfigMixin, unittest.TestCase):
 
     def setUp(self):
         super(TestBmmPxe, self).setUp()
+        config.set('server', 'ipaddress', '1.2.3.4')
         add_server("server1")
         add_device("device1", server="server1", relayinfo="relay-1:bank1:relay1",
                             mac_address='aabbccddeeff')
-        add_pxe_config('img1', contents='IMG1')
+        add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%')
 
     def test_set_pxe(self):
         pxe.set_pxe('device1', 'img1', 'config')
         cfg_filename = os.path.join(os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg'), '01-aa-bb-cc-dd-ee-ff')
-        self.assertEqual(open(cfg_filename).read(), 'IMG1')
+        self.assertEqual(open(cfg_filename).read(), 'IMG1 ip=1.2.3.4')
 
     def test_clear_pxe(self):
         cfg_dir = os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg')

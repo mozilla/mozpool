@@ -127,7 +127,7 @@ refresh interval expires.
 Boards are claimed by inserting into a correspondance table in the database,
 with constraints such that only one request can claim a device.
 
-## Boards ##
+## Devices ##
 
 Like requests, devices are managed by LifeGuard as a formal state machine.
 MozPool has read-only visibility to device states for purposes of selecting
@@ -191,6 +191,13 @@ To control relays:
     relay turnoff <hostname> <bank> <relay>
 
 Note: do not manually adjust relays that are also under MozPool's active control!
+
+PXE Configs
+-----------
+
+PXE configurations should be edited in the database directly (in the
+`pxe_configs` table).  The string '%IPADDRESS%' in a PXE config will be
+replaced with the IP address of the imaging server.
 
 Inventory Sync
 --------------
