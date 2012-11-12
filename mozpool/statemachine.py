@@ -195,7 +195,7 @@ class State(object):
     def on_timeout(self):
         "The machine's state has timed out"
         self.logger.warning("state %s encountered a timeout but has no timeout method" % (self.state_name,))
-        self.write_state(self.state_name, None) # kill the timeout
+        self.machine.write_state(self.state_name, None) # kill the timeout
 
     # magic mechanics
 
