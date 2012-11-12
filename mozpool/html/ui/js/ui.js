@@ -42,7 +42,9 @@ load(
     // create the required views
     new TableView({ el: $('#container'), }).render();
     new PxeConfigSelectView({ el: $('#pxe-config'), }).render();
-    new PowerCycleButtonView({ el: $('#power-cycle-button'), }).render();
+    new BmmPowerCycleButtonView({ el: $('#bmm-power-cycle-button'), }).render();
+    new LifeguardPowerCycleButtonView({ el: $('#lifeguard-power-cycle-button'), }).render();
+    new LifeguardPxeBootButtonView({ el: $('#lifeguard-pxe-boot-button'), }).render();
     new JobQueueView({ el: $('#job-queue'), }).render();
 
     // and the job runner

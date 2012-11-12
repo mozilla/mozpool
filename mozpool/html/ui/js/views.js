@@ -211,7 +211,7 @@ var TableRowView = Backbone.View.extend({
     },
 });
 
-var PowerCycleButtonView = Backbone.View.extend({
+var ActionButtonView = Backbone.View.extend({
     initialize: function() {
         _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
         window.devices.bind('change', this.refreshButtonStatus);
@@ -235,12 +235,50 @@ var PowerCycleButtonView = Backbone.View.extend({
     },
 
     buttonClicked: function() {
+        // subclasses override this
+    }
+});
+
+var BmmPowerCycleButtonView = ActionButtonView.extend({
+    buttonClicked: function() {
         var selected_pxe_config = window.selected_pxe_config.get('name');
         window.devices.each(function (b) {
             if (b.get('selected')) {
                 job_queue.push({
                     device: b,
-                    job_type: 'power-cycle',
+                    job_type: 'bmm-power-cycle',
+                    job_args: { pxe_config: selected_pxe_config, config: {} }
+                });
+                b.set('selected', false);
+            }
+        });
+    }
+});
+
+var LifeguardPowerCycleButtonView = ActionButtonView.extend({
+    buttonClicked: function() {
+        var selected_pxe_config = window.selected_pxe_config.get('name');
+        window.devices.each(function (b) {
+            if (b.get('selected')) {
+                job_queue.push({
+                    device: b,
+                    job_type: 'lifeguard-power-cycle',
+                    job_args: { }
+                });
+                b.set('selected', false);
+            }
+        });
+    }
+});
+
+var LifeguardPxeBootButtonView = ActionButtonView.extend({
+    buttonClicked: function() {
+        var selected_pxe_config = window.selected_pxe_config.get('name');
+        window.devices.each(function (b) {
+            if (b.get('selected')) {
+                job_queue.push({
+                    device: b,
+                    job_type: 'lifeguard-pxe-boot',
                     job_args: { pxe_config: selected_pxe_config, config: {} }
                 });
                 b.set('selected', false);
