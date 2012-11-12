@@ -81,7 +81,6 @@ $.extend(JobRunner.prototype, {
         var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
             + this.running.get('device_name') + '/event/please_pxe_boot/';
         var post_params = {};
-        alert(job_args);
         if (job_args['pxe_config']) {
             post_params['pxe_config'] = job_args['pxe_config'];
             post_params['boot_config'] = JSON.stringify(job_args['boot_config']);
