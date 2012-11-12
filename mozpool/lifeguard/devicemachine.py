@@ -113,26 +113,71 @@ class DeviceStateMachine(statemachine.StateMachine):
 ####
 # Mixins
 
-class AllowPowerCycle(object):
+class AcceptPleaseRequests(object):
 
     def on_please_power_cycle(self, args):
-        self.machine.goto_state(pc_rebooting)
+        self.machine.goto_state(pc_power_cycling)
+
+
+    def on_please_pxe_boot(self, args):
+        print args
+        data.set_device_config(self.machine.device_name,
+                args['pxe_config'],
+                args['boot_config'])
+        self.machine.goto_state(pxe_power_cycling)
+
+class PowerCycleMixin(object):
+
+    # to be filled in by subclasses:
+    power_cycle_complete_state = None
+
+    # wait for 60 seconds for a power cycle to succeed, and do this a bunch of
+    # times; failures here are likely a problem with the network or relay
+    # board, so we want to retry until that's available.  WARNING: this timeout
+    # must be larger than the normal time to cycle a device (3s for relay boards)
+    # times the number of devices per relay or PDU (14 for relay boards).
+
+    TIMEOUT = 60                    # must be greater than 42s; see above
+    PERMANENT_FAILURE_COUNT = 200
+
+    # TODO: add a *second* counter to count number of round-trips into this
+    # state, maybe just based on the state name?
+
+    def on_entry(self):
+        # kick off a power cycle on entry
+        def powercycle_done(success):
+            # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
+            if success:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'power_cycle_ok', {})
+        bmm_api.clear_pxe(self.machine.device_name)
+        bmm_api.start_powercycle(self.machine.device_name, powercycle_done)
+
+    def on_timeout(self):
+        if self.machine.increment_counter('power_cycling') > self.PERMANENT_FAILURE_COUNT:
+            self.machine.goto_state(failed_power_cycling)
+        else:
+            self.machine.goto_state(self.state_name)
+
+    def on_power_cycle_ok(self, args):
+        self.machine.clear_counter('power_cycling')
+        self.machine.goto_state(self.power_cycle_complete_state)
+
 
 ####
 # Initial and steady states
 
 @DeviceStateMachine.state_class
-class new(AllowPowerCycle, statemachine.State):
+class new(AcceptPleaseRequests, statemachine.State):
     "This device is newly installed.  Await instructions."
 
 
 @DeviceStateMachine.state_class
-class unknown(AllowPowerCycle, statemachine.State):
+class unknown(AcceptPleaseRequests, statemachine.State):
     "This device is in an unknown state.  Await instructions."
 
 
 @DeviceStateMachine.state_class
-class ready(AllowPowerCycle, statemachine.State):
+class ready(AcceptPleaseRequests, statemachine.State):
     "This device is production-ready."
 
     TIMEOUT = 300
@@ -151,50 +196,32 @@ class ready(AllowPowerCycle, statemachine.State):
         self.machine.goto_state(ready)
 
     def on_ready_ping_failed(self, args):
-        self.machine.goto_state(pc_rebooting)
+        self.machine.goto_state(pc_power_cycling)
 
 
 ####
 # Power Cycling
 
 @DeviceStateMachine.state_class
-class pc_rebooting(statemachine.State):
-    "A reboot has been requested, and the device is being power-cycled."
+class pc_power_cycling(PowerCycleMixin, statemachine.State):
+    """
+    A reboot has been requested, and the device is being power-cycled.  Once
+    the power cycle is successful, go to state 'pc_pinging'.
+    """
 
-    # wait for 60 seconds for a poer cycle to succeed, and do this a bunch of
-    # times; failures here are likely a problem with the network or relay board,
-    # so we want to retry until that's available.
-
-    TIMEOUT = 60
-    PERMANENT_FAILURE_COUNT = 200
-
-    def on_entry(self):
-        # kick off a power cycle on entry
-        def powercycle_done(success):
-            # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
-            if success:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'power_cycle_ok', {})
-        bmm_api.clear_pxe(self.machine.device_name)
-        bmm_api.start_powercycle(self.machine.device_name, powercycle_done)
-
-    def on_timeout(self):
-        if self.machine.increment_counter('pc_rebooting') > self.PERMANENT_FAILURE_COUNT:
-            self.machine.goto_state(failed_reboot_rebooting)
-        else:
-            self.machine.goto_state(pc_rebooting)
-
-    def on_power_cycle_ok(self, args):
-        self.machine.clear_counter('pc_rebooting')
-        self.machine.goto_state(pc_pinging)
+    power_cycle_complete_state = 'pc_pinging'
 
 
 @DeviceStateMachine.state_class
 class pc_pinging(statemachine.State):
-    "A reboot has been requested, and the power cycle is complete.  Ping until successful."
+    """
+    A reboot has been requested, and the power cycle is complete.  Ping until
+    successful, then go to state 'ready'
+    """
 
     # ping every 10s, failing 12 times
     TIMEOUT = 10
-    PERMANENT_FAILURE_COUNT = 3
+    PERMANENT_FAILURE_COUNT = 12
 
     def on_entry(self):
         def ping_complete(success):
@@ -207,7 +234,7 @@ class pc_pinging(statemachine.State):
         if self.machine.increment_counter('pc_pinging') > self.PERMANENT_FAILURE_COUNT:
             # after enough ping failures, try rebooting again (and clear the ping counter)
             self.machine.clear_counter('pc_pinging')
-            self.machine.goto_state(pc_rebooting)
+            self.machine.goto_state(pc_power_cycling)
         else:
             # otherwise, re-enter this state and ping again
             self.machine.goto_state(pc_pinging)
@@ -215,6 +242,136 @@ class pc_pinging(statemachine.State):
     def on_ping_ok(self, args):
         self.machine.clear_counter('pc_pinging')
         self.machine.goto_state(ready)
+
+####
+# PXE Booting
+
+# Every PXE boot process starts off the same way: set up the PXE config and
+# power-cycle.  However, the events from scripts on the device itself can
+# branch execution in a number of directions, based on the operation being
+# performed.
+
+# TODO: better handling for timeouts to disambiguate the failure modes
+
+@DeviceStateMachine.state_class
+class pxe_power_cycling(PowerCycleMixin, statemachine.State):
+    """
+    A PXE boot has been requested, and the device is being power-cycled.  Once
+    the power cycle is successful, go to state 'pxe_starting'.
+    """
+
+    power_cycle_complete_state = 'pxe_booting'
+
+    # TODO XXX: set_pxe
+
+
+@DeviceStateMachine.state_class
+class pxe_booting(statemachine.State):
+    """
+    The power has been cycled and we are waiting for the uboot image to start
+    and run its second stage.  When successful, the next state is based on the
+    event received from the second stage.
+    """
+
+    # TODO: convince mobile-init.sh to repot an event here)
+
+    # Startup seems to take about 90s; double that makes a good timeout.
+    TIMEOUT = 180
+
+    def on_android_downloading(self, args):
+        #bmm_api.clear_pxe() ## TODO
+        self.machine.goto_state(android_downloading)
+
+    def on_timeout(self):
+        self.machine.goto_state(pxe_power_cycling)
+
+
+####
+# PXE Booting :: Android Installation
+
+@DeviceStateMachine.state_class
+class android_downloading(statemachine.State):
+    """
+    The second-stage script is downloading the Android artifacts.  When
+    complete, it will send an event and go into the 'android_extracting' state.
+    """
+
+    # Downloading takes about 30s.  Allow a generous multiple of that to handle
+    # moments of high load or bigger images.
+    TIMEOUT = 180
+
+    def on_android_extracting(self, args):
+        self.machine.goto_state(android_extracting)
+
+    def on_timeout(self):
+        self.machine.goto_state(pxe_power_cycling)
+
+
+@DeviceStateMachine.state_class
+class android_extracting(statemachine.State):
+    """
+    The second-stage script is extracting the Android artifacts onto the
+    sdcard.  When this is complete, the script will send an event and go into
+    the 'android_rebooting' state.
+    """
+
+    # Extracting takes 2m on a good day.  Give it plenty of leeway.
+    TIMEOUT = 600
+
+    def on_android_rebooting(self, args):
+        self.machine.goto_state(android_rebooting)
+
+    def on_timeout(self):
+        self.machine.goto_state(pxe_power_cycling)
+
+
+@DeviceStateMachine.state_class
+class android_rebooting(statemachine.State):
+    """
+    The second-stage script has rebooted the device.  This state waits a short
+    time, then begins pinging the device.  The wait is to avoid a false positive
+    ping from the board *before* it has rebooted.
+    """
+
+    # A panda seems to take about 20s to boot, so we'll round that up a bit
+    TIMEOUT = 40
+
+    def on_timeout(self):
+        self.machine.goto_state(android_pinging)
+
+
+@DeviceStateMachine.state_class
+class android_pinging(statemachine.State):
+    """
+    A reboot has been requested, and the power cycle is complete.  Ping until
+    successful, then go to state 'ready'
+    """
+
+    # ping every 10s, failing 12 times (2 minutes total)
+    TIMEOUT = 10
+    PERMANENT_FAILURE_COUNT = 12
+
+    def on_entry(self):
+        def ping_complete(success):
+            # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
+            if success:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
+        bmm_api.start_ping(self.machine.device_name, ping_complete)
+
+    def on_timeout(self):
+        if self.machine.increment_counter('android_pinging') > self.PERMANENT_FAILURE_COUNT:
+            # after enough ping failures, try rebooting again (and clear the ping counter)
+            self.machine.clear_counter('android_pinging')
+            self.machine.goto_state(pxe_power_cycling)
+        else:
+            # otherwise, re-enter this state and ping again
+            self.machine.goto_state(android_pinging)
+
+    def on_ping_ok(self, args):
+        self.machine.clear_counter('android_pinging')
+        self.machine.goto_state(ready)
+
+    # TODO: also try a SUT agent connection here
 
 ####
 # Failure states
@@ -227,8 +384,8 @@ class failed(statemachine.State):
 
 
 @DeviceStateMachine.state_class
-class failed_reboot_rebooting(failed):
-    "While rebooting, power-cycling the device has failed multiple times"
+class failed_power_cycling(failed):
+    "The power-cycle operation itself has failed or timed out multiple times"
 
 
 @DeviceStateMachine.state_class

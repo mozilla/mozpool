@@ -279,7 +279,7 @@ var LifeguardPxeBootButtonView = ActionButtonView.extend({
                 job_queue.push({
                     device: b,
                     job_type: 'lifeguard-pxe-boot',
-                    job_args: { pxe_config: selected_pxe_config, config: {} }
+                    job_args: { pxe_config: selected_pxe_config, boot_config: {} }
                 });
                 b.set('selected', false);
             }
