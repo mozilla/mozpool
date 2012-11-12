@@ -52,14 +52,15 @@ class device_request:
         request_url = 'http://%s/api/request/%d/' % (config.get('server',
                                                                 'fqdn'),
                                                      request_id)
-        device_url = 'http://%s/api/device/%s/setstate/' % \
-            (device['imaging_server'], device['id'])
-        device_request_data = {'oldstate': 'ready'}
+        device_request_data = {}
         if image:
-            device_request_data['newstate'] = 'reimage'
+            event = 'please_pxe_boot' # TODO: state not specified yet
             device_request_data['image'] = image
         else:
-            device_request_data['newstate'] = 'reboot'
+            event = 'please_power_cycle'
+
+        device_url = 'http://%s/api/device/%s/event/%s' % \
+            (device['imaging_server'], device['id'], event)
         try:
             urllib.urlopen(device_url, device_request_data)
         except IOError, e:
