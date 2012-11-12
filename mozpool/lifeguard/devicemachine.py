@@ -120,11 +120,12 @@ class AcceptPleaseRequests(object):
 
 
     def on_please_pxe_boot(self, args):
-        print args
+        self.logger.info('writing pxe_config %s, boot config %s to db' % (args['pxe_config'], args['boot_config']))
         data.set_device_config(self.machine.device_name,
                 args['pxe_config'],
                 args['boot_config'])
         self.machine.goto_state(pxe_power_cycling)
+
 
 class PowerCycleMixin(object):
 
