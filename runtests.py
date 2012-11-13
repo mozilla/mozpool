@@ -129,6 +129,19 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'last_pxe_config_id': None},
         ])
 
+    def testDeviceConfigEmpty(self):
+        self.assertEqual(data.device_config('foo'), {})
+
+    def testDeviceConfigNoPxe(self):
+        add_device("withconfig", server="server1", config={'a':'b'})
+        self.assertEqual(data.device_config('withconfig'), {'config': {'a':'b'}, 'pxe_config': None})
+
+    def testDeviceConfigPxe(self):
+        add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%', id=23)
+        add_device("withpxe", server="server1", last_pxe_config_id=23)
+        self.assertEqual(data.device_config('withpxe'), {'config': {}, 'pxe_config': 'img1'})
+
+
 class TestBoardList(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestBoardList, self).setUp()

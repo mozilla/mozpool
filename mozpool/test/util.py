@@ -40,7 +40,8 @@ def add_server(hostname):
 
 def add_device(device, server="server", state="offline",
               mac_address="000000000000",
-              log=[], config={}, relayinfo=""):
+              log=[], config={}, relayinfo="",
+              last_pxe_config_id=None):
     global inventory_id
     conn = sql.get_conn()
     id = conn.execute(select([model.imaging_servers.c.id],
@@ -56,14 +57,17 @@ def add_device(device, server="server", state="offline",
                  mac_address=mac_address,
                  imaging_server_id=id,
                  relay_info=relayinfo,
-                 boot_config=json.dumps(config))
+                 boot_config=json.dumps(config),
+                 last_pxe_config_id=last_pxe_config_id)
     inventory_id += 1
 
 def add_pxe_config(name, description="Boot image",
-                  contents="BOOT THIS THINGIE WITH THIS CONFIG"):
+                  contents="BOOT THIS THINGIE WITH THIS CONFIG",
+                  id=None):
     sql.get_conn().execute(model.pxe_configs.insert(), name=name,
                            description=description,
-                           contents=contents)
+                           contents=contents,
+                           id=id)
 def add_request(device, server, assignee="slave", status="pending",
                 expires=None):
     if not expires:

@@ -201,8 +201,9 @@ def device_config(device):
     """
     res = sql.get_conn().execute(select(
         [model.devices.c.boot_config, model.pxe_configs.c.name],
-         (model.devices.c.name==device)
-            & (model.devices.c.last_pxe_config_id==model.pxe_configs.c.id)))
+        from_obj=model.devices.outerjoin(model.pxe_configs,
+                model.devices.c.last_pxe_config_id==model.pxe_configs.c.id),
+        whereclause=(model.devices.c.name==device)))
     row = res.fetchone()
     config_data = {}
     if row:
