@@ -6,7 +6,7 @@ import time
 import threading
 import datetime
 import logging
-from mozpool.db import data
+from mozpool.db import data, logs
 from mozpool import statemachine
 from mozpool import config
 from mozpool.bmm import api as bmm_api
@@ -31,11 +31,14 @@ class LifeguardDriver(threading.Thread):
         self.imaging_server_id = data.find_imaging_server_id(config.get('server', 'fqdn'))
         self._stop = False
         self.poll_frequency = poll_frequency
-        self.logger = logging.getLogger('lifeguard.driver')
+        self.logger = logging.getLogger('device')
+        self.log_handler = DBHandler()
+        self.logger.addHandler(self.log_handler)
 
     def stop(self):
         self._stop = True
         self.join()
+        self.logger.removeHandler(self.log_handler)
 
     def run(self):
         last_poll = 0
@@ -83,12 +86,27 @@ class LifeguardDriver(threading.Thread):
         return DeviceStateMachine(device_name)
 
 ####
+# Logging handler
+
+class DBHandler(logging.Handler):
+
+    def emit(self, record):
+        # get the device name
+        logger = record.name.split('.')
+        if len(logger) != 2 or logger[0] != 'device':
+            return
+        device_name = logger[1]
+
+        msg = self.format(record)
+        logs.device_logs.add(device_name, msg, source='statemachine')
+
+####
 # State machine
 
 class DeviceStateMachine(statemachine.StateMachine):
 
     def __init__(self, device_name):
-        statemachine.StateMachine.__init__(self, "device-%s" % device_name)
+        statemachine.StateMachine.__init__(self, 'device', device_name)
         self.device_name = device_name
 
     def read_state(self):

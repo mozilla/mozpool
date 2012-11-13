@@ -38,10 +38,10 @@ class StateMachine(object):
 
     # external interface
 
-    def __init__(self, machine_name):
+    def __init__(self, machine_type, machine_name):
         self.machine_name = machine_name
         self.state = None
-        self.logger = logging.getLogger('statemachine.%s' % self.machine_name)
+        self.logger = logging.getLogger('%s.%s' % (machine_type, self.machine_name))
 
     def handle_event(self, event, args):
         "Act on an event for this machine, specified by name"

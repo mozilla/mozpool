@@ -597,7 +597,7 @@ class state2(statemachine.State):
 class TestStateSubclasses(unittest.TestCase):
 
     def setUp(self):
-        self.machine = StateMachineSubclass('machine')
+        self.machine = StateMachineSubclass('test', 'machine')
 
     def test_event(self):
         state1.called_on_poke = False

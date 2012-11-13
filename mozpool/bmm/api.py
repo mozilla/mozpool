@@ -44,7 +44,7 @@ def start_powercycle(device_name, callback, max_time=30):
 
     hostname, bnk, rly = data.device_relay_info(device_name)
 
-    logs.device_logs.add(device_name, "initiating power cycle")
+    logs.device_logs.add(device_name, "initiating power cycle", 'bmm')
     def try_powercycle():
         res = False
         try:
@@ -67,7 +67,7 @@ def set_pxe(device_name, image_name, boot_config):
     Set the boot configuration for the given device to the start up with PXE
     config from IMAGE_NAME and supply an additional JSON configuration BOOT_CONFIG.
     """
-    logs.device_logs.add(device_name, "setting PXE config to image %s" % (image_name,))
+    logs.device_logs.add(device_name, "setting PXE config to image %s" % (image_name,), 'bmm')
     pxe.set_pxe(device_name, image_name, boot_config)
 
 def clear_pxe(device_name):
@@ -75,7 +75,7 @@ def clear_pxe(device_name):
     Clear a device's boot configuration, allowing it to boot from its internal
     storage.
     """
-    logs.device_logs.add(device_name, "clearing PXE config")
+    logs.device_logs.add(device_name, "clearing PXE config", 'bmm')
     pxe.clear_pxe(device_name)
 
 def start_ping(device_name, callback):
@@ -93,7 +93,7 @@ def start_ping(device_name, callback):
             logger.error("(ignored) exception while running powercycle", exc_info=True)
             pingable = False
 
-        logs.device_logs.add(device_name, "ping of %s complete: %s" % (fqdn, 'ok' if pingable else 'failed'))
+        logs.device_logs.add(device_name, "ping of %s complete: %s" % (fqdn, 'ok' if pingable else 'failed'), 'bmm')
         if time.time() < callback_before:
             callback(pingable)
     threading.Thread(target=try_ping).start()
