@@ -13,8 +13,7 @@ function run_ui(next) {
         // create the required views
         new TableView({ el: $('#container'), }).render();
         new PxeConfigSelectView({ el: $('#pxe-config'), }).render();
-        new LifeguardPowerCycleButtonView({ el: $('#lifeguard-power-cycle-button'), }).render();
-        new LifeguardPxeBootButtonView({ el: $('#lifeguard-pxe-boot-button'), }).render();
+        new LifeguardButtonView({ el: $('#lifeguard-button'), }).render();
         new JobQueueView({ el: $('#job-queue'), }).render();
 
         // and the job runner

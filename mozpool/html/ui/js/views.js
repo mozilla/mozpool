@@ -215,6 +215,7 @@ var ActionButtonView = Backbone.View.extend({
     initialize: function() {
         _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
         window.devices.bind('change', this.refreshButtonStatus);
+        window.selected_pxe_config.bind('change', this.refreshButtonStatus);
     },
 
     events: {
@@ -255,19 +256,38 @@ var BmmPowerCycleButtonView = ActionButtonView.extend({
     }
 });
 
-var LifeguardPowerCycleButtonView = ActionButtonView.extend({
+var LifeguardButtonView = ActionButtonView.extend({
     buttonClicked: function() {
         var selected_pxe_config = window.selected_pxe_config.get('name');
+
+        var job_type, job_args;
+        if (selected_pxe_config) {
+            job_type = 'lifeguard-pxe-boot';
+            job_args = { pxe_config: selected_pxe_config, boot_config: {} };
+        } else {
+            job_type = 'lifeguard-power-cycle';
+            job_args = {};
+        }
+
         window.devices.each(function (b) {
             if (b.get('selected')) {
                 job_queue.push({
                     device: b,
-                    job_type: 'lifeguard-power-cycle',
-                    job_args: { }
+                    job_type: job_type,
+                    job_args: job_args
                 });
                 b.set('selected', false);
             }
         });
+    },
+    refreshButtonStatus: function() {
+        // let the parent class handle enable/disable
+        ActionButtonView.prototype.refreshButtonStatus.call(this);
+
+        // and change the text based on what's selected
+        var selected_pxe_config = window.selected_pxe_config.get('name');
+        var button_text = selected_pxe_config ? "PXE Boot" : "Power Cycle";
+        this.$el.text(button_text);
     }
 });
 
