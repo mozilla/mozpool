@@ -6,21 +6,27 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <link rel="stylesheet" type="text/css" href="/ui/css/ui.css" />
     <script src="/ui/js/deps/load-min.js" type="text/javascript"></script>
-    <script type="text/javascript"> load("/ui/js/ui.js") </script>
+    <script type="text/javascript"> load("/ui/js/ui.js")
+                                    // preload some of the UI resources now
+                                    .thenRun(function(next) { setup_ui(next); }) </script>
   </head>
-  <body>
-    <div id="container">
-        <div id="loading">loading...</div>
+  <body class="menu">
+    <h1>Mozpool</h1>
+    <div id="menu-mozpool" onclick="document.location='mozpool.html'">
+        <h2>Mozpool</h2>
+        Mozpool is the highest-level interface, where users request a device in a certain condition, and Mozpool finds a suitable device.
+        <br clear="all" />
+    </div>
+    <div id="menu-lifeguard" onclick="document.location='lifeguard.html'">
+        <h2>Lifeguard</h2>
+        Lifeguard is the middle level.  It manages the state of devices, and knows how to cajole and coddle them to achieve reliable behavior.
+        <br clear="all" />
+    </div>
+    <div id="menu-bmm" onclick="document.location='bmm.html'">
+        <h2>Black Mobile Magic</h2>
+        BMM is the lowest level.  It deals with devices directly, including controlling their power and PXE booting them.  Be careful using this level!
+        <br clear="all" />
     </div>
     <div id="error"></div>
-    <div id="toolbar">
-      <select id="pxe-config">
-        <option value=''>boot from sdcard</option>
-      </select>
-      <button id="bmm-power-cycle-button">Forced Power Cycle</button>
-      <button id="lifeguard-power-cycle-button">Lifeguard Power Cycle</button>
-      <button id="lifeguard-pxe-boot-button">Lifeguard PXE Boot</button>
-      &bull; <span id="job-queue"></span>
-    </div>
   </body>
 </html>
