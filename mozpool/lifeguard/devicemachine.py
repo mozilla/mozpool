@@ -183,25 +183,13 @@ class unknown(AcceptPleaseRequests, statemachine.State):
 
 @DeviceStateMachine.state_class
 class ready(AcceptPleaseRequests, statemachine.State):
-    "This device is production-ready."
+    """
+    This device is production-ready (or was when entering this state, anyway).
+    """
 
-    TIMEOUT = 300
-
-    def on_entry(self):
-        self.machine.clear_counter()
-        def ping_complete(success):
-            # if the ping succeeds, great - wait for a timeout.  Otherwise, try to power-cycle.
-            # TODO: not sure this is a great idea, but here goes..
-            if not success:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ready_ping_failed', {})
-        bmm_api.start_ping(self.machine.device_name, ping_complete)
-
-    def on_timeout(self):
-        # re-enter the 'ready' state, beginning the ping again
-        self.machine.goto_state(ready)
-
-    def on_ready_ping_failed(self, args):
-        self.machine.goto_state(pc_power_cycling)
+    # At one point, this state pinged devices in this state and power-cycled
+    # them when they failed.  This resulted in a lot of unnecessary power cycles
+    # for devices running "flaky" images, with no real benefit.
 
 
 ####
