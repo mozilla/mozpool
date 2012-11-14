@@ -46,7 +46,7 @@ BEGIN
         SELECT MAX(PARTITION_DESCRIPTION) INTO part
             FROM INFORMATION_SCHEMA.PARTITIONS
             WHERE TABLE_NAME=log_table_name
-            AND TABLE_SCHEMA='black_mobile_magic';
+            AND TABLE_SCHEMA='mozpool';
         IF part < latest THEN -- note part cannot be NULL, as there must be at least one partition
             SELECT part + 86400 INTO newpart;
             -- SELECT CONCAT('add partition ', CAST(newpart as CHAR(16)), ' to ', log_table_name);
@@ -71,7 +71,7 @@ BEGIN
         SELECT MIN(PARTITION_DESCRIPTION) INTO part
             FROM INFORMATION_SCHEMA.PARTITIONS
             WHERE TABLE_NAME=log_table_name
-            AND TABLE_SCHEMA='black_mobile_magic';
+            AND TABLE_SCHEMA='mozpool';
         IF part < earliest THEN
             -- SELECT CONCAT('drop partition ', CAST(part as CHAR(16)), ' to ', log_table_name);
             SET @sql := CONCAT('ALTER TABLE ', log_table_name, ' DROP PARTITION p'
