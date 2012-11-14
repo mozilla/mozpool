@@ -17,6 +17,7 @@ setup(name='mozpool',
           'sqlalchemy',
           'requests',
           'distribute',
+          'argparse',
           'templeton >= 0.6.2',
       ],
       entry_points={

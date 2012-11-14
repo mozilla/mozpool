@@ -205,7 +205,7 @@ Inventory Sync
 
 To synchronize the internal DB with inventory:
 
-    bmm-inventorysync
+    mozpool-inventorysync
 
 (use `--verbose` to see what it's up to - note that it's not too fast!)
 
