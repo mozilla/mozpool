@@ -136,14 +136,13 @@ def get_server_for_device(device):
 
 # state machine utilities
 
-def get_device_state(device_name):
+def get_state(tbl, id_col, id_val):
     """
-    Get the state of this device - (state, timeout, counters)
+    Get the state of this object - (state, timeout, counters)
     """
-    tbl = model.devices
     res = sql.get_conn().execute(select(
         [tbl.c.state, tbl.c.state_timeout, tbl.c.state_counters],
-        tbl.c.name==device_name))
+        id_col==id_val))
     row = res.fetchone()
     if row is None:
         raise NotFound
@@ -154,46 +153,68 @@ def get_device_state(device_name):
         state_counters = {}
     return row['state'], row['state_timeout'], state_counters
 
-def set_device_state(device_name, state, timeout):
+def set_state(tbl, id_col, id_val, state, timeout):
     """
-    Set the state of this device, without counters
+    Set the state of this object, without counters
     """
-    sql.get_conn().execute(model.devices.update().
-            where(model.devices.c.name==device_name).
-            values(state=state, state_timeout=timeout))
+    sql.get_conn().execute(tbl.update().
+                           where(id_col==id_val).
+                           values(state=state, state_timeout=timeout))
 
-def set_device_counters(device_name, counters):
+def set_counters(tbl, id_col, id_val, counters):
     """
-    Set the counters for this device
+    Set the counters for this object
     """
-    sql.get_conn().execute(model.devices.update().
-            where(model.devices.c.name==device_name).
-            values(state_counters=json.dumps(counters)))
+    sql.get_conn().execute(tbl.update().
+                           where(id_col==id_val).
+                           values(state_counters=json.dumps(counters)))
 
-def get_timed_out_devices(imaging_server_id):
+def get_timed_out(tbl, id_col, imaging_server_id):
     """
     Get a list of all devices whose timeout is in the past, and which belong to
     this imaging server.
     """
     now = datetime.datetime.now()
     res = sql.get_conn().execute(select(
-        [model.devices.c.name],
-        (model.devices.c.state_timeout < now)
-            & (model.devices.c.imaging_server_id == imaging_server_id)))
-    timed_out = [ r[0] for r in res.fetchall() ]
+        [id_col],
+        (tbl.c.state_timeout < now)
+            & (tbl.c.imaging_server_id == imaging_server_id)))
+    timed_out = [r[0] for r in res.fetchall()]
     return timed_out
+
+
+# device state utilities
+
+def get_device_state(device_name):
+    return get_state(model.devices, model.devices.c.name, device_name)
+
+def set_device_state(device_name, state, timeout):
+    return set_state(model.devices, model.devices.c.name, device_name, state,
+                     timeout)
+
+def set_device_counters(device_name, counters):
+    return set_counters(model.devices, model.devices.c.name, device_name,
+                        counters)
+
+def get_timed_out_devices(imaging_server_id):
+    return get_timed_out(model.devices, model.devices.c.name, imaging_server_id)
+
+def object_status(tbl, id_col, id_val, logs_obj):
+    """
+    Get the status of device.
+    """
+    res = sql.get_conn().execute(select([tbl.c.state],
+                                        id_col==id_val))
+    row = res.fetchall()[0]
+    return {"state": row['state'].encode('utf-8'),
+            "log": logs_obj.get(id_val)}
+
 
 # The rest of the device methods should not have to check for a valid device.
 # Handler methods will check before calling.
 def device_status(device):
-    """
-    Get the status of device.
-    """
-    res = sql.get_conn().execute(select([model.devices.c.state],
-                                        model.devices.c.name==device))
-    row = res.fetchall()[0]
-    return {"state": row['state'].encode('utf-8'),
-            "log": logs.device_logs.get(device)}
+    return object_status(model.devices, model.devices.c.name, device,
+                         logs.device_logs)
 
 def device_config(device):
     """
@@ -293,6 +314,26 @@ def update_pxe_config(name, description=None, active=None, contents=None):
     sql.get_conn().execute(model.pxe_configs.update(
                     model.pxe_configs.c.name == name),
                 **updates)
+
+# request utilities
+
+def get_request_state(request_id):
+    return get_state(model.requests, model.requests.c.id, request_id)
+
+def set_request_state(request_id, state, timeout):
+    return set_state(model.requests, model.requests.c.id, request_id, state,
+                     timeout)
+
+def set_request_counters(request_id, counters):
+    return set_counters(model.requests, model.requests.c.id, request_id,
+                        counters)
+
+def get_timed_out_requests(imaging_server_id):
+    return get_timed_out(model.requests, model.requests.c.id, imaging_server_id)
+
+def request_status(request_id):
+    return object_status(model.requests, model.requests.c.id, request_id,
+                         logs.request_logs)
 
 def get_unassigned_devices():
     conn = sql.get_conn()
