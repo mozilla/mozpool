@@ -2,103 +2,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import time
-import threading
 import datetime
-import logging
-from mozpool.db import data, logs
-from mozpool import statemachine
-from mozpool import config
+from mozpool import config, statemachine, statedriver
 from mozpool.bmm import api as bmm_api
+from mozpool.db import data
 import mozpool.lifeguard
 
-####
-# Driver
-
-POLL_FREQUENCY = 10
-
-class LifeguardDriver(threading.Thread):
-    """
-    A driver for lifeguard.  This handles timeouts, as well as handling any
-    events triggered externally.
-
-    The server code sets up an instance of this object as mozpool.lifeguard.driver.
-    """
-
-    def __init__(self, poll_frequency=POLL_FREQUENCY):
-        threading.Thread.__init__(self, name='LifeguardDriver')
-        self.setDaemon(True)
-        self.imaging_server_id = data.find_imaging_server_id(config.get('server', 'fqdn'))
-        self._stop = False
-        self.poll_frequency = poll_frequency
-        self.logger = logging.getLogger('device')
-        self.log_handler = DBHandler()
-        self.logger.addHandler(self.log_handler)
-
-    def stop(self):
-        self._stop = True
-        self.join()
-        self.logger.removeHandler(self.log_handler)
-
-    def run(self):
-        last_poll = 0
-        while True:
-            # wait for our poll interval
-            seconds_left = last_poll + self.poll_frequency - time.time()
-            if seconds_left > 0:
-                time.sleep(seconds_left)
-            if self._stop:
-                break
-
-            last_poll = time.time()
-            for device_name in data.get_timed_out_devices(self.imaging_server_id):
-                machine = self._get_machine(device_name)
-                try:
-                    machine.handle_timeout()
-                except:
-                    self.logger.error("(ignored) error while handling timeout:", exc_info=True)
-
-    def handle_event(self, device_name, event, args):
-        """
-        Handle an event for a particular device, with optional arguments
-        specific to the event.
-        """
-        machine = self._get_machine(device_name)
-        machine.handle_event(event, args)
-
-    def conditional_state_change(self, device_name, old_state, new_state,
-                new_pxe_config, new_boot_config):
-        """
-        Transition to NEW_STATE only if the device is in OLD_STATE.
-        Simultaneously set the PXE config and boot config as described, or
-        clears the PXE config if new_pxe_config is None.
-        Returns True on success, False on failure.
-        """
-        machine = self._get_machine(device_name)
-        def call_first():
-            if new_pxe_config is None:
-                bmm_api.clear_pxe(device_name)
-            else:
-                bmm_api.set_pxe(device_name, new_pxe_config, new_boot_config)
-        return machine.conditional_goto_state(old_state, new_state, call_first)
-
-    def _get_machine(self, device_name):
-        return DeviceStateMachine(device_name)
-
-####
-# Logging handler
-
-class DBHandler(logging.Handler):
-
-    def emit(self, record):
-        # get the device name
-        logger = record.name.split('.')
-        if len(logger) != 2 or logger[0] != 'device':
-            return
-        device_name = logger[1]
-
-        msg = self.format(record)
-        logs.device_logs.add(device_name, msg, source='statemachine')
 
 ####
 # State machine
@@ -126,6 +35,52 @@ class DeviceStateMachine(statemachine.StateMachine):
 
     def write_counters(self, counters):
         data.set_device_counters(self.device_name, counters)
+
+
+####
+# Driver
+
+class LifeguardDriver(statedriver.StateDriver):
+    """
+    A driver for lifeguard.  This handles timeouts, as well as handling any
+    events triggered externally.
+
+    The server code sets up an instance of this object as mozpool.lifeguard.driver.
+    """
+
+    state_machine_cls = DeviceStateMachine
+    logger_name = 'device'
+    thread_name = 'LifeguardDriver'
+
+    def __init__(self, poll_frequency=statedriver.POLL_FREQUENCY):
+        statedriver.StateDriver.__init__(self, poll_frequency)
+        self.imaging_server_id = data.find_imaging_server_id(
+            config.get('server', 'fqdn'))
+
+    def _get_timed_out_machines(self):
+        for device_name in data.get_timed_out_devices(self.imaging_server_id):
+            machine = self._get_machine(device_name)
+            try:
+                machine.handle_timeout()
+            except:
+                self.logger.error("(ignored) error while handling timeout:", exc_info=True)
+            yield machine
+
+    def conditional_state_change(self, device_name, old_state, new_state,
+                                 new_pxe_config, new_boot_config):
+        """
+        Transition to NEW_STATE only if the device is in OLD_STATE.
+        Simultaneously set the PXE config and boot config as described, or
+        clears the PXE config if new_pxe_config is None.
+        Returns True on success, False on failure.
+        """
+        def call_first():
+            if new_pxe_config is None:
+                bmm_api.clear_pxe(device_name)
+            else:
+                bmm_api.set_pxe(device_name, new_pxe_config, new_boot_config)
+        return statedriver.StateDriver.conditional_state_change(
+            self, device_name, old_state, new_state, call_first)
 
 
 ####

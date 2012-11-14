@@ -316,7 +316,7 @@ def create_request(requested_device, assignee, duration):
                    'state': 'new',
                    'state_counters': '{}'}
     try:
-        res = conn.execute(model.requests.insert(), reservation)
+        conn.execute(model.requests.insert(), reservation)
     except sqlalchemy.exc.IntegrityError:
         return None
     return res.lastrowid
@@ -376,10 +376,3 @@ def dump_requests(*request_ids):
 def renew_request(request_id, duration):
     conn = sql.get_conn()
     conn.execute(model.requests.update(model.requests).values(expires=datetime.datetime.now() + datetime.timedelta(seconds=duration)).where(model.requests.c.id==request_id))
-
-def update_request_status(request_id, old_state, new_state):
-    conn = sql.get_conn()
-    current_state = conn.execute(select([model.requests.c.state]).where(model.requests.c.id==request_id)).fetchall()[0][0]
-    if old_state != current_state:
-        raise InvalidStateChange(old_state, new_state, current_state)
-    conn.execute(model.requests.update(model.requests).values(state=new_state).where(model.requests.c.id==request_id))

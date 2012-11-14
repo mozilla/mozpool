@@ -1,6 +1,6 @@
-~$
-\.pyc$
-mozpool/config\.ini$
+*~
+*.pyc
+mozpool/config.ini
 dist
 MANIFEST
 mozpool.egg-info

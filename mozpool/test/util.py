@@ -70,7 +70,7 @@ def add_pxe_config(name, description="Boot image",
                            active=active)
 
 def add_request(server, assignee="slave", state="new", expires=None,
-                device='any'):
+                device='any', boot_config='{}'):
     if not expires:
         expires = datetime.datetime.now() + datetime.timedelta(hours=1)
     conn = sql.get_conn()
@@ -82,9 +82,10 @@ def add_request(server, assignee="slave", state="new", expires=None,
                        imaging_server_id=server_id,
                        requested_device=device,
                        assignee=assignee,
+                       expires=expires,
+                       boot_config=boot_config,
                        state=state,
-                       state_counters='{}',
-                       expires=expires)
+                       state_counters='{}')
     request_id = res.lastrowid
     if device:
         device_id = conn.execute(select(
@@ -93,4 +94,3 @@ def add_request(server, assignee="slave", state="new", expires=None,
         conn.execute(model.device_requests.insert(),
                      request_id=request_id,
                      device_id=device_id)
-
