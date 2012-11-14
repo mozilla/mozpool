@@ -156,7 +156,7 @@ Configuration
 
 Configuration should be based on the mozpool/config.ini.dist template.  The
 config can either be put in the `mozpool/config.ini`, or anywhere else with
-`$BMM_CONFIG` giving the full path.
+`$MOZPOOL_CONFIG` giving the full path.
 
 Server
 ------
