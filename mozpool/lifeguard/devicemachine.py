@@ -142,7 +142,7 @@ class AcceptPleaseRequests(object):
         data.set_device_config(self.machine.device_name,
                 args['pxe_config'],
                 args['boot_config'])
-        self.machine.goto_state(pxe_power_cycling)
+        self.machine.goto_state(start_pxe_boot)
 
 
 class PowerCycleMixin(object):
@@ -158,9 +158,6 @@ class PowerCycleMixin(object):
 
     TIMEOUT = 60                    # must be greater than 42s; see above
     PERMANENT_FAILURE_COUNT = 200
-
-    # TODO: add a *second* counter to count number of round-trips into this
-    # state, maybe just based on the state name?
 
     def setup_pxe(self):
         # hook for subclasses
@@ -262,7 +259,24 @@ class pc_pinging(statemachine.State):
 # branch execution in a number of directions, based on the operation being
 # performed.
 
-# TODO: better handling for timeouts to disambiguate the failure modes
+# There are several failure counters used here:
+# * power_cycling -- used internally by PowerCycleMixin to keep trying to cycle
+#   the power
+# * android_pinging -- count of ping failures; some are expected, until the
+#   device is up
+# The others are named after the step, and count the number of times the step
+# has failed (timed out unexpectedly).  Each such counter is cleared when the
+# step completes successfully.
+
+@DeviceStateMachine.state_class
+class start_pxe_boot(statemachine.State):
+    """
+    A PXE boot has been requested.  Clear counters and get started.
+    """
+
+    def on_entry(self):
+        self.machine.clear_counter()
+        self.machine.goto_state(pxe_power_cycling)
 
 @DeviceStateMachine.state_class
 class pxe_power_cycling(PowerCycleMixin, statemachine.State):
@@ -289,22 +303,30 @@ class pxe_booting(statemachine.State):
     event received from the second stage.
     """
 
-    # TODO: convince mobile-init.sh to repot an event here)
+    # TODO: convince mobile-init.sh to report an event here - bug 811316
 
-    # Startup seems to take about 90s; double that makes a good timeout.
+    # Startup seems to take about 90s; double that makes a good timeout.  There
+    # are a number of ways this step could go wrong, so we allow a lot of
+    # retries before calling it a failure.
     TIMEOUT = 180
+    PERMANENT_FAILURE_COUNT = 30
 
     def on_android_downloading(self, args):
+        self.machine.clear_counter(self.state_name)
         bmm_api.clear_pxe(self.machine.device_name)
         self.machine.goto_state(android_downloading)
 
     def on_maint_mode(self, args):
         # note we do not clear the PXE config here, so it will
         # continue to boot into maintenance mode
+        self.machine.clear_counter(self.state_name)
         self.machine.goto_state(maintenance_mode)
 
     def on_timeout(self):
-        self.machine.goto_state(pxe_power_cycling)
+        if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
+            self.machine.goto_state(failed_pxe_booting)
+        else:
+            self.machine.goto_state(pxe_power_cycling)
 
 
 ####
@@ -318,14 +340,20 @@ class android_downloading(statemachine.State):
     """
 
     # Downloading takes about 30s.  Allow a generous multiple of that to handle
-    # moments of high load or bigger images.
+    # moments of high load or bigger images.  Failures here are likely a misconfig, 
+    # so they aren't retried very many times
     TIMEOUT = 180
+    PERMANENT_FAILURE_COUNT = 3
 
     def on_android_extracting(self, args):
+        self.machine.clear_counter(self.state_name)
         self.machine.goto_state(android_extracting)
 
     def on_timeout(self):
-        self.machine.goto_state(pxe_power_cycling)
+        if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
+            self.machine.goto_state(failed_android_downloading)
+        else:
+            self.machine.goto_state(pxe_power_cycling)
 
 
 @DeviceStateMachine.state_class
@@ -336,14 +364,21 @@ class android_extracting(statemachine.State):
     the 'android_rebooting' state.
     """
 
-    # Extracting takes 2m on a good day.  Give it plenty of leeway.
+    # Extracting takes 2m on a good day.  Give it plenty of leeway.  Funky
+    # sdcards can cause this to fail, so it gets a few retries, but honestly,
+    # this is an indication that the sdcard should be replaced
     TIMEOUT = 600
+    PERMANENT_FAILURE_COUNT = 10
 
     def on_android_rebooting(self, args):
+        self.machine.clear_counter(self.state_name)
         self.machine.goto_state(android_rebooting)
 
     def on_timeout(self):
-        self.machine.goto_state(pxe_power_cycling)
+        if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
+            self.machine.goto_state(failed_android_extracting)
+        else:
+            self.machine.goto_state(pxe_power_cycling)
 
 
 @DeviceStateMachine.state_class
@@ -368,9 +403,11 @@ class android_pinging(statemachine.State):
     successful, then go to state 'ready'
     """
 
-    # ping every 10s, failing 12 times (2 minutes total)
+    # ping every 10s, failing 12 times (2 minutes total).  If the whole process fails here
+    # a few times, then most likely the image is bogus, so that's a permanent failure.
     TIMEOUT = 10
-    PERMANENT_FAILURE_COUNT = 12
+    PING_FAILURES = 12
+    PERMANENT_FAILURE_COUNT = 4
 
     def on_entry(self):
         def ping_complete(success):
@@ -380,19 +417,24 @@ class android_pinging(statemachine.State):
         bmm_api.start_ping(self.machine.device_name, ping_complete)
 
     def on_timeout(self):
+        # this is a little tricky - android_pinging tracks a few tries to ping this device, so
+        # when that counter expires, then we assume the device has not imaged correctly and
+        # retry; *that* failure is counted against PERMANENT_FAILURE_COUNT.
         if self.machine.increment_counter('android_pinging') > self.PERMANENT_FAILURE_COUNT:
-            # after enough ping failures, try rebooting again (and clear the ping counter)
             self.machine.clear_counter('android_pinging')
-            self.machine.goto_state(pxe_power_cycling)
+            if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
+                self.machine.goto_state(failed_android_pinging)
+            else:
+                self.machine.goto_state(pxe_power_cycling)
         else:
-            # otherwise, re-enter this state and ping again
             self.machine.goto_state(android_pinging)
 
     def on_ping_ok(self, args):
+        self.machine.clear_counter(self.state_name)
         self.machine.clear_counter('android_pinging')
         self.machine.goto_state(ready)
 
-    # TODO: also try a SUT agent connection here
+    # TODO: also try a SUT agent connection here (mcote)
 
 ####
 # PXE Booting :: Maintenance Mode
@@ -409,11 +451,11 @@ class maintenance_mode(AcceptPleaseRequests, statemachine.State):
 ####
 # Failure states
 
-class failed(statemachine.State):
+class failed(AcceptPleaseRequests, statemachine.State):
     "Parent class for failed_.. classes"
 
     def on_entry(self):
-        self.logger.error("device has failed")
+        self.logger.error("device has failed: %s" % self.state_name)
 
 
 @DeviceStateMachine.state_class
@@ -424,4 +466,20 @@ class failed_power_cycling(failed):
 @DeviceStateMachine.state_class
 class failed_reboot_complete(failed):
     "While rebooting, device has been power-cycled multiple times, but the image has not run."
+
+@DeviceStateMachine.state_class
+class failed_pxe_booting(failed):
+    "While PXE booting, the device repeatedly failed to contact the imaging server from the live image."
+
+@DeviceStateMachine.state_class
+class failed_android_downloading(failed):
+    "While installing Android, the device timed out repeatedly while downloading Android"
+
+@DeviceStateMachine.state_class
+class failed_android_extracting(failed):
+    "While installing Android, the device timed out repeatedly while extracting Android"
+
+@DeviceStateMachine.state_class
+class failed_android_pinging(failed):
+    "While installing Android, the device timed out repeatedly while pinging the new image waiting for it to come up"
 
