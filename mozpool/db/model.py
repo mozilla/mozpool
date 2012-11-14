@@ -48,6 +48,7 @@ pxe_configs = sa.Table('pxe_configs', metadata,
     sa.Column('name', sa.String(32), unique=True, nullable=False),
     sa.Column('description', sa.Text, nullable=False),
     sa.Column('contents', sa.Text, nullable=False),
+    sa.Column('active', sa.Boolean, nullable=False),
 )
 
 device_logs = sa.Table('device_logs', metadata,

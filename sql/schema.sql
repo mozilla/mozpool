@@ -110,6 +110,8 @@ CREATE TABLE pxe_configs (
   description text not null,
   -- pxe configuration text
   contents TEXT not null,
+  -- true (1) if this config should be shown in the web UI
+  active INTEGER not null,
 
   unique index name_idx (name)
 );

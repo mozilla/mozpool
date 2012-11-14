@@ -64,7 +64,7 @@ var PxeConfig = Backbone.Model.extend({
 });
 
 var PxeConfigs = Backbone.Collection.extend({
-    url: '/api/bmm/pxe_config/list/',
+    url: '/api/bmm/pxe_config/list/?active_only=1',
     model: PxeConfig,
     parse: function(response) {
         return $.map(response.pxe_configs, function(name, id) { return { name: name, id: id }; });

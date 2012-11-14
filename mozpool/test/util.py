@@ -63,11 +63,12 @@ def add_device(device, server="server", state="offline",
 
 def add_pxe_config(name, description="Boot image",
                   contents="BOOT THIS THINGIE WITH THIS CONFIG",
-                  id=None):
+                  id=None, active=True):
     sql.get_conn().execute(model.pxe_configs.insert(), name=name,
                            description=description,
                            contents=contents,
-                           id=id)
+                           id=id,
+                           active=active)
 def add_request(device, server, assignee="slave", status="pending",
                 expires=None):
     if not expires:

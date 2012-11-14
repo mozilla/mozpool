@@ -262,19 +262,38 @@ def device_fqdn(device):
     row = res.fetchone()
     return row['fqdn']
 
-def list_pxe_configs():
+def list_pxe_configs(active_only=False):
     conn = sql.get_conn()
-    res = conn.execute(select([model.pxe_configs.c.name]))
+    q = select([model.pxe_configs.c.name])
+    if active_only:
+        q = q.where(model.pxe_configs.c.active)
+    res = conn.execute(q)
     return {'pxe_configs': [row[0].encode('utf-8') for row in res]}
 
-def pxe_config_details(image):
+def pxe_config_details(name):
     conn = sql.get_conn()
     res = conn.execute(select([model.pxe_configs],
-                              model.pxe_configs.c.name==image))
+                              model.pxe_configs.c.name==name))
     row = res.fetchone()
     if row is None:
         raise NotFound
     return {'details': row_to_dict(row, model.pxe_configs, omit_cols=['id'])}
+
+def add_pxe_config(name, description, active, contents):
+    sql.get_conn().execute(model.pxe_configs.insert(),
+            [ {'name':name, 'description':description, 'active':active, 'contents':contents} ])
+
+def update_pxe_config(name, description=None, active=None, contents=None):
+    updates = {}
+    if description:
+        updates['description'] = description
+    if active is not None:
+        updates['active'] = active
+    if contents is not None:
+        updates['contents'] = contents
+    sql.get_conn().execute(model.pxe_configs.update(
+                    model.pxe_configs.c.name == name),
+                **updates)
 
 def get_unassigned_devices():
     conn = sql.get_conn()

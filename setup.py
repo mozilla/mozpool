@@ -21,6 +21,7 @@ setup(name='mozpool',
       ],
       entry_points={
           'console_scripts': [
+              'pxe-config = mozpool.bmm.scripts:pxe_config_script',
               'relay = mozpool.bmm.scripts:relay_script',
               'mozpool-server = mozpool.web.server:main',
               'mozpool-inventorysync = mozpool.lifeguard.inventorysync:main',

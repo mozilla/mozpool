@@ -195,9 +195,10 @@ Note: do not manually adjust relays that are also under MozPool's active control
 PXE Configs
 -----------
 
-PXE configurations should be edited in the database directly (in the
-`pxe_configs` table).  The string '%IPADDRESS%' in a PXE config will be
-replaced with the IP address of the imaging server.
+PXE configurations can be edited with the `pxe-config` command.  See its help
+for more information:
+
+    pxe-config --help
 
 Inventory Sync
 --------------

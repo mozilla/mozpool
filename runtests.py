@@ -3,6 +3,7 @@
 # http://creativecommons.org/publicdomain/zero/1.0/
 
 import os
+import sys
 import unittest
 import json
 import hashlib
@@ -14,6 +15,7 @@ import datetime
 import threading
 import urlparse
 import logging
+import cStringIO
 from mock import patch
 from paste.fixture import TestApp
 
@@ -26,6 +28,7 @@ from mozpool.db import model
 from mozpool.bmm import relay
 from mozpool.bmm import pxe
 from mozpool.bmm import ping
+from mozpool.bmm import scripts
 from mozpool.lifeguard import inventorysync
 from mozpool.test.util import add_server, add_device, add_pxe_config, add_request, setup_db
 from mozpool.test import fakerelay
@@ -877,6 +880,74 @@ class TestBmmPing(unittest.TestCase):
         self.assertFalse(ping.ping('abcd'))
         system.assert_called_with('fping %s abcd' % self.fixed_args)
 
+class TestPxeConfigScript(ConfigMixin, unittest.TestCase):
+
+    def setUp(self):
+        super(TestPxeConfigScript, self).setUp()
+        self.old_stderr, self.old_stdout = sys.stderr, sys.stdout
+        sys.stderr = cStringIO.StringIO()
+        sys.stdout = cStringIO.StringIO()
+
+    def tearDown(self):
+        sys.stderr = self.old_stderr
+        sys.stdout = self.old_stdout
+        if os.path.exists('test-config'):
+            os.unlink('test-config')
+
+    def assertStderr(self, expected):
+        self.assertIn(expected, sys.stderr.getvalue())
+
+    def assertStdout(self, expected):
+        self.assertIn(expected, sys.stdout.getvalue())
+
+    def write_config(self, config):
+        open('test-config', 'w').write(config)
+
+    # tests
+
+    def test_empty(self):
+        self.assertRaises(SystemExit, lambda :
+            scripts.pxe_config_script([]))
+        self.assertStderr('too few')
+
+    def test_list_with_name(self):
+        self.assertRaises(SystemExit, lambda :
+            scripts.pxe_config_script(['list', 'device1']))
+        self.assertStderr('name is not allowed')
+
+    def test_show_without_name(self):
+        self.assertRaises(SystemExit, lambda :
+            scripts.pxe_config_script(['show']))
+        self.assertStderr('name is required')
+
+    def test_add(self):
+        self.write_config('this is my config')
+        scripts.pxe_config_script(['add', 'testy', '-m' 'TEST', '-c', 'test-config'])
+        self.assertEqual(data.pxe_config_details('testy'),
+                {'details':{'description':'TEST', 'contents':'this is my config',
+                            'active':True, 'name':'testy'}})
+        self.assertStdout('this is my')
+
+    def test_modify(self):
+        self.write_config('this is my config')
+        add_pxe_config('testy')
+        scripts.pxe_config_script(['modify', 'testy', '-m' 'TEST', '-c', 'test-config', '--inactive'])
+        self.assertEqual(data.pxe_config_details('testy'),
+                {'details':{'description':'TEST', 'contents':'this is my config',
+                            'active':False, 'name':'testy'}})
+        self.assertStdout('this is my')
+
+    def test_show(self):
+        add_pxe_config('testy', contents='abcd')
+        scripts.pxe_config_script(['show', 'testy'])
+        self.assertStdout('abcd')
+
+    def test_list(self):
+        add_pxe_config('testy1', contents='abcd')
+        add_pxe_config('testy2', contents='hijk', active=False)
+        scripts.pxe_config_script(['list' ])
+        self.assertStdout('abcd')
+        self.assertStdout('hijk')
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, filename='test.log')

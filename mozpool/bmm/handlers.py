@@ -45,7 +45,11 @@ class clear_pxe:
 class pxe_config_list:
     @templeton.handlers.json_response
     def GET(self):
-        return data.list_pxe_configs()
+        args, _ = templeton.handlers.get_request_parms()
+        if 'active_only' in args:
+            return data.list_pxe_configs(active_only=True)
+        else:
+            return data.list_pxe_configs()
 
 class pxe_config_details:
     @templeton.handlers.json_response
