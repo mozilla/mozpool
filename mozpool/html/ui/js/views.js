@@ -262,6 +262,22 @@ var BmmPowerCycleButtonView = ActionButtonView.extend({
     }
 });
 
+var BmmPowerOffButtonView = ActionButtonView.extend({
+    buttonClicked: function() {
+        var selected_pxe_config = window.selected_pxe_config.get('name');
+        window.devices.each(function (b) {
+            if (b.get('selected')) {
+                job_queue.push({
+                    device: b,
+                    job_type: 'bmm-power-off',
+                    job_args: {}
+                });
+                b.set('selected', false);
+            }
+        });
+    }
+});
+
 var LifeguardButtonView = ActionButtonView.extend({
     buttonClicked: function() {
         var selected_pxe_config = window.selected_pxe_config.get('name');

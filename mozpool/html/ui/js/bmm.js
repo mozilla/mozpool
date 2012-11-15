@@ -14,6 +14,7 @@ function run_ui(next) {
         new TableView({ el: $('#container'), }).render();
         new PxeConfigSelectView({ el: $('#pxe-config'), }).render();
         new BmmPowerCycleButtonView({ el: $('#bmm-power-cycle-button'), }).render();
+        new BmmPowerOffButtonView({ el: $('#bmm-power-off-button'), }).render();
         new JobQueueView({ el: $('#job-queue'), }).render();
 
         // and the job runner

@@ -244,7 +244,7 @@ def set_status(host, bank, relay, status, timeout):
     Set the status of a relay on a specified bank on the given host, within
     TIMEOUT seconds.
 
-    If status is True, turn on the specified relay. If it is False,
+    If status is True, turn on the specified device. If it is False,
     turn off the specified relay.
 
     Return True on success, or False on error.
@@ -254,6 +254,7 @@ def set_status(host, bank, relay, status, timeout):
 
     @RelayClient.generator(host, PORT, timeout)
     def gen(client):
+        logger.info("set_status(%s) on %s bank %s relay %s initiated" % (status, host, bank, relay))
         yield client.write(START_COMMAND)
         yield client.write(status2cmd(status, relay))
         yield client.write(chr(bank))

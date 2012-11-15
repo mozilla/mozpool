@@ -11,6 +11,7 @@ from mozpool.bmm import api
 # URLs go here. "/api/" will be automatically prepended to each.
 urls = (
   "/device/([^/]+)/power-cycle/?", "power_cycle",
+  "/device/([^/]+)/power-off/?", "power_off",
   "/device/([^/]+)/ping/?", "ping",
   "/device/([^/]+)/clear-pxe/?", "clear_pxe",
   "/device/([^/]+)/log/?", "log",
@@ -31,6 +32,14 @@ class power_cycle:
             api.clear_pxe(device_name)
         # start the power cycle and ignore the result
         api.start_powercycle(device_name, lambda *args : None)
+        return {}
+
+class power_off:
+    @templeton.handlers.json_response
+    def GET(self, device_name):
+        # TODO: verify we own this device
+        # start the power off and ignore the result
+        api.start_poweroff(device_name, lambda *args : None)
         return {}
 
 class ping:

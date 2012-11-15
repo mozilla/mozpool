@@ -79,7 +79,7 @@ class RelayTCPServer(SocketServer.TCPServer):
         self.thd.start()
 
 def main():
-    logging.basicConfig()
+    logging.basicConfig(level=logging.DEBUG)
     while True:
         server = RelayTCPServer(('', PORT))
         server.close_on_connect = True

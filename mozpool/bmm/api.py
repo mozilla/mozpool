@@ -65,6 +65,32 @@ def powercycle(device_name, max_time=30):
     return _wait_for_async(lambda cb :
             start_powercycle(device_name, cb, max_time))
 
+def start_poweroff(device_name, callback, max_time=30):
+    """
+    Initiate a power-off operation for DEVICE_NAME.  This function returns
+    immediately, and will invoke CALLBACK with a boolean success indication
+    when the operation is complete.  CALLBACK will be invoked in a different
+    thread from that where this function was called.
+
+    Use `start_powercycle` to turn power back on.
+
+    The function guarantees to callback before MAX_TIME seconds have elapsed,
+    or not call back at all.
+    """
+    callback_before = time.time() + max_time
+
+    hostname, bnk, rly = data.device_relay_info(device_name)
+
+    logs.device_logs.add(device_name, "initiating power-off ", 'bmm')
+    _run_async(callback_before, callback,
+            lambda : relay.set_status(hostname, bnk, rly, False, max_time))
+
+def poweroff(device_name, max_time=30):
+    """Like start_poweroff, but block until completion and return the success
+    status"""
+    return _wait_for_async(lambda cb :
+            start_poweroff(device_name, cb, max_time))
+
 def set_pxe(device_name, image_name, boot_config):
     """
     Set the boot configuration for the given device to the start up with PXE

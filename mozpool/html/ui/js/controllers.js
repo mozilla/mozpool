@@ -28,6 +28,8 @@ $.extend(JobRunner.prototype, {
         var job_type = this.running.get('job_type');
         if (job_type == 'bmm-power-cycle') {
             this.runBmmPowerCycle();
+        } else if (job_type == 'bmm-power-off') {
+            this.runBmmPowerOff();
         } else if (job_type == 'lifeguard-power-cycle') {
             this.runLifeguardPowerCycle();
         } else if (job_type == 'lifeguard-pxe-boot') {
@@ -52,6 +54,21 @@ $.extend(JobRunner.prototype, {
         $.ajax(url, {
             type: 'POST',
             data: JSON.stringify(post_params),
+            error: function (jqxhr, textStatus, errorThrown) {
+                self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
+            },
+            complete: this.jobFinished
+        });
+    },
+
+    runBmmPowerOff: function() {
+        var self = this;
+
+        var job_args = this.running.get('job_args');
+        var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
+            + this.running.get('device_name') + '/power-off/';
+        $.ajax(url, {
+            type: 'GET',
             error: function (jqxhr, textStatus, errorThrown) {
                 self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
             },

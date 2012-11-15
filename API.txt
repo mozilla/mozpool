@@ -128,12 +128,16 @@ using them on devices that are managed by Lifeguard may cause undesirable
 results, since lifeguard expects to be controlling the devices.
 
 /api/device/{id}/power-cycle/
-* POST to initiate a power-cycle this device.  The POST body is a JSON object,
+* POST to initiate a power-cycle of this device.  The POST body is a JSON object,
   with optional keys `pxe_config` and `boot_config`.  If `pxe_config` is
   specified, then the device is configured to boot with that PXE config;
   otherwise, the device boots from its internal storage.  If `boot_config` is
   supplied (as a string), it is stored for later use by the device via
   `/api/device/{id}/config/`.
+
+/api/device/{id}/power-off/
+* GET to initiate a power-off of this device.  Use the power-cycle API to
+  turn power back on.
 
 /api/device/{id}/clear-pxe/
 * POST to clear the PXE configuration for the device.  Call this after a
@@ -144,6 +148,15 @@ results, since lifeguard expects to be controlling the devices.
 * GET to ping this device.  Returns a JSON object with a `success` key, and
   value true or false.  The ping happens synchronously, and takes around a
   half-second.
+
+== Information ==
+
+/api/device/{id}/log/
+* GET to get a list of recent log lines for this device.  The return value has
+  a 'log' key containing a list of objects representing log lines.
+
+/api/device/{id}/bootconfig/
+* GET to get the boot configuration string set for this device.
 
 == PXE Configs ==
 
