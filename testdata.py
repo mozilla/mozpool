@@ -30,7 +30,8 @@ for device_id in range(1, options.devices+1):
                  name='device%d' % device_id,
                  fqdn='device%d.fqdn' % device_id,
                  inventory_id=1111 * device_id,
-                 status='new',
+                 state='new',
+                 state_counters='{}',
                  mac_address='%012x' % device_id,
                  imaging_server_id=img_svr_id,
                  relay_info='relay%d' % device_id,
@@ -45,8 +46,8 @@ for request_id in range(1, options.requests+1):
                  expires=datetime.datetime.now() +
                          datetime.timedelta(seconds=12*60*60))
 
-conn.execute(model.images.insert(),
+conn.execute(model.pxe_configs.insert(),
         name='image1',
-        version=1,
         description='test img',
-        pxe_config_filename='foo/bar')
+        contents='some config',
+        active=True)
