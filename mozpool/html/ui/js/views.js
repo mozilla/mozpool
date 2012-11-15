@@ -407,11 +407,13 @@ var LogView = Backbone.View.extend({
             span.attr('class', 'timestamp');
             span.text(l.get('timestamp'));
             line.append(span);
+            line.append(' ');
 
             span = $('<span>')
             span.attr('class', 'source');
             span.text(l.get('source'));
             line.append(span);
+            line.append(' ');
 
             span = $('<span>')
             span.attr('class', 'message');
