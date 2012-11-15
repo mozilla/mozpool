@@ -71,6 +71,19 @@ var PxeConfigs = Backbone.Collection.extend({
     }
 });
 
+var LogLine = Backbone.Model.extend({
+});
+
+var Log = Backbone.Collection.extend({
+    model: LogLine,
+    initialize: function(args) {
+        this.url = '/api/' + args['object'] + '/' + args['name'] + '/log/';
+    },
+    parse: function(response) {
+        return response.log;
+    }
+});
+
 // client-only models
 
 var SelectedPxeConfig = Backbone.Model.extend({

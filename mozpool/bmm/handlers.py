@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import templeton
-from mozpool.db import data
+from mozpool.db import data, logs
 from mozpool.bmm import api
 
 # URLs go here. "/api/" will be automatically prepended to each.
@@ -11,6 +11,7 @@ urls = (
   "/device/([^/]+)/power-cycle/?", "power_cycle",
   "/device/([^/]+)/ping/?", "ping",
   "/device/([^/]+)/clear-pxe/?", "clear_pxe",
+  "/device/([^/]+)/log/?", "log",
   "/bmm/pxe_config/list/?", "pxe_config_list",
   "/bmm/pxe_config/([^/]+)/details/?", "pxe_config_details",
 )
@@ -42,6 +43,11 @@ class clear_pxe:
         api.clear_pxe(device_name)
         return {}
 
+class log:
+    @templeton.handlers.json_response
+    def GET(self, device_name):
+        return {'log':logs.device_logs.get(device_name)}
+
 class pxe_config_list:
     @templeton.handlers.json_response
     def GET(self):
@@ -55,4 +61,3 @@ class pxe_config_details:
     @templeton.handlers.json_response
     def GET(self, id):
         return data.pxe_config_details(id)
-

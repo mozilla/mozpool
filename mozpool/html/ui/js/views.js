@@ -13,7 +13,7 @@ var TableView = Backbone.View.extend({
             renderFn: "renderRelayInfo" },
         { id: "state", title: "State" },
         { id: "links", title: "Links",
-            renderFn: "renderInvLink" },
+            renderFn: "renderLinks" },
     ],
 
     initialize: function(args) {
@@ -148,14 +148,20 @@ var TableView = Backbone.View.extend({
         return "<small>" + relay_info + "</small>";
     },
 
-    renderInvLink: function (model) {
-        var a = $('<a/>', {
+    renderLinks: function (model) {
+        var inv_a = $('<a/>', {
             // TODO get this link from config.ini
             href: 'https://inventory.mozilla.org/en-US/systems/show/' + model.get('inventory_id') + '/',
             text: 'inv'
         });
-        // wrap that in a div and extract the contents as a string
-        return "[" + $('<div>').append(a).html() + "]";
+        var log_a = $('<a/>', {
+            href: 'log.html?device=' + model.get('name'),
+            text: 'log'
+        });
+        // for each, wrap in a div and extract the contents as a string
+        return "[" + $('<div>').append(log_a).html() + "]"
+             + '&nbsp;'
+             + "[" + $('<div>').append(inv_a).html() + "]";
     },
 
     domObjectChanged: function(evt) {
@@ -378,5 +384,39 @@ var JobQueueView = Backbone.View.extend({
         } else {
             this.$el.text(length + ' jobs queued');
         }
-    },
+    }
+});
+
+var LogView = Backbone.View.extend({
+    tagName: 'pre',
+
+    // NOTE: for now, this just renders the initial model contents; it does not update
+    render: function() {
+        var self = this;
+        window.log.each(function(l, idx) {
+            if (!l.get('message')) {
+                // for some reason this model ends up with a blank LogLine in it?
+                return;
+            }
+            var span;
+            var line = $('<div>');
+            line.attr('class', (idx % 2)? 'odd' : 'even');
+            self.$el.append(line);
+
+            span = $('<span>')
+            span.attr('class', 'timestamp');
+            span.text(l.get('timestamp'));
+            line.append(span);
+
+            span = $('<span>')
+            span.attr('class', 'source');
+            span.text(l.get('source'));
+            line.append(span);
+
+            span = $('<span>')
+            span.attr('class', 'message');
+            span.text(l.get('message'));
+            line.append(span);
+        });
+    }
 });

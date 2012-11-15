@@ -128,3 +128,25 @@ body.menu div h2 {
     float: right;
     margin: 0.25em 0.25em;
 }
+
+/* logs */
+
+pre#log span.timestamp {
+    color: gray;
+    margin-right: 1em;
+}
+
+pre#log span.source {
+    color: green;
+    margin-right: 1em;
+    display: inline-block;
+    min-width: 10em;
+}
+
+pre#log div.even {
+    background-color: #eee;
+}
+
+pre#log div.odd {
+    background-color: #fff;
+}
