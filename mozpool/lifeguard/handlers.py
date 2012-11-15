@@ -4,30 +4,14 @@
 
 import templeton
 import web
-from mozpool import config
-from mozpool.db import data
 import mozpool.lifeguard
+from mozpool.web.handlers import deviceredirect
 
 # URLs go here. "/api/" will be automatically prepended to each.
 urls = (
   "/device/([^/]+)/event/([^/]+)/?", "event",
-  "/device/([^/]+)/state-change/([^/]+)/to/([^/]+)/?", "state_change", # TODO: debugging only; mozpool should use events
+  "/device/([^/]+)/state-change/([^/]+)/to/([^/]+)/?", "state_change",
 )
-
-def deviceredirect(function):
-    """
-    Generate a redirect when a request is made for a device that is not
-    managed by this instance of the service.
-    """
-    def wrapped(self, id, *args):
-        try:
-            server = data.get_server_for_device(id)
-        except data.NotFound:
-            raise web.notfound()
-        if server != config.get('server', 'fqdn'):
-            raise web.found("http://%s%s" % (server, web.ctx.path))
-        return function(self, id, *args)
-    return wrapped
 
 # device handlers
 

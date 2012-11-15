@@ -6,6 +6,7 @@ import web
 import templeton
 import json
 from mozpool.db import data, logs
+from mozpool.web.handlers import deviceredirect
 from mozpool.bmm import api
 
 # URLs go here. "/api/" will be automatically prepended to each.
@@ -21,9 +22,9 @@ urls = (
 )
 
 class power_cycle:
+    @deviceredirect
     @templeton.handlers.json_response
     def POST(self, device_name):
-        # TODO: verify we own this device
         args, body = templeton.handlers.get_request_parms()
         if 'pxe_config' in body:
             api.set_pxe(device_name, body['pxe_config'],
@@ -35,23 +36,23 @@ class power_cycle:
         return {}
 
 class power_off:
+    @deviceredirect
     @templeton.handlers.json_response
     def GET(self, device_name):
-        # TODO: verify we own this device
         # start the power off and ignore the result
         api.start_poweroff(device_name, lambda *args : None)
         return {}
 
 class ping:
+    @deviceredirect
     @templeton.handlers.json_response
     def GET(self, device_name):
-        # TODO: verify we own this device
         return { 'success' : api.ping(device_name) }
 
 class clear_pxe:
+    @deviceredirect
     @templeton.handlers.json_response
     def POST(self, device_name):
-        # TODO: verify we own this device
         api.clear_pxe(device_name)
         return {}
 

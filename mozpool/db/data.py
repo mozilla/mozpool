@@ -326,6 +326,13 @@ def get_server_for_request(request_id):
         raise NotFound
     return row[0].encode('utf-8')
 
+def all_imaging_servers():
+    """
+    Return a list of the fqdn's of all imaging servers
+    """
+    res = sql.get_conn().execute(select([model.imaging_servers.c.fqdn]))
+    return [ row['fqdn'] for row in res.fetchall() ]
+
 def end_request(request_id):
     conn = sql.get_conn()
     conn.execute(model.requests.delete().where(model.requests.c.id==request_id))
