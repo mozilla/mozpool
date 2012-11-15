@@ -94,6 +94,13 @@ var SelectedPxeConfig = Backbone.Model.extend({
     }
 });
 
+var CurrentB2gBase = Backbone.Model.extend({
+    // current URL in the input box
+    initialize: function (args) {
+        this.set('b2gbase', '');
+    }
+});
+
 var Job = Backbone.Model.extend({
     initialize: function (args) {
         this.device = args.device;

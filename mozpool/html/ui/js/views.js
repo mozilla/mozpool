@@ -268,16 +268,19 @@ var LifeguardButtonView = ActionButtonView.extend({
 
         var job_type, job_args;
         if (selected_pxe_config) {
+            // for now, we just always provides a b2g-style boot_config
+            var b2gbase = window.current_b2gbase.get('b2gbase');
+            var boot_config = {};
+            if (b2gbase) {
+                boot_config = { version: 1, b2gbase: b2gbase };
+            };
             job_type = 'lifeguard-pxe-boot';
-            job_args = { pxe_config: selected_pxe_config, boot_config: {
-                // XXX temporary until we have a UI
-                version: 1,
-                b2gbase: 'http://mobile-services.build.scl1.mozilla.com/artifacts/temp/'
-                } };
+            job_args = { pxe_config: selected_pxe_config, boot_config: boot_config };
         } else {
             job_type = 'lifeguard-power-cycle';
             job_args = {};
         }
+        console.log("job args:", job_args);
 
         window.devices.each(function (b) {
             if (b.get('selected')) {
@@ -361,6 +364,32 @@ var PxeConfigSelectView = Backbone.View.extend({
 
     selectChanged: function() {
         window.selected_pxe_config.set('name', this.$el.val());
+    }
+});
+
+var B2gBaseView = Backbone.View.extend({
+    initialize: function(args) {
+        _.bindAll(this, 'refresh', 'valueChanged');
+
+        this.pxe_config_views = [];
+        window.current_b2gbase.bind('change', this.refresh);
+    },
+
+    events: {
+        'change': 'valueChanged'
+    },
+
+    render: function() {
+        this.refresh();
+        return this;
+    },
+
+    refresh: function() {
+        this.$el.val(window.current_b2gbase.get('b2gbase'));
+    },
+
+    valueChanged: function() {
+        window.current_b2gbase.set('b2gbase', this.$el.val());
     }
 });
 
