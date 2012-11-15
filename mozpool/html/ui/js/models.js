@@ -101,6 +101,13 @@ var CurrentB2gBase = Backbone.Model.extend({
     }
 });
 
+var CurrentForceState = Backbone.Model.extend({
+    // current URL in the input box
+    initialize: function (args) {
+        this.set('state', '');
+    }
+});
+
 var Job = Backbone.Model.extend({
     initialize: function (args) {
         this.device = args.device;

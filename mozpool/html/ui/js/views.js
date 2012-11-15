@@ -278,7 +278,7 @@ var BmmPowerOffButtonView = ActionButtonView.extend({
     }
 });
 
-var LifeguardButtonView = ActionButtonView.extend({
+var LifeguardPleaseButtonView = ActionButtonView.extend({
     buttonClicked: function() {
         var selected_pxe_config = window.selected_pxe_config.get('name');
 
@@ -320,15 +320,15 @@ var LifeguardButtonView = ActionButtonView.extend({
     }
 });
 
-var LifeguardPxeBootButtonView = ActionButtonView.extend({
+var LifeguardForceStateButtonView = ActionButtonView.extend({
     buttonClicked: function() {
         var selected_pxe_config = window.selected_pxe_config.get('name');
         window.devices.each(function (b) {
             if (b.get('selected')) {
                 job_queue.push({
                     device: b,
-                    job_type: 'lifeguard-pxe-boot',
-                    job_args: { pxe_config: selected_pxe_config, boot_config: {} }
+                    job_type: 'lifeguard-force-state',
+                    job_args: { old_state: b.get('state'), new_state: window.current_force_state.get('state') }
                 });
                 b.set('selected', false);
             }
@@ -385,27 +385,29 @@ var PxeConfigSelectView = Backbone.View.extend({
 
 var B2gBaseView = Backbone.View.extend({
     initialize: function(args) {
-        _.bindAll(this, 'refresh', 'valueChanged');
-
-        this.pxe_config_views = [];
-        window.current_b2gbase.bind('change', this.refresh);
+        _.bindAll(this, 'valueChanged');
     },
 
     events: {
         'change': 'valueChanged'
     },
 
-    render: function() {
-        this.refresh();
-        return this;
+    valueChanged: function() {
+        window.current_b2gbase.set('b2gbase', this.$el.val());
+    }
+});
+
+var ForceStateView = Backbone.View.extend({
+    initialize: function(args) {
+        _.bindAll(this, 'valueChanged');
     },
 
-    refresh: function() {
-        this.$el.val(window.current_b2gbase.get('b2gbase'));
+    events: {
+        'change': 'valueChanged'
     },
 
     valueChanged: function() {
-        window.current_b2gbase.set('b2gbase', this.$el.val());
+        window.current_force_state.set('state', this.$el.val());
     }
 });
 

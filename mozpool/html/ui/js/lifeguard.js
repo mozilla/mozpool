@@ -9,13 +9,16 @@ function run_ui(next) {
         // client-side models
         window.selected_pxe_config = new SelectedPxeConfig();
         window.current_b2gbase = new CurrentB2gBase();
+        window.current_force_state = new CurrentForceState();
         window.job_queue = new JobQueue();
 
         // create the required views
         new TableView({ el: $('#container'), }).render();
         new PxeConfigSelectView({ el: $('#pxe-config'), }).render();
         new B2gBaseView({ el: $('#boot-config-b2gbase'), }).render();
-        new LifeguardButtonView({ el: $('#lifeguard-button'), }).render();
+        new ForceStateView({ el: $('#force-state'), }).render();
+        new LifeguardPleaseButtonView({ el: $('#lifeguard-please-button'), }).render();
+        new LifeguardForceStateButtonView({ el: $('#lifeguard-force-state-button'), }).render();
         new JobQueueView({ el: $('#job-queue'), }).render();
 
         // and the job runner

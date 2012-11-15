@@ -6,6 +6,10 @@ body {
     margin-bottom: 2em;
 }
 
+body.lifeguard {
+    margin-bottom: 4em;
+}
+
 #loading {
     text-align: center;
     font-family: sans-serif;
@@ -88,6 +92,10 @@ div#toolbar {
 body.bmm div#toolbar,
 div#menu-bmm {
     background: #AEC94B;
+}
+
+body.lifeguard div#toolbar {
+    height: 4em;
 }
 
 body.lifeguard div#toolbar,

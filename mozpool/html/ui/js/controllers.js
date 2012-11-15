@@ -34,6 +34,8 @@ $.extend(JobRunner.prototype, {
             this.runLifeguardPowerCycle();
         } else if (job_type == 'lifeguard-pxe-boot') {
             this.runLifeguardPxeBoot();
+        } else if (job_type == 'lifeguard-force-state') {
+            this.runLifeguardForceState();
         } else {
             this.handleError('unknown job type ' + job_type);
             this.jobFinished();
@@ -97,6 +99,28 @@ $.extend(JobRunner.prototype, {
         var job_args = this.running.get('job_args');
         var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
             + this.running.get('device_name') + '/event/please_pxe_boot/';
+        var post_params = {};
+        if (job_args['pxe_config']) {
+            post_params['pxe_config'] = job_args['pxe_config'];
+            post_params['boot_config'] = JSON.stringify(job_args['boot_config']);
+        }
+        $.ajax(url, {
+            type: 'POST',
+            data: JSON.stringify(post_params),
+            error: function (jqxhr, textStatus, errorThrown) {
+                self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
+            },
+            complete: this.jobFinished
+        });
+    },
+
+    runLifeguardForceState: function() {
+        var self = this;
+
+        var job_args = this.running.get('job_args');
+        var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
+            + this.running.get('device_name') + '/state-change/' + job_args.old_state + '/to/'
+            + job_args.new_state + '/';
         var post_params = {};
         if (job_args['pxe_config']) {
             post_params['pxe_config'] = job_args['pxe_config'];

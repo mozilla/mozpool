@@ -73,7 +73,8 @@ class StateMachine(object):
         self.lock()
         self.state = self._make_state_instance()
         try:
-            if old_state != self.state.state_name:
+            current_state = self.state.state_name
+            if current_state != 'unknown' and old_state != self.state.state_name:
                 return False
             call_first()
             self.goto_state(new_state)
