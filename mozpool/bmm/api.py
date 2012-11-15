@@ -11,6 +11,8 @@ from mozpool.bmm import relay
 from mozpool.bmm import pxe
 from mozpool.bmm import ping as ping_module
 
+logger = logging.getLogger('bmm.api')
+
 def _wait_for_async(start_fn):
     done_cond = threading.Condition()
 
@@ -28,7 +30,17 @@ def _wait_for_async(start_fn):
 
     return cb_result[0]
 
-logger = logging.getLogger('bmm.api')
+def _run_async(callback_before, callback, operation):
+    def try_operation():
+        res = False
+        try:
+            res = operation()
+        except:
+            logger.error("exception ignored in async operation:", exc_info=True)
+
+        if time.time() < callback_before:
+            callback(res)
+    threading.Thread(target=try_operation).start()
 
 def start_powercycle(device_name, callback, max_time=30):
     """
@@ -45,16 +57,7 @@ def start_powercycle(device_name, callback, max_time=30):
     hostname, bnk, rly = data.device_relay_info(device_name)
 
     logs.device_logs.add(device_name, "initiating power cycle", 'bmm')
-    def try_powercycle():
-        res = False
-        try:
-            res = relay.powercycle(hostname, bnk, rly, max_time)
-        except:
-            logger.error("(ignored) exception while running powercycle", exc_info=True)
-
-        if time.time() < callback_before:
-            callback(res)
-    threading.Thread(target=try_powercycle).start()
+    _run_async(callback_before, callback, lambda : relay.powercycle(hostname, bnk, rly, max_time))
 
 def powercycle(device_name, max_time=30):
     """Like start_powercycle, but block until completion and return the success
@@ -85,18 +88,11 @@ def start_ping(device_name, callback):
     """
     callback_before = time.time() + 10
     fqdn = data.device_fqdn(device_name)
-
-    def try_ping():
-        try:
-            pingable = ping_module.ping(fqdn)
-        except:
-            logger.error("(ignored) exception while running powercycle", exc_info=True)
-            pingable = False
-
+    def do_ping():
+        pingable = ping_module.ping(fqdn)
         logs.device_logs.add(device_name, "ping of %s complete: %s" % (fqdn, 'ok' if pingable else 'failed'), 'bmm')
-        if time.time() < callback_before:
-            callback(pingable)
-    threading.Thread(target=try_ping).start()
+        return pingable
+    _run_async(callback_before, callback, do_ping)
 
 def ping(device_name):
     """Like ping, but block until completion and return the success
