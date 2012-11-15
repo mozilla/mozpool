@@ -292,7 +292,7 @@ class pxe_power_cycling(PowerCycleMixin, statemachine.State):
         cfg = data.device_config(self.machine.device_name)
         bmm_api.set_pxe(self.machine.device_name,
                 cfg['pxe_config'],
-                cfg['config'])
+                cfg['boot_config'])
 
 
 @DeviceStateMachine.state_class

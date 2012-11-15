@@ -205,17 +205,16 @@ def device_config(device):
                 model.devices.c.last_pxe_config_id==model.pxe_configs.c.id),
         whereclause=(model.devices.c.name==device)))
     row = res.fetchone()
-    config_data = {}
     if row:
-        config_data = json.loads(row['boot_config'].encode('utf-8'))
-        return {'config': config_data, 'pxe_config': row['name']}
+        return {'boot_config': row['boot_config'], 'pxe_config': row['name']}
     else:
         return {}
 
-def set_device_config(device, pxe_config_name, config_data):
+def set_device_config(device, pxe_config_name, boot_config):
     """
     Set the config parameters for the /boot/ API for device.
     """
+    assert isinstance(boot_config, (str, unicode))
     conn = sql.get_conn()
     res = conn.execute(select([model.pxe_configs.c.id]).
             where(model.pxe_configs.c.name==pxe_config_name))
@@ -223,7 +222,7 @@ def set_device_config(device, pxe_config_name, config_data):
     conn.execute(model.devices.update().
                  where(model.devices.c.name==device).
                  values(last_pxe_config_id=pxe_config_id,
-                         boot_config=json.dumps(config_data)))
+                         boot_config=boot_config))
     return config
 
 def device_relay_info(device):

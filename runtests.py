@@ -136,13 +136,13 @@ class TestData(ConfigMixin, unittest.TestCase):
         self.assertEqual(data.device_config('foo'), {})
 
     def testDeviceConfigNoPxe(self):
-        add_device("withconfig", server="server1", config={'a':'b'})
-        self.assertEqual(data.device_config('withconfig'), {'config': {'a':'b'}, 'pxe_config': None})
+        add_device("withconfig", server="server1", config='abcd')
+        self.assertEqual(data.device_config('withconfig'), {'boot_config': 'abcd', 'pxe_config': None})
 
     def testDeviceConfigPxe(self):
         add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%', id=23)
-        add_device("withpxe", server="server1", last_pxe_config_id=23)
-        self.assertEqual(data.device_config('withpxe'), {'config': {}, 'pxe_config': 'img1'})
+        add_device("withpxe", config='', server="server1", last_pxe_config_id=23)
+        self.assertEqual(data.device_config('withpxe'), {'boot_config': '', 'pxe_config': 'img1'})
 
 
 class TestBoardList(ConfigMixin, unittest.TestCase):
@@ -210,13 +210,15 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
         super(TestBoardConfig, self).setUp()
         add_server("server1")
         add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%')
-        add_device("device1", server="server1", config={"abc": "xyz"})
 
     def testBoardConfig(self):
-        r = self.app.get("/api/device/device1/config/")
+        boot_config={'version':1, 'b2gbase':'BBB'}
+        add_device("device1", server="server1", config=json.dumps(boot_config))
+        r = self.app.get("/api/device/device1/bootconfig/")
         self.assertEqual(200, r.status)
-        body = json.loads(r.body)
-        self.assertEquals({"abc": "xyz"}, body["config"])
+        #self.assertEquals(boot_config, json.loads(r.body))
+        # XXX temporary
+        self.assertEqual(boot_config['b2gbase'], r.body)
 
 class TestRequests(ConfigMixin, unittest.TestCase): 
     def setUp(self):
@@ -367,9 +369,9 @@ class TestBoardRedirects(ConfigMixin, unittest.TestCase):
         add_pxe_config("image1")
 
     def testRedirectBoard(self):
-        r = self.app.post("/api/device/device2/bootcomplete/")
+        r = self.app.post("/api/device/device2/event/foo/")
         self.assertEqual(302, r.status)
-        self.assertEqual("http://server2/api/device/device2/bootcomplete/",
+        self.assertEqual("http://server2/api/device/device2/event/foo/",
                          r.header("Location"))
 
 class TestInvSyncMerge(unittest.TestCase):

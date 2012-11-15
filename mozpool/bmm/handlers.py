@@ -73,7 +73,8 @@ class device_bootconfig:
         # can't parse JSON; see bug 811316.
         try:
             dev_cfg = data.device_config(id)
-            boot_config = json.loads(dev_cfg['config'])
+            boot_config = json.loads(dev_cfg['boot_config'])
+            web.header('Content-Type', 'text/plain')
             return boot_config['b2gbase']
         except KeyError:
             raise web.notfound()
