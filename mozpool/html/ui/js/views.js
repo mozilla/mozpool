@@ -269,7 +269,11 @@ var LifeguardButtonView = ActionButtonView.extend({
         var job_type, job_args;
         if (selected_pxe_config) {
             job_type = 'lifeguard-pxe-boot';
-            job_args = { pxe_config: selected_pxe_config, boot_config: {} };
+            job_args = { pxe_config: selected_pxe_config, boot_config: {
+                // XXX temporary until we have a UI
+                version: 1,
+                b2gbase: 'http://mobile-services.build.scl1.mozilla.com/artifacts/temp/'
+                } };
         } else {
             job_type = 'lifeguard-power-cycle';
             job_args = {};

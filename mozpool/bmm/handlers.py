@@ -2,7 +2,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import web
 import templeton
+import json
 from mozpool.db import data, logs
 from mozpool.bmm import api
 
@@ -12,6 +14,7 @@ urls = (
   "/device/([^/]+)/ping/?", "ping",
   "/device/([^/]+)/clear-pxe/?", "clear_pxe",
   "/device/([^/]+)/log/?", "log",
+  "/device/([^/]+)/bootconfig/?", "device_bootconfig",
   "/bmm/pxe_config/list/?", "pxe_config_list",
   "/bmm/pxe_config/([^/]+)/details/?", "pxe_config_details",
 )
@@ -61,3 +64,16 @@ class pxe_config_details:
     @templeton.handlers.json_response
     def GET(self, id):
         return data.pxe_config_details(id)
+
+class device_bootconfig:
+    #@templeton.handlers.json_response
+    def GET(self, id):
+        #return data.device_config(id)['config']
+        # XXX for the moment, we just return the URL, because the live-boot image
+        # can't parse JSON; see bug 811316.
+        try:
+            dev_cfg = data.device_config(id)
+            boot_config = json.loads(dev_cfg['config'])
+            return boot_config['b2gbase']
+        except KeyError:
+            raise web.notfound()
