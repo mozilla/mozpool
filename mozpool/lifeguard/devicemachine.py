@@ -260,10 +260,11 @@ class pc_pinging(statemachine.State):
 # performed.
 
 # There are several failure counters used here:
+#
 # * power_cycling -- used internally by PowerCycleMixin to keep trying to cycle
 #   the power
-# * android_pinging -- count of ping failures; some are expected, until the
-#   device is up
+# * ping -- count of ping failures; some are expected, until the device is up
+#
 # The others are named after the step, and count the number of times the step
 # has failed (timed out unexpectedly).  Each such counter is cleared when the
 # step completes successfully.
@@ -425,8 +426,8 @@ class android_pinging(statemachine.State):
         # this is a little tricky - android_pinging tracks a few tries to ping this device, so
         # when that counter expires, then we assume the device has not imaged correctly and
         # retry; *that* failure is counted against PERMANENT_FAILURE_COUNT.
-        if self.machine.increment_counter('android_pinging') > self.PERMANENT_FAILURE_COUNT:
-            self.machine.clear_counter('android_pinging')
+        if self.machine.increment_counter('ping') > self.PERMANENT_FAILURE_COUNT:
+            self.machine.clear_counter('ping')
             if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
                 self.machine.goto_state(failed_android_pinging)
             else:
@@ -436,7 +437,7 @@ class android_pinging(statemachine.State):
 
     def on_ping_ok(self, args):
         self.machine.clear_counter(self.state_name)
-        self.machine.clear_counter('android_pinging')
+        self.machine.clear_counter('ping')
         self.machine.goto_state(ready)
 
     # TODO: also try a SUT agent connection here (mcote)
@@ -557,8 +558,8 @@ class b2g_pinging(statemachine.State):
         # this is a little tricky - b2g_pinging tracks a few tries to ping this device, so
         # when that counter expires, then we assume the device has not imaged correctly and
         # retry; *that* failure is counted against PERMANENT_FAILURE_COUNT.
-        if self.machine.increment_counter('b2g_pinging') > self.PERMANENT_FAILURE_COUNT:
-            self.machine.clear_counter('b2g_pinging')
+        if self.machine.increment_counter('ping') > self.PERMANENT_FAILURE_COUNT:
+            self.machine.clear_counter('ping')
             if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
                 self.machine.goto_state(failed_b2g_pinging)
             else:
@@ -568,7 +569,7 @@ class b2g_pinging(statemachine.State):
 
     def on_ping_ok(self, args):
         self.machine.clear_counter(self.state_name)
-        self.machine.clear_counter('b2g_pinging')
+        self.machine.clear_counter('ping')
         self.machine.goto_state(ready)
 
     # TODO: also try a SUT agent connection here (mcote)
