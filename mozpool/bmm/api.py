@@ -67,7 +67,7 @@ def set_pxe(device_name, image_name, boot_config):
     Set the boot configuration for the given device to the start up with PXE
     config from IMAGE_NAME and supply an additional JSON configuration BOOT_CONFIG.
     """
-    logs.device_logs.add(device_name, "setting PXE config to image %s" % (image_name,), 'bmm')
+    logs.device_logs.add(device_name, "setting PXE config to '%s'" % (image_name,), 'bmm')
     pxe.set_pxe(device_name, image_name, boot_config)
 
 def clear_pxe(device_name):

@@ -302,7 +302,6 @@ def powercycle(host, bank, relay, timeout):
             res = yield client.read()
             if res != COMMAND_OK:
                 logger.info("Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res)))
-                logger.info("power-cycle on %s bank %s relay %s failed" % (host, bank, relay))
                 raise StopIteration(False)
 
             # check the status
@@ -313,7 +312,6 @@ def powercycle(host, bank, relay, timeout):
             got_status = res2status(res)
             if (not status and got_status) or (status and not got_status):
                 logger.info("Bank %d relay %d on %s:%d did not change state" % (bank, relay, host, PORT))
-                logger.info("power-cycle on %s bank %s relay %s failed" % (host, bank, relay))
                 raise StopIteration(False)
 
             # if we just turned the device off, give it a chance to rest
