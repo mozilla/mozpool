@@ -4,7 +4,7 @@
 from setuptools import setup, find_packages
 
 setup(name='mozpool',
-      version='0.4.1',
+      version='0.4.2',
       description='System to manage a pool of cranky mobile devices',
       author=u'Ted Mielczarek, Mark Côté, Dustin Mitchell',
       url='http://hg.mozilla.org/build/mozpool',
