@@ -316,6 +316,11 @@ class pxe_booting(statemachine.State):
         bmm_api.clear_pxe(self.machine.device_name)
         self.machine.goto_state(android_downloading)
 
+    def on_b2g_downloading(self, args):
+        self.machine.clear_counter(self.state_name)
+        bmm_api.clear_pxe(self.machine.device_name)
+        self.machine.goto_state(b2g_downloading)
+
     def on_maint_mode(self, args):
         # note we do not clear the PXE config here, so it will
         # continue to boot into maintenance mode
@@ -437,6 +442,138 @@ class android_pinging(statemachine.State):
     # TODO: also try a SUT agent connection here (mcote)
 
 ####
+# PXE Booting :: B2G Installation
+
+@DeviceStateMachine.state_class
+class b2g_downloading(statemachine.State):
+    """
+    The second-stage script is downloading the B2G artifacts.  When
+    complete, it will send an event and go into the 'b2g_extracting' state.
+    """
+
+    # Downloading takes about 30s.  Allow a generous multiple of that to handle
+    # moments of high load or bigger images.  Failures here are likely a misconfig, 
+    # so they aren't retried very many times
+    TIMEOUT = 180
+    PERMANENT_FAILURE_COUNT = 3
+
+    def on_b2g_apt(self, args):
+        self.machine.clear_counter(self.state_name)
+        self.machine.goto_state(b2g_apt)
+
+    def on_timeout(self):
+        if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
+            self.machine.goto_state(failed_b2g_downloading)
+        else:
+            self.machine.goto_state(pxe_power_cycling)
+
+
+@DeviceStateMachine.state_class
+class b2g_apt(statemachine.State):
+    """
+    The second-stage script is updating its in-memory apt information from ports.ubuntu.org.
+    This is a temporary workaroud.
+    """
+
+    # apt-get update + installing takes about 45s, but since it's using an external resource
+    # (ubuntu) it gets extra time
+    TIMEOUT = 240
+    PERMANENT_FAILURE_COUNT = 10
+
+    def on_b2g_extracting(self, args):
+        self.machine.clear_counter(self.state_name)
+        self.machine.goto_state(b2g_extracting)
+
+    def on_timeout(self):
+        if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
+            self.machine.goto_state(failed_b2g_extracting)
+        else:
+            self.machine.goto_state(pxe_power_cycling)
+
+
+@DeviceStateMachine.state_class
+class b2g_extracting(statemachine.State):
+    """
+    The second-stage script is extracting the B2G artifacts onto the
+    sdcard.  When this is complete, the script will send an event and go into
+    the 'b2g_rebooting' state.
+    """
+
+    # Extracting takes 1m on a good day.  Give it plenty of leeway.  Funky
+    # sdcards can cause this to fail, so it gets a few retries, but honestly,
+    # this is an indication that the sdcard should be replaced
+    TIMEOUT = 300
+    PERMANENT_FAILURE_COUNT = 10
+
+    def on_b2g_rebooting(self, args):
+        self.machine.clear_counter(self.state_name)
+        self.machine.goto_state(b2g_rebooting)
+
+    def on_timeout(self):
+        if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
+            self.machine.goto_state(failed_b2g_extracting)
+        else:
+            self.machine.goto_state(pxe_power_cycling)
+
+
+@DeviceStateMachine.state_class
+class b2g_rebooting(statemachine.State):
+    """
+    The second-stage script has rebooted the device.  This state waits a short
+    time, then begins pinging the device.  The wait is to avoid a false positive
+    ping from the board *before* it has rebooted.
+    """
+
+    # A panda seems to take about 20s to boot, so we'll round that up a bit
+    TIMEOUT = 40
+
+    def on_timeout(self):
+        self.machine.goto_state(b2g_pinging)
+
+
+@DeviceStateMachine.state_class
+class b2g_pinging(statemachine.State):
+    """
+    A reboot has been requested, and the power cycle is complete.  Ping until
+    successful, then go to state 'ready'
+    """
+
+    # TODO: factor out into a mixin to combine with android_pinging
+
+    # ping every 10s, failing 12 times (2 minutes total).  If the whole process fails here
+    # a few times, then most likely the image is bogus, so that's a permanent failure.
+    TIMEOUT = 10
+    PING_FAILURES = 12
+    PERMANENT_FAILURE_COUNT = 4
+
+    def on_entry(self):
+        def ping_complete(success):
+            # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
+            if success:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
+        bmm_api.start_ping(self.machine.device_name, ping_complete)
+
+    def on_timeout(self):
+        # this is a little tricky - b2g_pinging tracks a few tries to ping this device, so
+        # when that counter expires, then we assume the device has not imaged correctly and
+        # retry; *that* failure is counted against PERMANENT_FAILURE_COUNT.
+        if self.machine.increment_counter('b2g_pinging') > self.PERMANENT_FAILURE_COUNT:
+            self.machine.clear_counter('b2g_pinging')
+            if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
+                self.machine.goto_state(failed_b2g_pinging)
+            else:
+                self.machine.goto_state(pxe_power_cycling)
+        else:
+            self.machine.goto_state(b2g_pinging)
+
+    def on_ping_ok(self, args):
+        self.machine.clear_counter(self.state_name)
+        self.machine.clear_counter('b2g_pinging')
+        self.machine.goto_state(ready)
+
+    # TODO: also try a SUT agent connection here (mcote)
+
+####
 # PXE Booting :: Maintenance Mode
 
 @DeviceStateMachine.state_class
@@ -482,4 +619,20 @@ class failed_android_extracting(failed):
 @DeviceStateMachine.state_class
 class failed_android_pinging(failed):
     "While installing Android, the device timed out repeatedly while pinging the new image waiting for it to come up"
+
+@DeviceStateMachine.state_class
+class failed_b2g_downloading(failed):
+    "While installing B2G, the device timed out repeatedly while downloading B2G"
+
+@DeviceStateMachine.state_class
+class failed_b2g_apt(failed):
+    "While installing B2G, the device timed out repeatedly while updating its apt repositories"
+
+@DeviceStateMachine.state_class
+class failed_b2g_extracting(failed):
+    "While installing B2G, the device timed out repeatedly while extracting B2G"
+
+@DeviceStateMachine.state_class
+class failed_b2g_pinging(failed):
+    "While installing B2G, the device timed out repeatedly while pinging the new image waiting for it to come up"
 
