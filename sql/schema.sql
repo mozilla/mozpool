@@ -166,8 +166,8 @@ CREATE TABLE requests (
   state_timeout datetime
 );
 
-DROP TABLE IF EXISTS request_device;
-CREATE TABLE request_device (
+DROP TABLE IF EXISTS device_requests;
+CREATE TABLE device_requests (
   request_id integer not null references requests.id on delete restrict,
   device_id integer not null references devices.id on delete restrict,
   unique index request_id_idx (request_id),
