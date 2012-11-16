@@ -39,7 +39,7 @@ requests = sa.Table('requests', metadata,
     sa.Column('state_timeout', sa.DateTime, nullable=True),
 )
 
-device_requests = sa.Table('request_device', metadata,
+device_requests = sa.Table('device_requests', metadata,
     sa.Column('request_id', sa.Integer(unsigned=True),
         sa.ForeignKey('requests.id', ondelete='RESTRICT'),
         unique=True, nullable=False),
