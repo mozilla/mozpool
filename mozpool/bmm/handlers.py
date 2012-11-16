@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import datetime
 import web
 import templeton
 import json
@@ -59,7 +60,9 @@ class clear_pxe:
 class log:
     @templeton.handlers.json_response
     def GET(self, device_name):
-        return {'log':logs.device_logs.get(device_name)}
+        one_day = datetime.timedelta(days=1)
+        return {'log':logs.device_logs.get(device_name,
+                timeperiod=one_day)}
 
 class pxe_config_list:
     @templeton.handlers.json_response
