@@ -339,13 +339,13 @@ class TestDeviceStateChange(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestDeviceStateChange, self).setUp()
         mozpool.lifeguard.driver = devicemachine.LifeguardDriver()
-        add_device("device1", server="server1", state="unknown",
+        add_device("device1", server="server1", state="ready",
                   relayinfo="relay-1:bank1:relay1")
 
     @patch('mozpool.bmm.api.clear_pxe')
     @patch('mozpool.statemachine.StateMachine.goto_state')
     def testStateChange(self, goto_state, clear_pxe):
-        r = self.app.post("/api/device/device1/state-change/unknown/to/new/",
+        r = self.app.post("/api/device/device1/state-change/ready/to/new/",
                 params='{}')
         self.assertEqual(200, r.status)
         goto_state.assert_called_with('new')
@@ -354,7 +354,7 @@ class TestDeviceStateChange(ConfigMixin, unittest.TestCase):
     @patch('mozpool.bmm.api.set_pxe')
     @patch('mozpool.statemachine.StateMachine.goto_state')
     def testStateChangeWithPxe(self, goto_state, set_pxe):
-        r = self.app.post("/api/device/device1/state-change/unknown/to/new/",
+        r = self.app.post("/api/device/device1/state-change/ready/to/new/",
                 params=json.dumps(dict(pxe_config='p', boot_config='b')))
         self.assertEqual(200, r.status)
         goto_state.assert_called_with('new')
@@ -362,7 +362,8 @@ class TestDeviceStateChange(ConfigMixin, unittest.TestCase):
 
     @patch('mozpool.statemachine.StateMachine.goto_state')
     def testStateChangeConflict(self, goto_state):
-        r = self.app.post("/api/device/device1/state-change/notthis/to/new/",
+        # try changing from 'new', which doesn't exist
+        r = self.app.post("/api/device/device1/state-change/new/to/pxe_rebooting/",
                 params='{}', expect_errors=True)
         self.assertEqual(409, r.status)
 
