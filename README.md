@@ -1,3 +1,10 @@
+Overview
+========
+
+For an overview of what Mozpool is and how it's used at Mozilla, see
+
+  https://wiki.mozilla.org/ReleaseEngineering/Mozpool
+
 Comprehensive, High-Level Design Description
 ============================================
 
@@ -46,26 +53,25 @@ of images on spare devices, predictively installing B2G images, etc.
 
 ## LifeGuard ##
 
-LifeGuard deals only with devices.  It actively tracks the state of every device,
-and handles requests from MozPool to change the state of a device.  These
-requests are conditional: "please change to state Y iff the device is currently
-in state X"; the state-change request fails if the condition is not met.
+LifeGuard deals only with devices.  It actively tracks the state of every
+device, and handles requests from MozPool to change the state of a device, via
+events.  These events ask the device to "please" perform some action.  If the
+device is not in the expected state, the request is ignored.
 
 Most states for a device involve periodic checks from LifeGuard.
-Idle devices are checked periodically, and failure conditions rectified.
 
 ## BMM ##
 
 BMM, short for Black Mobile Magic, is the lowest-level component, and handles
 technical operations on devices as requested from LifeGuard.  The available
-operations are power-cycling a device; PXE-booting a device; and running commands
-on a device via SUTAgent.  BMM includes TFTP and HTTP services to allow a device
-to be booted into a Linux live-boot environment, and scripts run there to
-perform whatever actions are appropriate.
+operations are power-cycling a device; PXE-booting a device; pinging a device;
+and running commands on a device via SUTAgent.  BMM includes TFTP and HTTP
+services to allow a device to be booted into a Linux live-boot environment, and
+scripts run there to perform whatever actions are appropriate.
 
-Specific scripts will implement actions required by LifeGuard: install Android,
+Specific scripts implement actions required by LifeGuard: install Android,
 install a B2G image, run an SSH server in maintenance mode, run system checks,
-etc.
+etc.  Each of these have corresponding states in the Lifeguard state machine.
 
 BMM abstracts away the details of how power is controlled for each device, as
 well as the particulars of boot images for specific hardware.
