@@ -156,6 +156,8 @@ CREATE TABLE requests (
   assignee varchar(256) not null,
   -- time at which the request will expire (if not renewed)
   expires datetime not null,
+  -- config to pass to device once assigned (JSON blob)
+  boot_config text,
   -- state machine variables
   state varchar(32) not null,
   state_counters text not null,
