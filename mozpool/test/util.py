@@ -70,7 +70,7 @@ def add_pxe_config(name, description="Boot image",
                            active=active)
 
 def add_request(server, assignee="slave", state="new", expires=None,
-                device=None):
+                device='any'):
     if not expires:
         expires = datetime.datetime.now() + datetime.timedelta(hours=1)
     conn = sql.get_conn()
@@ -80,6 +80,7 @@ def add_request(server, assignee="slave", state="new", expires=None,
         raise data.NotFound
     res = conn.execute(model.requests.insert(),
                        imaging_server_id=server_id,
+                       requested_device=device,
                        assignee=assignee,
                        state=state,
                        state_counters='{}',

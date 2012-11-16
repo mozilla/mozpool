@@ -39,7 +39,8 @@ class device_request:
             raise web.notfound()
 
         try:
-            request_id = data.create_request(body['assignee'],
+            request_id = data.create_request(device_name,
+                                             body['assignee'],
                                              int(body['duration']))
         except (KeyError, ValueError):
             raise web.badrequest()

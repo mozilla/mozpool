@@ -40,6 +40,7 @@ for device_id in range(1, options.devices+1):
 for request_id in range(1, options.requests+1):
     conn.execute(model.requests.insert(),
                  device_id=request_id,
+                 requested_device='any',
                  assignee='slave%d' % request_id,
                  state='new',
                  state_counters='{}',

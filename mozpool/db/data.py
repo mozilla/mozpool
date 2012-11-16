@@ -302,18 +302,19 @@ def get_unassigned_devices():
             ))
     return [row[0] for row in res]
 
-def create_request(assignee, duration):
+def create_request(requested_device, assignee, duration):
     conn = sql.get_conn()
     server_id = conn.execute(select(
             [model.imaging_servers.c.id],
             model.imaging_servers.c.fqdn==config.get('server', 'fqdn'))
                              ).fetchall()[0][0]
-    reservation = {'assignee': assignee,
-                   'state': 'new',
-                   'state_counters': '{}',
+    reservation = {'imaging_server_id': server_id,
+                   'requested_device': requested_device,
+                   'assignee': assignee,
                    'expires': datetime.datetime.now() +
-                   datetime.timedelta(seconds=duration),
-                   'imaging_server_id': server_id}
+                              datetime.timedelta(seconds=duration),
+                   'state': 'new',
+                   'state_counters': '{}'}
     try:
         res = conn.execute(model.requests.insert(), reservation)
     except sqlalchemy.exc.IntegrityError:

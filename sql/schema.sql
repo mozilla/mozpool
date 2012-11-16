@@ -152,6 +152,8 @@ CREATE TABLE requests (
   -- fqdn of imaging server
   imaging_server_id integer unsigned not null,
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
+  -- name of requested device; could be 'any' or a particular device name
+  requested_device varchar(32) not null,
   -- short identifier for the requester/assignee
   assignee varchar(256) not null,
   -- time at which the request will expire (if not renewed)
