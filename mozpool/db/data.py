@@ -349,7 +349,8 @@ def all_imaging_servers():
 
 def end_request(request_id):
     conn = sql.get_conn()
-    conn.execute(model.requests.delete().where(model.requests.c.id==request_id))
+    conn.execute(model.device_requests.delete().where(
+            model.device_requests.c.request_id==request_id))
 
 def dump_requests(*request_ids):
     conn = sql.get_conn()

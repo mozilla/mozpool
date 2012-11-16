@@ -249,6 +249,10 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertEqual(body["device"]["name"], "device2")
+        device2_request_id = body["request"]["id"]
+        r = self.app.post("/api/device/any/request/",
+                          json.dumps(request_params), expect_errors=True)
+        self.assertEqual(404, r.status)
 
         # test details for found and not found devices
         r = self.app.get("/api/request/10/details/", expect_errors=True)
@@ -277,6 +281,13 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         self.assertEqual(302, r.status)
         r = self.app.post("/api/request/1/return/")
         self.assertEqual(302, r.status)
+
+        # test return
+        r = self.app.post("/api/request/%d/return/" % device2_request_id)
+        self.assertEqual(204, r.status)
+        r = self.app.post("/api/device/device2/request/",
+                          json.dumps(request_params))
+        self.assertEqual(200, r.status)
         
 
 class TestDevicePowerCycle(ConfigMixin, unittest.TestCase):

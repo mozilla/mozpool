@@ -71,7 +71,8 @@ class device_request:
                                   "could not contact lifeguard server at %s" %
                                   device_url)
 
-        return {'device': device, 'request_url': request_url}
+        return {'device': device, 'request': data.dump_requests(request_id)[0],
+                'request_url': request_url}
 
 class device_list:
     @templeton.handlers.json_response
