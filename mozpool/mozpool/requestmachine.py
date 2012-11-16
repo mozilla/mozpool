@@ -46,19 +46,20 @@ class MozpoolDriver(statedriver.StateDriver):
         self.imaging_server_id = data.find_imaging_server_id(
             config.get('server', 'fqdn'))
     
-    def _get_timed_out_machines(self):
-        for request_id in data.get_timed_out_requests(self.imaging_server_id):
-            machine = self._get_machine(request_id)
-            try:
-                machine.handle_timeout()
-            except:
-                self.logger.error("(ignored) error while handling timeout:",
-                                  exc_info=True)
-            yield machine
+    def _get_timed_out_machine_names(self):
+        return data.get_timed_out_requests(self.imaging_server_id)
+
+####
+# Mixins
+
+class Closable(object):
+
+    def on_close(self, args):
+        self.machine.goto_state(closed)
 
 
 @RequestStateMachine.state_class
-class new(statemachine.State):
+class new(Closable, statemachine.State):
     "New request; no action taken yet."
 
     def on_find_device(self, args):
@@ -66,7 +67,7 @@ class new(statemachine.State):
 
 
 @RequestStateMachine.state_class
-class findingdevice(statemachine.State):
+class findingdevice(Closable, statemachine.State):
     "Assign device."
 
     TIMEOUT = 60
@@ -83,41 +84,40 @@ class findingdevice(statemachine.State):
         count = self.machine.increment_counter(self.state_name)
         request = data.dump_requests(self.machine.request_id)[0]
         if request['requested_device'] == 'any':
-            if count > self.MAX_ANY_REQUESTS:
-                self.machine.goto_state(devicenotfound)
-                return
             free_devices = data.get_unassigned_devices()
             if not free_devices:
                 return  # retry
             device_name = free_devices[random.randint(0, len(free_devices) - 1)]
         else:
-            if count > self.MAX_SPECIFIC_REQUESTS:
-                self.machine.goto_state(devicenotfound)  # better error?
-                return
             device_name = request['requested_device']
+
         if data.reserve_device(self.machine.request_id, device_name):
             self.machine.goto_state(contactinglifeguard)
+        else:
+            if request['requested_device'] == 'any':
+                if count >= self.MAX_ANY_REQUESTS:
+                    self.machine.goto_state(devicenotfound)
+            else:
+                if count >= self.MAX_SPECIFIC_REQUESTS:
+                    self.machine.goto_state(devicebusy)
 
 
 @RequestStateMachine.state_class
-class contactinglifeguard(statemachine.State):
+class contactinglifeguard(Closable, statemachine.State):
     "Contacting device's lifeguard server to reimage/reboot."
 
     TIMEOUT = 60
     PERMANENT_FAILURE_COUNT = 5
 
     def on_entry(self):
-        print 'entry'
         if self.contact_lifeguard():
             self.machine.goto_state(pending)
             return
         counters = self.machine.read_counters()
         if counters.get(self.state_name, 0) > self.PERMANENT_FAILURE_COUNT:
             self.machine.goto_state(devicenotfound)
-        print 'done entry'
 
     def on_timeout(self):
-        print 'timeout'
         self.machine.increment_counter(self.state_name)
         self.machine.goto_state(contactinglifeguard)
 
@@ -131,8 +131,8 @@ class contactinglifeguard(statemachine.State):
             event = 'please_power_cycle'
 
         device_url = 'http://%s/api/device/%s/event/%s/' % (
-            request_config['device_server'],
-            request_config['device_name'], event)
+            data.get_server_for_request(self.machine.request_id),
+            request_config['assigned_device'], event)
         try:
             urllib.urlopen(device_url, device_request_data)
         except IOError:
@@ -144,7 +144,7 @@ class contactinglifeguard(statemachine.State):
 
 
 @RequestStateMachine.state_class
-class pending(statemachine.State):
+class pending(Closable, statemachine.State):
     "Request is pending while a device is located and prepared."
 
     TIMEOUT = 60
@@ -163,10 +163,31 @@ class pending(statemachine.State):
 
 
 @RequestStateMachine.state_class
-class devicenotfound(statemachine.State):
+class devicenotfound(Closable, statemachine.State):
     "No working unassigned device could be found."
 
 
 @RequestStateMachine.state_class
-class ready(statemachine.State):
+class devicebusy(Closable, statemachine.State):
+    "The requested device is already assigned."
+
+
+@RequestStateMachine.state_class
+class ready(Closable, statemachine.State):
     "Device has been prepared and is ready for use."
+
+
+@RequestStateMachine.state_class
+class expired(Closable, statemachine.State):
+    "Request has expired."
+
+    def on_entry(self):
+        data.clear_device_request(self.machine.request_id)
+
+
+@RequestStateMachine.state_class
+class closed(statemachine.State):
+    "Device was returned and request has been closed."
+
+    def on_entry(self):
+        data.clear_device_request(self.machine.request_id)

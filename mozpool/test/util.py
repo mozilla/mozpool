@@ -14,7 +14,6 @@ from mozpool.db import data, sql
 
 inventory_id = 1
 
-
 def setup_db(dbfile):
     # blow away the db file so we know we're starting fresh
     if os.path.exists(dbfile):

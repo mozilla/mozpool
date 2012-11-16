@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import random
+import json
 import templeton
 import web
 
@@ -18,9 +18,20 @@ urls = (
 
     "/request/list/?", "request_list",
     "/request/([^/]+)/details/?", "request_details",
+    "/request/([^/]+)/status/?", "request_status",
     "/request/([^/]+)/renew/?", "request_renew",
     "/request/([^/]+)/return/?", "request_return",
 )
+
+class ConflictJSON(web.HTTPError):
+    """`409 Conflict` error with JSON body."""
+    def __init__(self, o):
+        status = "409 Conflict"
+        body = json.dumps(o)
+        headers = {'Content-Length': len(body),
+                   'Content-Type': 'application/json; charset=utf-8'}
+        web.HTTPError.__init__(self, status, headers, body)
+
 
 def requestredirect(function):
     """
@@ -53,8 +64,13 @@ class device_request:
         request_url = 'http://%s/api/request/%d/' % (config.get('server',
                                                                 'fqdn'),
                                                      request_id)
-        return {'request': data.dump_requests(request_id)[0],
-                'request_url': request_url}
+
+        response_data = {'request': data.request_config(request_id),
+                         'request_url': request_url}
+
+        if data.request_status(request_id)['state'] == 'devicebusy':
+            raise ConflictJSON(response_data)
+        return response_data
 
 class device_list:
     @templeton.handlers.json_response
@@ -79,7 +95,15 @@ class request_details:
     @templeton.handlers.json_response
     def GET(self, request_id):
         try:
-            return data.dump_requests(request_id)[0]
+            return data.request_config(request_id)
+        except data.NotFound:
+            raise web.notfound()
+
+class request_status:
+    @templeton.handlers.json_response
+    def GET(self, request_id):
+        try:
+            return data.request_status(request_id)
         except IndexError:
             raise web.notfound()
 
@@ -97,5 +121,5 @@ class request_renew:
 class request_return:
     @requestredirect
     def POST(self, request_id):
-        data.end_request(request_id)
+        mozpool.mozpool.driver.handle_event(request_id, 'close', None)
         raise mozpool_handlers.nocontent()

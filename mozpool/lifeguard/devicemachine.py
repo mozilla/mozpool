@@ -57,14 +57,8 @@ class LifeguardDriver(statedriver.StateDriver):
         self.imaging_server_id = data.find_imaging_server_id(
             config.get('server', 'fqdn'))
 
-    def _get_timed_out_machines(self):
-        for device_name in data.get_timed_out_devices(self.imaging_server_id):
-            machine = self._get_machine(device_name)
-            try:
-                machine.handle_timeout()
-            except:
-                self.logger.error("(ignored) error while handling timeout:", exc_info=True)
-            yield machine
+    def _get_timed_out_machine_names(self):
+        return data.get_timed_out_devices(self.imaging_server_id)
 
     def conditional_state_change(self, device_name, old_state, new_state,
                                  new_pxe_config, new_boot_config):

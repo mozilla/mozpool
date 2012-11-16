@@ -35,6 +35,7 @@ from mozpool.test import fakerelay
 import mozpool.bmm.api
 import mozpool.lifeguard
 from mozpool.lifeguard import devicemachine
+from mozpool.mozpool import requestmachine
 
 class ConfigMixin(object):
     def setUp(self):
@@ -227,6 +228,7 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         add_device("device2", server="server1")
         add_device("device3", server="server1")
         add_request("server2", device="device3")
+        mozpool.mozpool.driver = requestmachine.MozpoolDriver()
    
     def testRequestDevice(self):
         request_params = {"assignee": "slave1", "duration": 3600}
@@ -234,23 +236,29 @@ class TestRequests(ConfigMixin, unittest.TestCase):
                           json.dumps(request_params))
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEqual(body["device"]["name"], "device1")
+        self.assertEqual(body["request"]["assigned_device"], "device1")
         self.assertEqual(urlparse.urlparse(body["request_url"]).path,
                          "/api/request/2/")
         r = self.app.post("/api/device/device1/request/",
                           json.dumps(request_params), expect_errors=True)
         self.assertEqual(409, r.status)
+        body = json.loads(r.body)
+        self.assertEqual(body["request"]["assigned_device"], "")
 
         # test "any" request
         r = self.app.post("/api/device/any/request/",
                           json.dumps(request_params))
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEqual(body["device"]["name"], "device2")
+        self.assertEqual(body["request"]["assigned_device"], "device2")
         device2_request_id = body["request"]["id"]
         r = self.app.post("/api/device/any/request/",
                           json.dumps(request_params), expect_errors=True)
-        self.assertEqual(404, r.status)
+        # it will retry a few times to find a device, so we'll get back
+        # a 200 error but no assigned device
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEqual(body["request"]["assigned_device"], "")
 
         # test details for found and not found devices
         r = self.app.get("/api/request/10/details/", expect_errors=True)

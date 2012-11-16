@@ -363,8 +363,9 @@ def create_request(requested_device, assignee, duration, boot_config):
 
 def reserve_device(request_id, device_name):
     conn = sql.get_conn()
-    device_id = conn.execute(select([model.devices.c.id],
-                                    model.devices.c.name==device_name))
+    device_id = conn.execute(select(
+            [model.devices.c.id],
+            model.devices.c.name==device_name)).fetchone()[0]
     if not device_id:
         raise NotFound
     try:
@@ -392,24 +393,36 @@ def all_imaging_servers():
     res = sql.get_conn().execute(select([model.imaging_servers.c.fqdn]))
     return [ row['fqdn'] for row in res.fetchall() ]
 
-def end_request(request_id):
+def clear_device_request(request_id):
     conn = sql.get_conn()
     conn.execute(model.device_requests.delete().where(
             model.device_requests.c.request_id==request_id))
 
 def request_config(request_id):
-    res = sql.get_conn().execute(select([model.requests.c.boot_config,
-                                         model.devices.c.name],
-                                        from_obj=[model.requests.join(model.devices)]).where(model.requests.c.id==request_id))
+    conn = sql.get_conn()
+    res = conn.execute(select([model.requests.c.requested_device,
+                               model.requests.c.assignee,
+                               model.requests.c.expires,
+                               model.requests.c.boot_config],
+                              model.requests.c.id==request_id))
     row = res.fetchone()
     if row is None:
         raise NotFound
 
-    device_name = row[1].encode('utf-8')
+    config = {'id': request_id,
+              'requested_device': row[0].encode('utf-8'),
+              'assignee': row[1].encode('utf-8'),
+              'expires': row[2].isoformat(),
+              'boot_config': row[3].encode('utf-8'),
+              'assigned_device': ''}
 
-    return {'boot_config': json.loads(row[0].encode('utf-8')),
-            'device_name': device_name,
-            'device_server': get_server_for_device(device_name)}
+    res = conn.execute(select([model.devices.c.name],
+                              from_obj=[model.device_requests.join(model.devices)]).where(model.device_requests.c.request_id==request_id))
+    row = res.fetchone()
+    if row:
+        config['assigned_device'] = row[0].encode('utf-8')
+
+    return config
 
 def dump_requests(*request_ids):
     conn = sql.get_conn()

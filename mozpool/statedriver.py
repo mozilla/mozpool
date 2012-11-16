@@ -49,7 +49,8 @@ class StateDriver(threading.Thread):
                 break
 
             last_poll = time.time()
-            for machine in self._get_timed_out_machines():
+            for machine_name in self._get_timed_out_machine_names():
+                machine = self._get_machine(machine_name)
                 try:
                     machine.handle_timeout()
                 except:
@@ -79,7 +80,7 @@ class StateDriver(threading.Thread):
         return self.state_machine_cls(machine_name)
 
     @abc.abstractmethod
-    def _get_timed_out_machines(self):
+    def _get_timed_out_machine_names(self):
         return []
 
 
