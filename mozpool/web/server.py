@@ -11,9 +11,10 @@ import templeton.middleware
 import web
 import mozpool
 import mozpool.lifeguard
+import mozpool.mozpool
 from mozpool.lifeguard import devicemachine, handlers as lifeguard_handlers
 from mozpool.bmm import handlers as bmm_handlers
-from mozpool.mozpool import handlers as mozpool_handlers
+from mozpool.mozpool import requestmachine, handlers as mozpool_handlers
 
 templeton.middleware.patch_middleware()
 
@@ -43,6 +44,10 @@ def main():
     # TODO: make this configurable, as well as poll freq
     mozpool.lifeguard.driver = devicemachine.LifeguardDriver()
     mozpool.lifeguard.driver.start()
+
+    # start up the mozpool driver
+    mozpool.mozpool.driver = requestmachine.MozpoolDriver()
+    mozpool.mozpool.driver.start()
 
     app = get_app()
     app.run()

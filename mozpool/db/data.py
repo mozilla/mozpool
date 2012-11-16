@@ -176,8 +176,8 @@ def get_timed_out(tbl, id_col, imaging_server_id):
     """
     now = datetime.datetime.now()
     res = sql.get_conn().execute(select(
-        [id_col],
-        (tbl.c.state_timeout < now)
+            [id_col],
+            (tbl.c.state_timeout < now)
             & (tbl.c.imaging_server_id == imaging_server_id)))
     timed_out = [r[0] for r in res.fetchall()]
     return timed_out
@@ -343,7 +343,7 @@ def get_unassigned_devices():
             ))
     return [row[0] for row in res]
 
-def create_request(requested_device, assignee, duration):
+def create_request(requested_device, assignee, duration, boot_config):
     conn = sql.get_conn()
     server_id = conn.execute(select(
             [model.imaging_servers.c.id],
@@ -354,19 +354,22 @@ def create_request(requested_device, assignee, duration):
                    'assignee': assignee,
                    'expires': datetime.datetime.now() +
                               datetime.timedelta(seconds=duration),
+                   'boot_config': boot_config,
                    'state': 'new',
                    'state_counters': '{}'}
-    try:
-        conn.execute(model.requests.insert(), reservation)
-    except sqlalchemy.exc.IntegrityError:
-        return None
+
+    res = conn.execute(model.requests.insert(), reservation)
     return res.lastrowid
 
-def reserve_device(request_id, device_id):
+def reserve_device(request_id, device_name):
+    conn = sql.get_conn()
+    device_id = conn.execute(select([model.devices.c.id],
+                                    model.devices.c.name==device_name))
+    if not device_id:
+        raise NotFound
     try:
-        sql.get_conn().execute(model.device_requests.insert(),
-                               {'request_id': request_id,
-                                'device_id': device_id})
+        conn.execute(model.device_requests.insert(),
+                     {'request_id': request_id, 'device_id': device_id})
     except sqlalchemy.exc.IntegrityError:
         return False
     return True
@@ -394,14 +397,30 @@ def end_request(request_id):
     conn.execute(model.device_requests.delete().where(
             model.device_requests.c.request_id==request_id))
 
+def request_config(request_id):
+    res = sql.get_conn().execute(select([model.requests.c.boot_config,
+                                         model.devices.c.name],
+                                        from_obj=[model.requests.join(model.devices)]).where(model.requests.c.id==request_id))
+    row = res.fetchone()
+    if row is None:
+        raise NotFound
+
+    device_name = row[1].encode('utf-8')
+
+    return {'boot_config': json.loads(row[0].encode('utf-8')),
+            'device_name': device_name,
+            'device_server': get_server_for_device(device_name)}
+
 def dump_requests(*request_ids):
     conn = sql.get_conn()
     requests = model.requests
     stmt = sqlalchemy.select(
-        [requests.c.id, model.devices.c.name.label('device'),
+        [requests.c.id,
          model.imaging_servers.c.fqdn.label('imaging_server'),
-         requests.c.assignee, requests.c.state, requests.c.expires],
-        from_obj=[requests.join(model.imaging_servers).join(model.devices)])
+         requests.c.assignee, requests.c.state, requests.c.state_counters,
+         requests.c.state_timeout, requests.c.expires,
+         requests.c.requested_device],
+        from_obj=[requests.join(model.imaging_servers)])
     if request_ids:
         id_exprs = []
         for i in request_ids:

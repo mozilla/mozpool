@@ -4,10 +4,11 @@
 
 import random
 import templeton
-import urllib
 import web
+
+import mozpool.mozpool
 from mozpool import config
-from mozpool.db import data, logs
+from mozpool.db import data
 from mozpool.web import handlers as mozpool_handlers
 
 urls = (
@@ -20,74 +21,6 @@ urls = (
     "/request/([^/]+)/renew/?", "request_renew",
     "/request/([^/]+)/return/?", "request_return",
 )
-
-
-class device_request:
-    @templeton.handlers.json_response
-    def POST(self, device_name):
-        args, body = templeton.handlers.get_request_parms()
-        image = body.get('image', None)
-        if device_name == 'any':
-            free_devices = data.get_unassigned_devices()
-            if not free_devices:
-                raise web.notfound()
-            device_name = free_devices[random.randint(0, len(free_devices) - 1)]
-
-        try:
-            device = data.dump_devices(device_name)[0]
-        except IndexError:
-            raise web.notfound()
-
-        try:
-            request_id = data.create_request(device_name,
-                                             body['assignee'],
-                                             int(body['duration']))
-        except (KeyError, ValueError):
-            raise web.badrequest()
-
-        if request_id is None:
-            raise web.conflict()
-
-        request_url = 'http://%s/api/request/%d/' % (config.get('server',
-                                                                'fqdn'),
-                                                     request_id)
-
-        # FIXME: retry a few times
-        if not data.reserve_device(request_id, device['id']):
-            raise web.conflict()
-
-        device_request_data = {}
-        if image:
-            event = 'please_pxe_boot' # TODO: state not specified yet
-            device_request_data['image'] = image
-        else:
-            event = 'please_power_cycle'
-
-        device_url = 'http://%s/api/device/%s/event/%s' % \
-            (device['imaging_server'], device['id'], event)
-        try:
-            urllib.urlopen(device_url, device_request_data)
-        except IOError:
-            logs.request_logs.add(request_id,
-                                  "could not contact lifeguard server at %s" %
-                                  device_url)
-
-        return {'device': device, 'request': data.dump_requests(request_id)[0],
-                'request_url': request_url}
-
-class device_list:
-    @templeton.handlers.json_response
-    def GET(self):
-        args, _ = templeton.handlers.get_request_parms()
-        if 'details' in args:
-            return dict(devices=data.dump_devices())
-        else:
-            return data.list_devices()
-
-class device_status:
-    @templeton.handlers.json_response
-    def GET(self, id):
-        return data.device_status(id)
 
 def requestredirect(function):
     """
@@ -103,6 +36,39 @@ def requestredirect(function):
             raise web.found("http://%s%s" % (server, web.ctx.path))
         return function(self, id, *args)
     return wrapped
+
+class device_request:
+    @templeton.handlers.json_response
+    def POST(self, device_name):
+        args, body = templeton.handlers.get_request_parms()
+        boot_config = body.get('boot_config', '{}')
+        try:
+            assignee = body['assignee']
+            duration = int(body['duration'])
+        except (KeyError, ValueError):
+            raise web.badrequest()
+        request_id = data.create_request(device_name, assignee, duration,
+                                         boot_config)
+        mozpool.mozpool.driver.handle_event(request_id, 'find_device', None)
+        request_url = 'http://%s/api/request/%d/' % (config.get('server',
+                                                                'fqdn'),
+                                                     request_id)
+        return {'request': data.dump_requests(request_id)[0],
+                'request_url': request_url}
+
+class device_list:
+    @templeton.handlers.json_response
+    def GET(self):
+        args, _ = templeton.handlers.get_request_parms()
+        if 'details' in args:
+            return dict(devices=data.dump_devices())
+        else:
+            return data.list_devices()
+
+class device_status:
+    @templeton.handlers.json_response
+    def GET(self, id):
+        return data.device_status(id)
 
 class request_list:
     @templeton.handlers.json_response
