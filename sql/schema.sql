@@ -149,18 +149,24 @@ CREATE TABLE devices (
 DROP TABLE IF EXISTS requests;
 CREATE TABLE requests (
   id integer unsigned not null primary key auto_increment,
-  -- assigned device, if any
-  device_id integer not null references devices.id on delete restrict,
   -- fqdn of imaging server
   imaging_server_id integer unsigned not null,
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
   -- short identifier for the requester/assignee
-  assignee varchar(255) not null,
-  -- current status of the request (part of the state machine)
-  status varchar(255) not null,
+  assignee varchar(256) not null,
   -- time at which the request will expire (if not renewed)
   expires datetime not null,
+  -- state machine variables
+  state varchar(32) not null,
+  state_counters text not null,
+  state_timeout datetime
+);
 
+DROP TABLE IF EXISTS request_device;
+CREATE TABLE request_device (
+  request_id integer not null references requests.id on delete restrict,
+  device_id integer not null references devices.id on delete restrict,
+  unique index request_id_idx (request_id),
   unique index device_id_idx (device_id)
 );
 

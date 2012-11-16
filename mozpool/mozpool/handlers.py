@@ -39,12 +39,10 @@ class device_request:
             raise web.notfound()
 
         try:
-            request_id = data.reserve_device(device['id'], body['assignee'],
-                                            int(body['duration']))
+            request_id = data.create_request(body['assignee'],
+                                             int(body['duration']))
         except (KeyError, ValueError):
             raise web.badrequest()
-        except data.NotFound:
-            raise web.notfound()
 
         if request_id is None:
             raise web.conflict()
@@ -52,6 +50,11 @@ class device_request:
         request_url = 'http://%s/api/request/%d/' % (config.get('server',
                                                                 'fqdn'),
                                                      request_id)
+
+        # FIXME: retry a few times
+        if not data.reserve_device(request_id, device['id']):
+            raise web.conflict()
+
         device_request_data = {}
         if image:
             event = 'please_pxe_boot' # TODO: state not specified yet
@@ -63,7 +66,7 @@ class device_request:
             (device['imaging_server'], device['id'], event)
         try:
             urllib.urlopen(device_url, device_request_data)
-        except IOError, e:
+        except IOError:
             logs.request_logs.add(request_id,
                                   "could not contact lifeguard server at %s" %
                                   device_url)

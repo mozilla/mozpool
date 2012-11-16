@@ -296,16 +296,21 @@ def update_pxe_config(name, description=None, active=None, contents=None):
 
 def get_unassigned_devices():
     conn = sql.get_conn()
-    res = conn.execute(select([model.devices.c.name]).where(not_(exists(select([model.requests.c.id]).where(model.requests.c.device_id==model.devices.c.id)))))
+    res = conn.execute(select([model.devices.c.name]).where(
+            not_(exists(select([model.device_requests.c.request_id]).where(
+                        model.device_requests.c.device_id==model.devices.c.id)))
+            ))
     return [row[0] for row in res]
 
-def reserve_device(device_id, assignee, duration):
+def create_request(assignee, duration):
     conn = sql.get_conn()
-    server_id = conn.execute(select([model.imaging_servers.c.id],
-                                    model.imaging_servers.c.fqdn==config.get('server', 'fqdn'))).fetchall()[0][0]
-    reservation = {'device_id': device_id,
-                   'assignee': assignee,
-                   'status': 'pending',
+    server_id = conn.execute(select(
+            [model.imaging_servers.c.id],
+            model.imaging_servers.c.fqdn==config.get('server', 'fqdn'))
+                             ).fetchall()[0][0]
+    reservation = {'assignee': assignee,
+                   'state': 'new',
+                   'state_counters': '{}',
                    'expires': datetime.datetime.now() +
                    datetime.timedelta(seconds=duration),
                    'imaging_server_id': server_id}
@@ -313,7 +318,16 @@ def reserve_device(device_id, assignee, duration):
         res = conn.execute(model.requests.insert(), reservation)
     except sqlalchemy.exc.IntegrityError:
         return None
-    return conn.execute(select([model.requests.c.id]).where(model.requests.c.device_id==device_id)).fetchall()[0][0]
+    return res.lastrowid
+
+def reserve_device(request_id, device_id):
+    try:
+        sql.get_conn().execute(model.device_requests.insert(),
+                               {'request_id': request_id,
+                                'device_id': device_id})
+    except sqlalchemy.exc.IntegrityError:
+        return False
+    return True
 
 def get_server_for_request(request_id):
     """
@@ -343,7 +357,7 @@ def dump_requests(*request_ids):
     stmt = sqlalchemy.select(
         [requests.c.id, model.devices.c.name.label('device'),
          model.imaging_servers.c.fqdn.label('imaging_server'),
-         requests.c.assignee, requests.c.status, requests.c.expires],
+         requests.c.assignee, requests.c.state, requests.c.expires],
         from_obj=[requests.join(model.imaging_servers).join(model.devices)])
     if request_ids:
         id_exprs = []
@@ -361,9 +375,9 @@ def renew_request(request_id, duration):
     conn = sql.get_conn()
     conn.execute(model.requests.update(model.requests).values(expires=datetime.datetime.now() + datetime.timedelta(seconds=duration)).where(model.requests.c.id==request_id))
 
-def update_request_status(request_id, old_status, new_status):
+def update_request_status(request_id, old_state, new_state):
     conn = sql.get_conn()
-    current_status = conn.execute(select([model.requests.c.status]).where(model.requests.c.id==request_id)).fetchall()[0][0]
-    if old_status != current_status:
-        raise InvalidStateChange(old_status, new_status, current_status)
-    conn.execute(model.requests.update(model.requests).values(status=new_status).where(model.requests.c.id==request_id))
+    current_state = conn.execute(select([model.requests.c.state]).where(model.requests.c.id==request_id)).fetchall()[0][0]
+    if old_state != current_state:
+        raise InvalidStateChange(old_state, new_state, current_state)
+    conn.execute(model.requests.update(model.requests).values(state=new_state).where(model.requests.c.id==request_id))

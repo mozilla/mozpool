@@ -41,7 +41,8 @@ for request_id in range(1, options.requests+1):
     conn.execute(model.requests.insert(),
                  device_id=request_id,
                  assignee='slave%d' % request_id,
-                 status='inuse',
+                 state='new',
+                 state_counters='{}',
                  imaging_server_id=img_svr_id,
                  expires=datetime.datetime.now() +
                          datetime.timedelta(seconds=12*60*60))

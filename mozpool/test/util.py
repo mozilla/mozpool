@@ -8,7 +8,6 @@ manual testing.
 
 import datetime
 import os
-import json
 from sqlalchemy.sql import select
 from mozpool.db import model
 from mozpool.db import data, sql
@@ -69,22 +68,28 @@ def add_pxe_config(name, description="Boot image",
                            contents=contents,
                            id=id,
                            active=active)
-def add_request(device, server, assignee="slave", status="pending",
-                expires=None):
+
+def add_request(server, assignee="slave", state="new", expires=None,
+                device=None):
     if not expires:
         expires = datetime.datetime.now() + datetime.timedelta(hours=1)
     conn = sql.get_conn()
-    device_id = conn.execute(select([model.devices.c.id],
-                                    model.devices.c.name==device)).fetchone()[0]
-    if device_id is None:
-        raise data.NotFound
     server_id = conn.execute(select([model.imaging_servers.c.id],
                                     model.imaging_servers.c.fqdn==server)).fetchone()[0]
     if server_id is None:
         raise data.NotFound
-    conn.execute(model.requests.insert(),
-                 device_id=device_id,
-                 imaging_server_id=server_id,
-                 assignee=assignee,
-                 status=status,
-                 expires=expires)
+    res = conn.execute(model.requests.insert(),
+                       imaging_server_id=server_id,
+                       assignee=assignee,
+                       state=state,
+                       state_counters='{}',
+                       expires=expires)
+    request_id = res.lastrowid
+    if device:
+        device_id = conn.execute(select(
+                [model.devices.c.id],
+                model.devices.c.name==device)).fetchone()[0]
+        conn.execute(model.device_requests.insert(),
+                     request_id=request_id,
+                     device_id=device_id)
+

@@ -228,7 +228,7 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         add_device("device1", server="server1")
         add_device("device2", server="server1")
         add_device("device3", server="server1")
-        add_request("device3", "server2")
+        add_request("server2", device="device3")
    
     def testRequestDevice(self):
         request_params = {"assignee": "slave1", "duration": 3600}

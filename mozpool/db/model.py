@@ -27,16 +27,24 @@ devices = sa.Table('devices', metadata,
 
 requests = sa.Table('requests', metadata,
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
-    sa.Column('device_id', sa.Integer(unsigned=True),
-        sa.ForeignKey('devices.id', ondelete='RESTRICT'),
-        unique=True, nullable=False),
     sa.Column('imaging_server_id', sa.Integer(unsigned=True),
         sa.ForeignKey('imaging_servers.id', ondelete='RESTRICT'),
         nullable=False),
     sa.Column('assignee', sa.String(256), nullable=False),
-    sa.Column('status', sa.String(32), nullable=False),
     sa.Column('expires', sa.DateTime, nullable=False),
-)                   
+    sa.Column('state', sa.String(32), nullable=False),
+    sa.Column('state_counters', sa.Text, nullable=False),
+    sa.Column('state_timeout', sa.DateTime, nullable=True),
+)
+
+device_requests = sa.Table('request_device', metadata,
+    sa.Column('request_id', sa.Integer(unsigned=True),
+        sa.ForeignKey('requests.id', ondelete='RESTRICT'),
+        unique=True, nullable=False),
+    sa.Column('device_id', sa.Integer(unsigned=True),
+        sa.ForeignKey('devices.id', ondelete='RESTRICT'),
+        unique=True, nullable=False),
+)
 
 imaging_servers = sa.Table('imaging_servers', metadata,
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
