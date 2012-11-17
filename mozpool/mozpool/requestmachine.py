@@ -49,17 +49,26 @@ class MozpoolDriver(statedriver.StateDriver):
     def _get_timed_out_machine_names(self):
         return data.get_timed_out_requests(self.imaging_server_id)
 
+    def _tick(self):
+        for request_id in data.get_expired_requests(self.imaging_server_id):
+            self.handle_event(request_id, 'expire', None)
+
+
 ####
 # Mixins
 
 class Closable(object):
-
     def on_close(self, args):
         self.machine.goto_state(closed)
 
 
+class Expirable(object):
+    def on_expire(self, args):
+        self.machine.goto_state(expired)
+
+
 @RequestStateMachine.state_class
-class new(Closable, statemachine.State):
+class new(Closable, Expirable, statemachine.State):
     "New request; no action taken yet."
 
     def on_find_device(self, args):
@@ -67,7 +76,7 @@ class new(Closable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class findingdevice(Closable, statemachine.State):
+class findingdevice(Closable, Expirable, statemachine.State):
     "Assign device."
 
     TIMEOUT = 60
@@ -103,7 +112,7 @@ class findingdevice(Closable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class contactinglifeguard(Closable, statemachine.State):
+class contactinglifeguard(Closable, Expirable, statemachine.State):
     "Contacting device's lifeguard server to reimage/reboot."
 
     TIMEOUT = 60
@@ -144,7 +153,7 @@ class contactinglifeguard(Closable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class pending(Closable, statemachine.State):
+class pending(Closable, Expirable, statemachine.State):
     "Request is pending while a device is located and prepared."
 
     TIMEOUT = 60
@@ -163,17 +172,17 @@ class pending(Closable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class devicenotfound(Closable, statemachine.State):
+class devicenotfound(Closable, Expirable, statemachine.State):
     "No working unassigned device could be found."
 
 
 @RequestStateMachine.state_class
-class devicebusy(Closable, statemachine.State):
+class devicebusy(Closable, Expirable, statemachine.State):
     "The requested device is already assigned."
 
 
 @RequestStateMachine.state_class
-class ready(Closable, statemachine.State):
+class ready(Closable, Expirable, statemachine.State):
     "Device has been prepared and is ready for use."
 
 

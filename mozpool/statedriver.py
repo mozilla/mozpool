@@ -48,6 +48,7 @@ class StateDriver(threading.Thread):
             if self._stop:
                 break
 
+            self._tick()
             last_poll = time.time()
             for machine_name in self._get_timed_out_machine_names():
                 machine = self._get_machine(machine_name)
@@ -78,6 +79,13 @@ class StateDriver(threading.Thread):
 
     def _get_machine(self, machine_name):
         return self.state_machine_cls(machine_name)
+    
+    def _tick(self):
+        """
+        Override with any activities to be performed each pass through the
+        loop.
+        """
+        pass
 
     @abc.abstractmethod
     def _get_timed_out_machine_names(self):

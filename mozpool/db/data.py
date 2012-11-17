@@ -449,3 +449,18 @@ def dump_requests(*request_ids):
 def renew_request(request_id, duration):
     conn = sql.get_conn()
     conn.execute(model.requests.update(model.requests).values(expires=datetime.datetime.now() + datetime.timedelta(seconds=duration)).where(model.requests.c.id==request_id))
+
+def get_expired_requests(imaging_server_id):
+    """
+    Get a list of all requests whose 'expires' timestamp is in the past, are
+    not in the 'expired' state, and which belong to this imaging server.
+    """
+    now = datetime.datetime.now()
+    res = sql.get_conn().execute(select(
+            [model.requests.c.id],
+            (model.requests.c.expires < now)
+            & (model.requests.c.state != 'expired')
+            & (model.requests.c.state != 'closed')
+            & (model.requests.c.imaging_server_id == imaging_server_id)))
+    expired = [r[0] for r in res.fetchall()]
+    return expired
