@@ -335,9 +335,10 @@ def request_status(request_id):
     return object_status(model.requests, model.requests.c.id, request_id,
                          logs.request_logs)
 
-def get_unassigned_devices():
+def get_unassigned_ready_devices():
     conn = sql.get_conn()
-    res = conn.execute(select([model.devices.c.name]).where(
+    res = conn.execute(select([model.devices.c.name],
+                              model.devices.c.state=="ready").where(
             not_(exists(select([model.device_requests.c.request_id]).where(
                         model.device_requests.c.device_id==model.devices.c.id)))
             ))

@@ -93,7 +93,7 @@ class findingdevice(Closable, Expirable, statemachine.State):
         count = self.machine.increment_counter(self.state_name)
         request = data.dump_requests(self.machine.request_id)[0]
         if request['requested_device'] == 'any':
-            free_devices = data.get_unassigned_devices()
+            free_devices = data.get_unassigned_ready_devices()
             if not free_devices:
                 return  # retry
             device_name = free_devices[random.randint(0, len(free_devices) - 1)]

@@ -224,9 +224,9 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         super(TestRequests, self).setUp()
         add_server("server1")
         add_server("server2")
-        add_device("device1", server="server1")
-        add_device("device2", server="server1")
-        add_device("device3", server="server1")
+        add_device("device1", server="server1", state="ready")
+        add_device("device2", server="server1", state="ready")
+        add_device("device3", server="server1", state="ready")
         add_request("server2", device="device3")
         mozpool.mozpool.driver = requestmachine.MozpoolDriver()
    
@@ -295,6 +295,14 @@ class TestRequests(ConfigMixin, unittest.TestCase):
                           json.dumps(request_params))
         self.assertEqual(200, r.status)
         
+        # test busy device
+        add_device("device4", server="server1", state="pxe_booting")
+        r = self.app.post("/api/device/any/request/",
+                          json.dumps(request_params), expect_errors=True)
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEqual(body["request"]["assigned_device"], "")
+
 
 class TestDevicePowerCycle(ConfigMixin, unittest.TestCase):
     def setUp(self):
