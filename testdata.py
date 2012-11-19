@@ -19,9 +19,14 @@ parser.add_option('-d', '--devices', dest='devices', action='store', type='int',
                   default=1)
 parser.add_option('-r', '--requests', dest='requests', action='store',
                   type='int', default=0)
+parser.add_option('-p', '--port', dest='port', action='store', type='int',
+                  default=80)
 (options, args) = parser.parse_args(args)
 
 fqdn = socket.getfqdn()
+if options.port != 80:
+    fqdn += ':%d' % options.port
+
 r = conn.execute(model.imaging_servers.insert(), fqdn=fqdn)
 img_svr_id = r.inserted_primary_key[0]
 

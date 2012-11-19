@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import datetime
+import json
 import random
 import urllib
 from mozpool import config, statemachine, statedriver
@@ -143,7 +144,7 @@ class contactinglifeguard(Closable, Expirable, statemachine.State):
             data.get_server_for_request(self.machine.request_id),
             request_config['assigned_device'], event)
         try:
-            urllib.urlopen(device_url, device_request_data)
+            urllib.urlopen(device_url, json.dumps(device_request_data))
         except IOError:
             logs.request_logs.add(self.machine.request_id,
                                   "could not contact lifeguard server at %s" %
@@ -162,7 +163,7 @@ class pending(Closable, Expirable, statemachine.State):
     def on_timeout(self):
         counter = self.machine.increment_counter(self.state_name)
         request_config = data.request_config(self.machine.request_id)
-        device_state = data.device_status(request_config['device_name'])['state']
+        device_state = data.device_status(request_config['assigned_device'])['state']
         if device_state == 'ready':
             self.machine.goto_state(self.ready)
         elif counter > self.PERMANENT_FAILURE_COUNT:
