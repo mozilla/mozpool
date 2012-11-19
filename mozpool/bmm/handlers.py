@@ -82,6 +82,7 @@ class device_bootconfig:
     def GET(self, id):
         try:
             dev_cfg = data.device_config(id)
+            web.header('Content-Type', 'application/json; charset=utf-8')
             return dev_cfg['boot_config']
         except KeyError:
             raise web.notfound()

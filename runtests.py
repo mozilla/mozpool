@@ -216,9 +216,7 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
         add_device("device1", server="server1", config=json.dumps(boot_config))
         r = self.app.get("/api/device/device1/bootconfig/")
         self.assertEqual(200, r.status)
-        #self.assertEquals(boot_config, json.loads(r.body))
-        # XXX temporary
-        self.assertEqual(boot_config['b2gbase'], r.body)
+        self.assertEquals(boot_config, json.loads(r.body))
 
 class TestRequests(ConfigMixin, unittest.TestCase): 
     def setUp(self):
