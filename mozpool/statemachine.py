@@ -33,9 +33,6 @@ from mozpool import util
 
 class StateMachine(object):
 
-    statesByName = {}
-    locksByMachine = util.LocksByName()
-
     # external interface
 
     def __init__(self, machine_type, machine_name):
@@ -163,6 +160,18 @@ class StateMachine(object):
         Unlock this machine.  Call this after the state transition is complete.
         """
         self.locksByMachine.release(self.machine_name)
+
+    # metaclass
+
+    class __metaclass__(type):
+        def __new__(meta, classname, bases, classDict):
+            cls = type.__new__(meta, classname, bases, classDict)
+
+            # add distinct class-level variables for each subclass
+            cls.statesByName = {}
+            cls.locksByMachine = util.LocksByName()
+
+            return cls
 
 
 class State(object):

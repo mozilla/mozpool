@@ -623,6 +623,16 @@ class state2(statemachine.State):
     def on_timeout(self):
         pass
 
+# test that different state machines can have states with the same names; this
+# just introduces an extra state machine that ideally shouldn't interfere at
+# all.
+class Namespace: # so 'state1' doesn't get replaced in the module dict
+    class StateMachineSubclass2(statemachine.StateMachine):
+        pass
+    @StateMachineSubclass2.state_class
+    class state2(statemachine.State):
+        pass
+
 
 class TestStateSubclasses(unittest.TestCase):
 
