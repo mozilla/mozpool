@@ -172,6 +172,14 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
     def contact_lifeguard(self):
         device_request_data = {}
         request_config = data.request_config(self.machine.request_id)
+        device_name = request_config['assigned_device']
+        device_state = data.device_status(device_name)['state']
+        if device_state != 'ready':
+            logs.request_logs.add(
+                self.machine.request_id,
+                'assigned device %s is in unexpected state %s when about '
+                'to contact lifeguard.' % (device_name, device_state))
+            self.machine.goto_state(device_busy)
         if request_config['boot_config']:
             event = 'please_pxe_boot'
             device_request_data['boot_config'] = request_config['boot_config']
