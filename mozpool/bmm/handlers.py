@@ -79,15 +79,9 @@ class pxe_config_details:
         return data.pxe_config_details(id)
 
 class device_bootconfig:
-    #@templeton.handlers.json_response
     def GET(self, id):
-        #return data.device_config(id)['config']
-        # XXX for the moment, we just return the URL, because the live-boot image
-        # can't parse JSON; see bug 811316.
         try:
             dev_cfg = data.device_config(id)
-            boot_config = json.loads(dev_cfg['boot_config'])
-            web.header('Content-Type', 'text/plain')
-            return boot_config['b2gbase']
+            return dev_cfg['boot_config']
         except KeyError:
             raise web.notfound()
