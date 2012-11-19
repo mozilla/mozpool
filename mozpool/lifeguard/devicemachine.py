@@ -458,29 +458,6 @@ class b2g_downloading(statemachine.State):
     TIMEOUT = 180
     PERMANENT_FAILURE_COUNT = 3
 
-    def on_b2g_apt(self, args):
-        self.machine.clear_counter(self.state_name)
-        self.machine.goto_state(b2g_apt)
-
-    def on_timeout(self):
-        if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
-            self.machine.goto_state(failed_b2g_downloading)
-        else:
-            self.machine.goto_state(pxe_power_cycling)
-
-
-@DeviceStateMachine.state_class
-class b2g_apt(statemachine.State):
-    """
-    The second-stage script is updating its in-memory apt information from ports.ubuntu.org.
-    This is a temporary workaroud.
-    """
-
-    # apt-get update + installing takes about 45s, but since it's using an external resource
-    # (ubuntu) it gets extra time
-    TIMEOUT = 240
-    PERMANENT_FAILURE_COUNT = 10
-
     def on_b2g_extracting(self, args):
         self.machine.clear_counter(self.state_name)
         self.machine.goto_state(b2g_extracting)
@@ -624,10 +601,6 @@ class failed_android_pinging(failed):
 @DeviceStateMachine.state_class
 class failed_b2g_downloading(failed):
     "While installing B2G, the device timed out repeatedly while downloading B2G"
-
-@DeviceStateMachine.state_class
-class failed_b2g_apt(failed):
-    "While installing B2G, the device timed out repeatedly while updating its apt repositories"
 
 @DeviceStateMachine.state_class
 class failed_b2g_extracting(failed):
