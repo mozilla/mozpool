@@ -357,7 +357,7 @@ def create_request(requested_device, assignee, duration, boot_config):
                    'assignee': assignee,
                    'expires': datetime.datetime.now() +
                               datetime.timedelta(seconds=duration),
-                   'boot_config': boot_config,
+                   'boot_config': json.dumps(boot_config),
                    'state': 'new',
                    'state_counters': '{}'}
 

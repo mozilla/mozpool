@@ -180,9 +180,17 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
                 'assigned device %s is in unexpected state %s when about '
                 'to contact lifeguard.' % (device_name, device_state))
             self.machine.goto_state(device_busy)
-        if request_config['boot_config']:
+
+        # Determine if we are imaging or just rebooting.
+        # We need to pass boot_config as a JSON string, but verify that it's
+        # a non-null object.
+        if json.loads(request_config['boot_config']):
             event = 'please_pxe_boot'
             device_request_data['boot_config'] = request_config['boot_config']
+            # FIXME: differentiate between b2g builds and other (future) image
+            # types.
+            device_request_data['pxe_config'] = config.get('mozpool',
+                                                           'b2g_pxe_config')
         else:
             event = 'please_power_cycle'
 
