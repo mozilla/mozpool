@@ -356,7 +356,7 @@ def create_request(requested_device, assignee, duration, boot_config):
                    'expires': datetime.datetime.now() +
                               datetime.timedelta(seconds=duration),
                    'boot_config': boot_config,
-                   'state': 'new',
+                   'state': 'new_request',
                    'state_counters': '{}'}
 
     res = conn.execute(model.requests.insert(), reservation)

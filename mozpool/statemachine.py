@@ -221,4 +221,3 @@ class State(object):
             cls._event_methods = eventMethods
 
             return cls
-

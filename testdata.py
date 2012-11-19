@@ -23,11 +23,11 @@ parser.add_option('-p', '--port', dest='port', action='store', type='int',
                   default=80)
 (options, args) = parser.parse_args(args)
 
-fqdn = socket.getfqdn()
+fqdn_with_port = fqdn = socket.getfqdn()
 if options.port != 80:
-    fqdn += ':%d' % options.port
+    fqdn_with_port += ':%d' % options.port
 
-r = conn.execute(model.imaging_servers.insert(), fqdn=fqdn)
+r = conn.execute(model.imaging_servers.insert(), fqdn=fqdn_with_port)
 img_svr_id = r.inserted_primary_key[0]
 
 for device_id in range(1, options.devices+1):
@@ -39,7 +39,7 @@ for device_id in range(1, options.devices+1):
                  state_counters='{}',
                  mac_address='%012x' % device_id,
                  imaging_server_id=img_svr_id,
-                 relay_info='relay%d' % device_id,
+                 relay_info='%s:bank1:relay%d' % (fqdn, device_id),
                  boot_config='')
 
 for request_id in range(1, options.requests+1):
@@ -47,7 +47,7 @@ for request_id in range(1, options.requests+1):
                  device_id=request_id,
                  requested_device='any',
                  assignee='slave%d' % request_id,
-                 state='new',
+                 state='new_request',
                  state_counters='{}',
                  imaging_server_id=img_svr_id,
                  expires=datetime.datetime.now() +

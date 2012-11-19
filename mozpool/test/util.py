@@ -68,7 +68,7 @@ def add_pxe_config(name, description="Boot image",
                            id=id,
                            active=active)
 
-def add_request(server, assignee="slave", state="new", expires=None,
+def add_request(server, assignee="slave", state="new_request", expires=None,
                 device='any', boot_config='{}'):
     if not expires:
         expires = datetime.datetime.now() + datetime.timedelta(hours=1)

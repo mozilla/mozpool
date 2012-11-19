@@ -69,7 +69,7 @@ class Expirable(object):
 
 
 @RequestStateMachine.state_class
-class new(Closable, Expirable, statemachine.State):
+class new_request(Closable, Expirable, statemachine.State):
     "New request; no action taken yet."
 
     def on_find_device(self, args):
@@ -135,7 +135,7 @@ class contactinglifeguard(Closable, Expirable, statemachine.State):
         device_request_data = {}
         request_config = data.request_config(self.machine.request_id)
         if request_config['boot_config']:
-            event = 'please_pxe_boot' # TODO: state not specified yet
+            event = 'please_pxe_boot'
             device_request_data['boot_config'] = request_config['boot_config']
         else:
             event = 'please_power_cycle'
@@ -165,7 +165,7 @@ class pending(Closable, Expirable, statemachine.State):
         request_config = data.request_config(self.machine.request_id)
         device_state = data.device_status(request_config['assigned_device'])['state']
         if device_state == 'ready':
-            self.machine.goto_state(self.ready)
+            self.machine.goto_state(request_ready)
         elif counter > self.PERMANENT_FAILURE_COUNT:
             self.machine.goto_state(devicenotfound)
         else:
@@ -183,7 +183,7 @@ class devicebusy(Closable, Expirable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class ready(Closable, Expirable, statemachine.State):
+class request_ready(Closable, Expirable, statemachine.State):
     "Device has been prepared and is ready for use."
 
 

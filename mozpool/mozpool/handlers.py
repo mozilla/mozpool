@@ -52,7 +52,7 @@ class device_request:
     @templeton.handlers.json_response
     def POST(self, device_name):
         args, body = templeton.handlers.get_request_parms()
-        boot_config = body.get('boot_config', '{}')
+        boot_config = body.get('boot_config', '')
         try:
             assignee = body['assignee']
             duration = int(body['duration'])
