@@ -336,6 +336,8 @@ def request_status(request_id):
                          logs.request_logs)
 
 def get_unassigned_ready_devices():
+    # FIXME: prefer devices that already have the requested boot_config
+    # installed.
     conn = sql.get_conn()
     res = conn.execute(select([model.devices.c.name],
                               model.devices.c.state=="ready").where(

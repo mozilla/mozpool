@@ -29,15 +29,32 @@ devices.
 /api/device/{id}/request/
 * POST requests the given device. {id} may be "any" to let MozPool choose an
   unassigned device. The body must be a JSON object with the keys "requester",
-  "image", and "duration". The value for "requester" takes an email address,
-  for human users, or a hostname, for machine users. "image" must be the
-  name of an image (see bootimage API below). "duration" must be a value, in
+  "boot_config", and "duration". The value for "requester" takes an email
+  address, for human users, or a hostname, for machine users. "boot_config"
+  is optional. If given, it must be a JSON object containing the keys "version"
+  (currently, must be the integer 1) and "b2gbase", which should be a URL to a
+  b2g build directory containing boot, system, and userdata tarballs.
+  This object can be expanded in the future to specify other builds
+  (e.g. android with fennec). If "boot_config" is not given, the device is
+  only rebooted and no image is installed. "duration" must be a value, in
   seconds, of the duration of the request (which can be renewed; see below).
-  If successful, returns 200 OK with a JSON object with keys "device"
-  and "request". The value of "request" is a partial URL for the request
-  object and should be used in request calls, as detailed below. If the
-  requested device is already assigned, or if no device could be found if
-  "any" was requested, returns 409 Conflict.
+  If successful, returns 200 OK with a JSON object with keys "request" and
+  and "request_url". The value of "request" is an object detailing the
+  request, with the keys "assigned_device" (which is blank if mozpool is
+  still attempting to find a device, "assignee", "boot_config", "expires", "id",
+  and "requested_device". The "request_url" attribute contains a partial URL
+  for the request object and should be used in request calls, as detailed
+  below. If a specific device is requested but is already assigned, returns 
+  409 Conflict; otherwise, returns 200 OK.
+
+  If a 200 OK code is returned, the client should then poll for the request's
+  state (using the value of "request_url" returned in the JSON object with
+  "status/" appended. A normal request will move through the states "new",
+  "find_device", "contact_lifeguard", "pending", and "ready", in that order.
+  When, and *only* when, the device is in the "ready" state, it is safe to be
+  used by the client. Other possible states are "expired", "closed",
+  "device_not_found", and "device_busy"; the assigned device (if any) is
+  returned to the pool when any of these states are entered.
 
 == Requests ==
 
@@ -57,6 +74,12 @@ The full paths of request APIs are presented below for clarity.
 Note that a request will be automatically terminated once it expires. The
 "renew" call should be used to extend the request lifetime.
 
+/api/request/{id}/status/
+* GET returns a JSON response body with keys "log" and "state". Log objects
+  contain "message", "source", and "timestamp" keys. "state" is the name of
+  the current state, "ready" being the state in which it is safe to use the
+  device.
+
 /api/request/{id}/details/
 * GET returns a JSON response body whose "request" key contains an object
   representing the given request with the keys id, device_id, assignee, 
@@ -70,7 +93,6 @@ Note that a request will be automatically terminated once it expires. The
 /api/request/{id}/return/
 * POST returns the device to the pool and deletes the request. Returns
   204 No Content.
-
 
 = LifeGuard =
 

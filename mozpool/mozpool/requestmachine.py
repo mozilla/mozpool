@@ -189,6 +189,9 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
         device_url = 'http://%s/api/device/%s/event/%s/' % (
             data.get_server_for_request(self.machine.request_id),
             request_config['assigned_device'], event)
+
+        # FIXME: make this asynchronous so slow/missing servers don't halt
+        # the state machine.
         try:
             urllib.urlopen(device_url, json.dumps(device_request_data))
         except IOError:
