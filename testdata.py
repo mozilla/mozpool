@@ -35,7 +35,7 @@ for device_id in range(1, options.devices+1):
                  name='device%d' % device_id,
                  fqdn='device%d.fqdn' % device_id,
                  inventory_id=1111 * device_id,
-                 state='new',
+                 state='ready',
                  state_counters='{}',
                  mac_address='%012x' % device_id,
                  imaging_server_id=img_svr_id,

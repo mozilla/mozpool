@@ -68,7 +68,7 @@ class device_request:
         response_data = {'request': data.request_config(request_id),
                          'request_url': request_url}
 
-        if data.request_status(request_id)['state'] == 'devicebusy':
+        if data.request_status(request_id)['state'] == 'device_busy':
             raise ConflictJSON(response_data)
         return response_data
 
