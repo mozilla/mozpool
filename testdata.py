@@ -47,7 +47,7 @@ for request_id in range(1, options.requests+1):
                  device_id=request_id,
                  requested_device='any',
                  assignee='slave%d' % request_id,
-                 state='new_request',
+                 state='new',
                  state_counters='{}',
                  imaging_server_id=img_svr_id,
                  expires=datetime.datetime.now() +

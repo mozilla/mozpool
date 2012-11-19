@@ -90,7 +90,7 @@ class ClearDeviceRequests(object):
 
 
 @RequestStateMachine.state_class
-class new_request(Closable, Expirable, statemachine.State):
+class new(Closable, Expirable, statemachine.State):
     "New request; no action taken yet."
 
     def on_find_device(self, args):
@@ -205,7 +205,7 @@ class pending(Closable, Expirable, statemachine.State):
         device_name = request_config['assigned_device']
         device_state = data.device_status(device_name)['state']
         if device_state == 'ready':
-            self.machine.goto_state(request_ready)
+            self.machine.goto_state(ready)
         elif counter > self.PERMANENT_FAILURE_COUNT:
             self.machine.goto_state(device_not_found)
         else:
@@ -213,7 +213,7 @@ class pending(Closable, Expirable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class request_ready(Closable, Expirable, statemachine.State):
+class ready(Closable, Expirable, statemachine.State):
     "Device has been prepared and is ready for use."
 
 
