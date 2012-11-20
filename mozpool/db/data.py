@@ -443,7 +443,7 @@ def dump_requests(*request_ids):
     if request_ids:
         id_exprs = []
         for i in request_ids:
-            id_exprs.append('requests.id=="%s"' % i)
+            id_exprs.append('requests.id=%d' % i)
         if len(id_exprs) == 1:
             id_exprs = id_exprs[0]
         else:
