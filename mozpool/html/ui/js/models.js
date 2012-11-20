@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 // NOTE: all top-level models appear as attributes of window, using the
 // lower-cased name.  So the Devices instance is window.devices.
 

@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 function run_ui(next) {
     run(setup_ui)
     // fetch data for our models
@@ -11,7 +15,7 @@ function run_ui(next) {
         window.job_queue = new JobQueue();
 
         // create the required views
-        new TableView({ el: $('#container'), }).render();
+        new DeviceTableView({ el: $('#container'), }).render();
         new PxeConfigSelectView({ el: $('#pxe-config'), }).render();
         new BmmPowerCycleButtonView({ el: $('#bmm-power-cycle-button'), }).render();
         new BmmPowerOffButtonView({ el: $('#bmm-power-off-button'), }).render();

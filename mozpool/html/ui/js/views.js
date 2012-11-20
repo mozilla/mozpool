@@ -1,35 +1,31 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 var TableView = Backbone.View.extend({
     tagName: 'div',
+
     columns: [
-        { id: "selected", title: '', bSortable: false,
-            sClass: 'rowcheckbox', renderFn: "renderSelected" },
-        { id: "fqdn", title: "FQDN",
-            renderFn: "renderFqdn" },
-        { id: "mac_address", title: "MAC",
-            renderFn: "renderMac" },
-        { id: "imaging_server", title: "Imaging Server",
-            renderFn: "renderImgServer" },
-        { id: "relay_info", title: "Relay Info",
-            renderFn: "renderRelayInfo" },
-        { id: "state", title: "State" },
-        { id: "links", title: "Links",
-            renderFn: "renderLinks" },
     ],
+
+    collection: null,
 
     events: {
         'click input' : 'checkboxClicked',
     },
 
     initialize: function(args) {
+        this.collection = args.collection;
         _.bindAll(this, 'render', 'modelAdded', 'modelRemoved',
                         'domObjectChanged', 'checkboxClicked');
 
-        window.devices.bind('add', this.modelAdded);
-        window.devices.bind('remove', this.modelRemoved);
+        this.collection.bind('add', this.modelAdded);
+        this.collection.bind('remove', this.modelRemoved);
     },
 
     render: function() {
         var self = this;
+        console.log('render: ' + self.collection);
 
         // dataTable likes to add sibling nodes, so add the table within
         // the enclosing div, this.el
@@ -52,7 +48,7 @@ var TableView = Backbone.View.extend({
                 if (col.renderFn) {
                     rv.bUseRendered = false;
                     rv.fnRender = function(oObj) {
-                        var model = window.devices.get(oObj.aData[0]);
+                        var model = self.collection.get(oObj.aData[0]);
                         return self[col.renderFn].apply(self, [ model ]);
                     };
                 } 
@@ -104,63 +100,7 @@ var TableView = Backbone.View.extend({
     modelRemoved: function (m) {
         // TODO: rare in production, but should be handled..
     },
-
-    renderSelected: function(model) {
-        var checked = '';
-        if (model.get('selected')) {
-            checked = ' checked=1';
-        }
-        var checkbox = '<input type="checkbox" id="device-' + model.get('id') + '"' + checked + '>';
-        return checkbox;
-    },
-
-    renderFqdn: function (model) {
-        var fqdn = model.get('fqdn');
-        var name = model.get('name');
-
-        // if fqdn starts with the name and a dot, just return that
-        if (fqdn.slice(0, name.length + 1) != name + ".") {
-            fqdn = fqdn + " (" + name + ")";
-        }
-        return fqdn;
-    },
-
-    renderMac: function (model) {
-        var mac_address = model.get('mac_address');
-        var with_colons = mac_address.split(/(?=(?:..)+$)/).join(":");
-        return '<tt>' + with_colons + '</tt>';
-    },
-
-    renderImgServer: function (model) {
-        var imaging_server = model.get('imaging_server');
-
-        return "<small>" + imaging_server + "</small>";
-    },
-
-    renderRelayInfo: function (model) {
-        var relay_info = model.get('relay_info');
-
-        return "<small>" + relay_info + "</small>";
-    },
-
-    renderLinks: function (model) {
-        var inv_a = $('<a/>', {
-            // TODO get this link from config.ini
-            href: 'https://inventory.mozilla.org/en-US/systems/show/' + model.get('inventory_id') + '/',
-            text: 'inv',
-            target: '_blank'
-        });
-        var log_a = $('<a/>', {
-            href: 'log.html?device=' + model.get('name'),
-            text: 'log',
-            target: '_blank'
-        });
-        // for each, wrap in a div and extract the contents as a string
-        return "[" + $('<div>').append(log_a).html() + "]"
-             + '&nbsp;'
-             + "[" + $('<div>').append(inv_a).html() + "]";
-    },
-
+xs
     // convert a TR element (not a jquery selector) to its position in the table
     getTablePositionFromTrElement: function(elt) {
         // this gets the index in the table data
@@ -225,9 +165,88 @@ var TableView = Backbone.View.extend({
         // get the checked status
         var checked = this.$('#' + dom_id).is(':checked')? true : false;
 
-        var device = window.devices.get(id);
+        var device = this.collection.get(id);
         device.set('selected', checked);
     }
+});
+
+var DeviceTableView = TableView.extend({
+    initialize: function(args) {
+        args.collection = window.devices;
+        TableView.prototype.initialize.call(this, args);
+    },
+
+    columns: [
+        { id: "selected", title: '', bSortable: false,
+            sClass: 'rowcheckbox', renderFn: "renderSelected" },
+        { id: "fqdn", title: "FQDN",
+            renderFn: "renderFqdn" },
+        { id: "mac_address", title: "MAC",
+            renderFn: "renderMac" },
+        { id: "imaging_server", title: "Imaging Server",
+            renderFn: "renderImgServer" },
+        { id: "relay_info", title: "Relay Info",
+            renderFn: "renderRelayInfo" },
+        { id: "state", title: "State" },
+        { id: "links", title: "Links",
+            renderFn: "renderLinks" },
+    ],
+
+    renderSelected: function(model) {
+        var checked = '';
+        if (model.get('selected')) {
+            checked = ' checked=1';
+        }
+        var checkbox = '<input type="checkbox" id="device-' + model.get('id') + '"' + checked + '>';
+        return checkbox;
+    },
+
+    renderFqdn: function (model) {
+        var fqdn = model.get('fqdn');
+        var name = model.get('name');
+
+        // if fqdn starts with the name and a dot, just return that
+        if (fqdn.slice(0, name.length + 1) != name + ".") {
+            fqdn = fqdn + " (" + name + ")";
+        }
+        return fqdn;
+    },
+
+    renderMac: function (model) {
+        var mac_address = model.get('mac_address');
+        var with_colons = mac_address.split(/(?=(?:..)+$)/).join(":");
+        return '<tt>' + with_colons + '</tt>';
+    },
+
+    renderImgServer: function (model) {
+        var imaging_server = model.get('imaging_server');
+
+        return "<small>" + imaging_server + "</small>";
+    },
+
+    renderRelayInfo: function (model) {
+        var relay_info = model.get('relay_info');
+
+        return "<small>" + relay_info + "</small>";
+    },
+
+    renderLinks: function (model) {
+        var inv_a = $('<a/>', {
+            // TODO get this link from config.ini
+            href: 'https://inventory.mozilla.org/en-US/systems/show/' + model.get('inventory_id') + '/',
+            text: 'inv',
+            target: '_blank'
+        });
+        var log_a = $('<a/>', {
+            href: 'log.html?device=' + model.get('name'),
+            text: 'log',
+            target: '_blank'
+        });
+        // for each, wrap in a div and extract the contents as a string
+        return "[" + $('<div>').append(log_a).html() + "]"
+             + '&nbsp;'
+             + "[" + $('<div>').append(inv_a).html() + "]";
+    },
 });
 
 // A class to represent each row in a TableView.  Because DataTables only allow strings
