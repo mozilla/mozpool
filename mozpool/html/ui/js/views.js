@@ -353,7 +353,6 @@ var LifeguardPleaseButtonView = ActionButtonView.extend({
             job_type = 'lifeguard-power-cycle';
             job_args = {};
         }
-        console.log("job args:", job_args);
 
         window.devices.each(function (b) {
             if (b.get('selected')) {

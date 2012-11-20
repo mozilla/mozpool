@@ -137,9 +137,10 @@ $.extend(JobRunner.prototype, {
     },
 
     jobFinished: function() {
+        var self = this;
         this.running = null;
         window.job_queue.shift();
-        this.maybeStartJob();
+        _.defer(function() { self.maybeStartJob() });
     },
 
     handleError: function(msg) {
