@@ -61,7 +61,8 @@ devices.
 /api/request/list/
 * GET returns a JSON response body whose "requests" key contains an array of
   objects representing all current requests. The objects have the keys id,
-  device_id, assignee, expires, and status.
+  assignee, assigned_device, boot_config, expires, imaging_server,
+  requested_device, and the state keys state, state_timeout, state_counters.
 
 Once a request is fulfilled using the "request" API above, all further
 actions related to the requested device should be done using that URL, which

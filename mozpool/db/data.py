@@ -436,9 +436,9 @@ def dump_requests(*request_ids):
     stmt = sqlalchemy.select(
         [requests.c.id,
          model.imaging_servers.c.fqdn.label('imaging_server'),
-         requests.c.assignee, requests.c.state, requests.c.state_counters,
-         requests.c.state_timeout, requests.c.expires,
-         requests.c.requested_device],
+         requests.c.assignee, requests.c.boot_config, requests.c.state,
+         requests.c.state_counters, requests.c.state_timeout,
+         requests.c.expires, requests.c.requested_device],
         from_obj=[requests.join(model.imaging_servers)])
     if request_ids:
         id_exprs = []
