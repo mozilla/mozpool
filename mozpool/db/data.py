@@ -412,20 +412,23 @@ def request_config(request_id):
     if row is None:
         raise NotFound
 
-    config = {'id': request_id,
+    request = {'id': request_id,
               'requested_device': row[0].encode('utf-8'),
               'assignee': row[1].encode('utf-8'),
               'expires': row[2].isoformat(),
               'boot_config': row[3].encode('utf-8'),
-              'assigned_device': ''}
+              'assigned_device': '',
+              'url': 'http://%s/api/request/%d/' %
+                (config.get('server', 'fqdn'), request_id)}
 
-    res = conn.execute(select([model.devices.c.name],
-                              from_obj=[model.device_requests.join(model.devices)]).where(model.device_requests.c.request_id==request_id))
+    res = conn.execute(select(
+            [model.devices.c.name],
+            from_obj=[model.device_requests.join(model.devices)]).where(
+            model.device_requests.c.request_id==request_id))
     row = res.fetchone()
     if row:
-        config['assigned_device'] = row[0].encode('utf-8')
-
-    return config
+        request['assigned_device'] = row[0].encode('utf-8')
+    return request
 
 def dump_requests(*request_ids):
     conn = sql.get_conn()

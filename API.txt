@@ -38,17 +38,17 @@ devices.
   (e.g. android with fennec). If "boot_config" is not given, the device is
   only rebooted and no image is installed. "duration" must be a value, in
   seconds, of the duration of the request (which can be renewed; see below).
-  If successful, returns 200 OK with a JSON object with keys "request" and
-  and "request_url". The value of "request" is an object detailing the
-  request, with the keys "assigned_device" (which is blank if mozpool is
-  still attempting to find a device, "assignee", "boot_config", "expires", "id",
-  and "requested_device". The "request_url" attribute contains a partial URL
+  If successful, returns 200 OK with a JSON object with the key "request".
+  The value of "request" is an object detailing the request, with the keys
+  "assigned_device" (which is blank if mozpool is still attempting to find
+  a device, "assignee", "boot_config", "expires", "id", "requested_device",
+  and "url". The "url" attribute contains a partial URL
   for the request object and should be used in request calls, as detailed
   below. If a specific device is requested but is already assigned, returns 
   409 Conflict; otherwise, returns 200 OK.
 
   If a 200 OK code is returned, the client should then poll for the request's
-  state (using the value of "request_url" returned in the JSON object with
+  state (using the value of request["url"] returned in the JSON object with
   "status/" appended. A normal request will move through the states "new",
   "find_device", "contact_lifeguard", "pending", and "ready", in that order.
   When, and *only* when, the device is in the "ready" state, it is safe to be

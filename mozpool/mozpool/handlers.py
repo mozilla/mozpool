@@ -61,13 +61,7 @@ class device_request:
         request_id = data.create_request(device_name, assignee, duration,
                                          boot_config)
         mozpool.mozpool.driver.handle_event(request_id, 'find_device', None)
-        request_url = 'http://%s/api/request/%d/' % (config.get('server',
-                                                                'fqdn'),
-                                                     request_id)
-
-        response_data = {'request': data.request_config(request_id),
-                         'request_url': request_url}
-
+        response_data = {'request': data.request_config(request_id)}
         if data.request_status(request_id)['state'] == 'device_busy':
             raise ConflictJSON(response_data)
         return response_data
@@ -95,7 +89,9 @@ class request_details:
     @templeton.handlers.json_response
     def GET(self, request_id):
         try:
-            return data.request_config(request_id)
+            return data.request_config(int(request_id))
+        except ValueError:
+            raise web.badrequest()
         except data.NotFound:
             raise web.notfound()
 

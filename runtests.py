@@ -237,7 +237,7 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
         self.assertEqual(body["request"]["assigned_device"], "device1")
-        self.assertEqual(urlparse.urlparse(body["request_url"]).path,
+        self.assertEqual(urlparse.urlparse(body["request"]["url"]).path,
                          "/api/request/2/")
         r = self.app.post("/api/device/device1/request/",
                           json.dumps(request_params), expect_errors=True)
