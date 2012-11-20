@@ -311,9 +311,10 @@ var BmmPowerCycleButtonView = ActionButtonView.extend({
                     job_type: 'bmm-power-cycle',
                     job_args: { pxe_config: selected_pxe_config, config: {} }
                 });
-                b.set('selected', false);
+                b.set('selected', false, {silent:1});
             }
         });
+        window.devices.trigger('change');
     }
 });
 
@@ -327,9 +328,10 @@ var BmmPowerOffButtonView = ActionButtonView.extend({
                     job_type: 'bmm-power-off',
                     job_args: {}
                 });
-                b.set('selected', false);
+                b.set('selected', false, {silent:1});
             }
         });
+        window.devices.trigger('change');
     }
 });
 
@@ -360,9 +362,10 @@ var LifeguardPleaseButtonView = ActionButtonView.extend({
                     job_type: job_type,
                     job_args: job_args
                 });
-                b.set('selected', false);
+                b.set('selected', false, {silent:1});
             }
         });
+        window.devices.trigger('change');
     },
     refreshButtonStatus: function() {
         // let the parent class handle enable/disable
@@ -385,9 +388,10 @@ var LifeguardForceStateButtonView = ActionButtonView.extend({
                     job_type: 'lifeguard-force-state',
                     job_args: { old_state: b.get('state'), new_state: window.current_force_state.get('state') }
                 });
-                b.set('selected', false);
+                b.set('selected', false, {silent:1});
             }
         });
+        window.devices.trigger('change');
     }
 });
 
