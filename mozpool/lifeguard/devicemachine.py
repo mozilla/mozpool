@@ -344,8 +344,10 @@ class android_rebooting(statemachine.State):
     ping from the board *before* it has rebooted.
     """
 
-    # A panda seems to take about 20s to boot, so we'll round that up a bit
-    TIMEOUT = 40
+    # The u-boot loader is also pingable, so we want to be very sure we don't get
+    # a false positive from it.  So, this is quite a bit longer than strictly
+    # necessary, but gives enough time to reboot, run u-boot, and then start Android
+    TIMEOUT = 120
 
     def on_timeout(self):
         self.machine.goto_state(android_pinging)
@@ -451,8 +453,10 @@ class b2g_rebooting(statemachine.State):
     ping from the board *before* it has rebooted.
     """
 
-    # A panda seems to take about 20s to boot, so we'll round that up a bit
-    TIMEOUT = 40
+    # The u-boot loader is also pingable, so we want to be very sure we don't get
+    # a false positive from it.  So, this is quite a bit longer than strictly
+    # necessary, but gives enough time to reboot, run u-boot, and then start b2g.
+    TIMEOUT = 120
 
     def on_timeout(self):
         self.machine.goto_state(b2g_pinging)
