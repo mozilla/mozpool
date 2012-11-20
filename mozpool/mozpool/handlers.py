@@ -83,7 +83,7 @@ class device_status:
 class request_list:
     @templeton.handlers.json_response
     def GET(self):
-        return data.dump_requests()
+        return dict(requests=data.dump_requests())
 
 class request_details:
     @templeton.handlers.json_response

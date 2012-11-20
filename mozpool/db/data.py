@@ -436,9 +436,9 @@ def dump_requests(*request_ids):
     stmt = sqlalchemy.select(
         [requests.c.id,
          model.imaging_servers.c.fqdn.label('imaging_server'),
-         requests.c.assignee, requests.c.state, requests.c.state_counters,
-         requests.c.state_timeout, requests.c.expires,
-         requests.c.requested_device],
+         requests.c.assignee, requests.c.boot_config, requests.c.state,
+         requests.c.state_counters, requests.c.state_timeout,
+         requests.c.expires, requests.c.requested_device],
         from_obj=[requests.join(model.imaging_servers)])
     if request_ids:
         id_exprs = []
@@ -450,7 +450,17 @@ def dump_requests(*request_ids):
             id_exprs = or_(*id_exprs)
         stmt = stmt.where(id_exprs)
     res = conn.execute(stmt)
-    return [dict(row) for row in res]
+    requests = [dict(row) for row in res]
+    res = conn.execute(sqlalchemy.select([model.device_requests.c.request_id,
+                                          model.devices.c.name],
+                                         from_obj=[model.device_requests.join(model.devices)]))
+    device_requests = dict([x for x in res])
+    for r in requests:
+        if r['id'] in device_requests:
+            r['assigned_device'] = device_requests[r['id']]
+        else:
+            r['assigned_device'] = ''
+    return requests
 
 def renew_request(request_id, duration):
     conn = sql.get_conn()
