@@ -450,7 +450,17 @@ def dump_requests(*request_ids):
             id_exprs = or_(*id_exprs)
         stmt = stmt.where(id_exprs)
     res = conn.execute(stmt)
-    return [dict(row) for row in res]
+    requests = [dict(row) for row in res]
+    res = conn.execute(sqlalchemy.select([model.device_requests.c.request_id,
+                                          model.devices.c.name],
+                                         from_obj=[model.device_requests.join(model.devices)]))
+    device_requests = dict([x for x in res])
+    for r in requests:
+        if r['id'] in device_requests:
+            r['assigned_device'] = device_requests[r['id']]
+        else:
+            r['assigned_device'] = ''
+    return requests
 
 def renew_request(request_id, duration):
     conn = sql.get_conn()
