@@ -21,12 +21,11 @@ var TableView = Backbone.View.extend({
     },
 
     initialize: function(args) {
-        this.refresh = $.proxy(this, 'refresh');
-        this.render = $.proxy(this, 'render');
-        _.bindAll(this, 'domObjectChanged', 'checkboxClicked');
+        _.bindAll(this, 'render', 'modelAdded', 'modelRemoved',
+                        'domObjectChanged', 'checkboxClicked');
 
-        window.devices.bind('change', this.refresh);
-        window.devices.bind('refresh', this.refresh);
+        window.devices.bind('add', this.modelAdded);
+        window.devices.bind('remove', this.modelRemoved);
     },
 
     render: function() {
@@ -38,7 +37,7 @@ var TableView = Backbone.View.extend({
             'cellspacing="0" cellpadding="0" border="0"></table>');
 
         // calculate the columns for the table; this is coordinated with
-        // the data for the table in refresh(), below
+        // the data for the table in the view below
 
         // hidden id column
         var aoColumns = [];
@@ -73,7 +72,6 @@ var TableView = Backbone.View.extend({
         };
 
         this.dataTable = this.$('table').dataTable(dtArgs);
-        this.refresh();
 
         // transplant the search box from the table header to our toolbar
         this.$('.dataTables_filter').detach().appendTo('#toolbar');
@@ -82,37 +80,29 @@ var TableView = Backbone.View.extend({
         // the checkboxes
         this.$('table').change(this.domObjectChanged);
 
+        // add a 'redraw' method to the dataTable, debounced so we don't redraw too often
+        this.dataTable.redraw = _.debounce(function () { self.dataTable.fnDraw(false); }, 100);
+
+        // now simulate an "add" for every element currently in the model
+        window.devices.each(function(m) { self.modelAdded(m); })
+
         return this;
     },
 
-    refresh : function (args) {
-        var self = this;
-
-        var newData = window.devices.map(function(instance_model) {
-            // put the id in the hidden column 0
-            var row = [ instance_model.id ];
-            // data columns
-            row = row.concat(
-                $.map(self.columns, function(col, i) {
-                    return String(instance_model.get(col.id) || '');
-                }));
-            return row;
+    modelAdded: function (m) {
+        new TableRowView({
+            model: m,
+            dataTable: this.dataTable,
+            parentView: this
         });
+        // no need to render the view; dataTables already has the
 
-        // clear (without drawing) and add the new data
-        self.dataTable.fnClearTable(false);
-        self.dataTable.fnAddData(newData);
-        $.each(self.dataTable.fnGetNodes(), function (i, tr) {
-            var row = self.dataTable.fnGetData(tr);
-            var instance_model = window.devices.get(row[0]);
-            var view = new TableRowView({
-                model: instance_model,
-                el: tr,
-                dataTable: self.dataTable,
-                parentView: self
-            });
-            view.render();
-        });
+        // schedule a (debounced) redraw
+        this.dataTable.redraw();
+    },
+
+    modelRemoved: function (m) {
+        // TODO: rare in production, but should be handled..
     },
 
     renderSelected: function(model) {
@@ -208,11 +198,9 @@ var TableView = Backbone.View.extend({
                 // convert the table position to a model
                 var data_idx = aiDisplayMaster[from_pos];
                 var id = this.dataTable.fnGetData(data_idx, 0);
-                window.devices.get(id).set('selected', 1, {silent:1});
+                window.devices.get(id).set('selected', 1);
                 from_pos++;
             }
-
-            window.devices.trigger('change');
         } 
 
         // store the last click for use if the next is with 'shift'
@@ -247,28 +235,39 @@ var TableRowView = Backbone.View.extend({
         this.dataTable = args.dataTable;
         this.parentView = args.parentView;
 
-        this.refresh = $.proxy(this, 'refresh');
+        _.bindAll(this, 'modelChanged');
 
-        this.model.bind('change', this.refresh);
+        // set up the row datal put the id in the hidden column 0
+        var model = this.model;
+        var row = [ model.id ];
+        row = row.concat(
+            $.map(this.parentView.columns, function(col, i) {
+                return String(model.get(col.id) || '');
+            }));
+
+        // insert into the table and store the index
+        var row_indexes = this.dataTable.fnAddData(row, false);
+        this.row_index = row_indexes[0];
+
+        this.model.bind('change', this.modelChanged);
     },
 
-    refresh: function() {
+    modelChanged: function() {
         var self = this;
         var lastcol = self.parentView.columns.length - 1;
-        var rownum = this.dataTable.fnGetPosition(this.el);
 
         $.each(self.parentView.columns, function (i, col) {
             var val = self.model.get(col.id);
             if (val === null) { val = ''; } // translate null to a string
             self.dataTable.fnUpdate(String(val),
-                rownum,
+                self.row_index,
                 i+1, // 1-based column (column 0 is the hidden id)
                 false, // don't redraw
                 (i === lastcol)); // but update data structures on last col
         });
 
-        // redraw once, now that everything is updated
-        self.dataTable.fnDraw(false);
+        // schedule a redraw, now that everything is updated
+        self.dataTable.redraw();
     },
 });
 
@@ -311,10 +310,9 @@ var BmmPowerCycleButtonView = ActionButtonView.extend({
                     job_type: 'bmm-power-cycle',
                     job_args: { pxe_config: selected_pxe_config, config: {} }
                 });
-                b.set('selected', false, {silent:1});
+                b.set('selected', false);
             }
         });
-        window.devices.trigger('change');
     }
 });
 
@@ -328,10 +326,9 @@ var BmmPowerOffButtonView = ActionButtonView.extend({
                     job_type: 'bmm-power-off',
                     job_args: {}
                 });
-                b.set('selected', false, {silent:1});
+                b.set('selected', false);
             }
         });
-        window.devices.trigger('change');
     }
 });
 
@@ -361,10 +358,9 @@ var LifeguardPleaseButtonView = ActionButtonView.extend({
                     job_type: job_type,
                     job_args: job_args
                 });
-                b.set('selected', false, {silent:1});
+                b.set('selected', false);
             }
         });
-        window.devices.trigger('change');
     },
     refreshButtonStatus: function() {
         // let the parent class handle enable/disable
@@ -387,10 +383,9 @@ var LifeguardForceStateButtonView = ActionButtonView.extend({
                     job_type: 'lifeguard-force-state',
                     job_args: { old_state: b.get('state'), new_state: window.current_force_state.get('state') }
                 });
-                b.set('selected', false, {silent:1});
+                b.set('selected', false);
             }
         });
-        window.devices.trigger('change');
     }
 });
 
