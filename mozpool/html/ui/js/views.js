@@ -16,10 +16,14 @@ var TableView = Backbone.View.extend({
             renderFn: "renderLinks" },
     ],
 
+    events: {
+        'click input' : 'checkboxClicked',
+    },
+
     initialize: function(args) {
         this.refresh = $.proxy(this, 'refresh');
         this.render = $.proxy(this, 'render');
-        _.bindAll(this, 'domObjectChanged');
+        _.bindAll(this, 'domObjectChanged', 'checkboxClicked');
 
         window.devices.bind('refresh', this.refresh);
     },
@@ -162,6 +166,43 @@ var TableView = Backbone.View.extend({
         return "[" + $('<div>').append(log_a).html() + "]"
              + '&nbsp;'
              + "[" + $('<div>').append(inv_a).html() + "]";
+    },
+
+    checkboxClicked: function (e) {
+        // handle shift-clicking to select a range
+        if (e.shiftKey) {
+            var target = e.target;
+
+            // the event propagates *after* the state changed, so if this is checked now,
+            // that's due to this click
+            if (target.checked && this.lastClickedTarget) {
+                var from_id, to_id, id_base;
+                from_id = parseInt(/.*-(\d+)/.exec(target.id)[1]);
+                to_id = parseInt(/.*-(\d+)/.exec(this.lastClickedTarget.id)[1]);
+                id_base = /(.*)-\d+/.exec(target.id)[1];
+
+                // sort the two
+                if (from_id > to_id) {
+                    var t;
+                    t = from_id;
+                    from_id = to_id;
+                    to_id = t;
+                }
+
+                // check everything between from and to
+                from_id++;
+                while (from_id < to_id) {
+                    var elt = $('#' + id_base + '-' + from_id);
+                    if (!elt.checked) {
+                        elt.prop('checked', true);
+                    }
+                    from_id++;
+                }
+            }
+        } 
+
+        // store the last click for use if the next is with 'shift'
+        this.lastClickedTarget = e.target;
     },
 
     domObjectChanged: function(evt) {
