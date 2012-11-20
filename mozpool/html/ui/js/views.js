@@ -192,10 +192,7 @@ var TableView = Backbone.View.extend({
                 // check everything between from and to
                 from_id++;
                 while (from_id < to_id) {
-                    var elt = $('#' + id_base + '-' + from_id);
-                    if (!elt.checked) {
-                        elt.prop('checked', true);
-                    }
+                    window.devices.get(from_id).set('selected', 1);
                     from_id++;
                 }
             }
