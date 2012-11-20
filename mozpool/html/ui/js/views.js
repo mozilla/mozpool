@@ -25,6 +25,7 @@ var TableView = Backbone.View.extend({
         this.render = $.proxy(this, 'render');
         _.bindAll(this, 'domObjectChanged', 'checkboxClicked');
 
+        window.devices.bind('change', this.refresh);
         window.devices.bind('refresh', this.refresh);
     },
 
@@ -168,38 +169,54 @@ var TableView = Backbone.View.extend({
              + "[" + $('<div>').append(inv_a).html() + "]";
     },
 
+    // convert a TR element (not a jquery selector) to its position in the table
+    getTablePositionFromTrElement: function(elt) {
+        // this gets the index in the table data
+        var data_idx = this.dataTable.fnGetPosition(elt);
+
+        // now we search for that index in aiDisplayMaster to find out where it's displayed
+        var aiDisplayMaster = this.dataTable.fnSettings().aiDisplayMaster;
+        return aiDisplayMaster.indexOf(data_idx);
+    },
+
     checkboxClicked: function (e) {
+        var tr = $(e.target).parent().parent().get(0);
+
         // handle shift-clicking to select a range
-        if (e.shiftKey) {
+        if (e.shiftKey &&
+                // the event propagates *after* the state changed, so if this is checked now,
+                // that's due to this click
+                e.target.checked &&
+                // and only do this if we have another click to pair it with
+                this.lastClickedTr) {
             var target = e.target;
 
-            // the event propagates *after* the state changed, so if this is checked now,
-            // that's due to this click
-            if (target.checked && this.lastClickedTarget) {
-                var from_id, to_id, id_base;
-                from_id = parseInt(/.*-(\d+)/.exec(target.id)[1]);
-                to_id = parseInt(/.*-(\d+)/.exec(this.lastClickedTarget.id)[1]);
-                id_base = /(.*)-\d+/.exec(target.id)[1];
+            var from_pos = this.getTablePositionFromTrElement(tr);
+            var to_pos = this.getTablePositionFromTrElement(this.lastClickedTr);
 
-                // sort the two
-                if (from_id > to_id) {
-                    var t;
-                    t = from_id;
-                    from_id = to_id;
-                    to_id = t;
-                }
-
-                // check everything between from and to
-                from_id++;
-                while (from_id < to_id) {
-                    window.devices.get(from_id).set('selected', 1);
-                    from_id++;
-                }
+            // sort the two
+            if (from_pos > to_pos) {
+                var t;
+                t = from_pos;
+                from_pos = to_pos;
+                to_pos = t;
             }
+
+            // check everything between from and to
+            var aiDisplayMaster = this.dataTable.fnSettings().aiDisplayMaster;
+            while (from_pos <= to_pos) {
+                // convert the table position to a model
+                var data_idx = aiDisplayMaster[from_pos];
+                var id = this.dataTable.fnGetData(data_idx, 0);
+                window.devices.get(id).set('selected', 1, {silent:1});
+                from_pos++;
+            }
+
+            window.devices.trigger('change');
         } 
 
         // store the last click for use if the next is with 'shift'
-        this.lastClickedTarget = e.target;
+        this.lastClickedTr = tr;
     },
 
     domObjectChanged: function(evt) {
