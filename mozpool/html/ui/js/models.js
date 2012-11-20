@@ -7,23 +7,14 @@
 
 // db-backed models
 
-var Device = Backbone.Model.extend({
-    // in addition to all of the attributes from the REST API, this has a
-    // 'selected' attribute that is local to the client
-    initialize: function(args) {
-        this.set('selected', false);
-    },
-});
-
-var Devices = Backbone.Collection.extend({
-    url: '/api/device/list/?details=true',
-    model: Device,
+var UpdateableCollection = Backbone.Collection.extend({
+    responseAttr: '',  // override
     refreshInterval: 30000,
 
     initialize: function (args) {
         _.bindAll(this, 'update', 'parse');
 
-        // devices automatically update themselves; set up to update
+        // objects automatically update themselves; set up to update
         // TODO: this could be done better with fetch({merge:true}), but that's
         // not in backbone-0.9.2
         window.setTimeout(this.update, this.refreshInterval);
@@ -32,27 +23,28 @@ var Devices = Backbone.Collection.extend({
     parse: function(response) {
         var self = this;
         var old_ids = self.map(function(b) { return b.get('id'); });
-        var new_ids = _.map(response.devices, function (b) { return b.id; });
+        var new_ids = _.map(response[self.responseAttr],
+                            function (b) { return b.id; });
 
         // calculate added and removed elements from differences
         _.each(_.difference(old_ids, new_ids), function (id) {
             self.get(id).remove();
         });
         _.each(_.difference(new_ids, old_ids), function (id) {
-            var device_attrs = response.devices[_.indexOf(new_ids, id)];
-            self.push(new self.model(device_attrs));
+            var attrs = response[self.responseAttr][_.indexOf(new_ids, id)];
+            self.push(new self.model(attrs));
         });
 
-        // then any updates to the individual devices that haven't been added or
+        // then any updates to the individual models that haven't been added or
         // removed
         _.each(_.intersection(new_ids, old_ids), function (id) {
-            var device_attrs = response.devices[_.indexOf(new_ids, id)];
+            var attrs = response[self.responseAttr][_.indexOf(new_ids, id)];
             var model = self.get(id);
-            model.set(device_attrs);
+            model.set(attrs);
         });
 
         // this just instructs the fetch/add to not anything else:
-        return []
+        return [];
     },
 
     update: function() {
@@ -60,8 +52,33 @@ var Devices = Backbone.Collection.extend({
         this.fetch({add: true, complete: function () {
             window.setTimeout(self.update, self.refreshInterval);
         }});
-
     }
+});
+
+var Device = Backbone.Model.extend({
+    // in addition to all of the attributes from the REST API, this has a
+    // 'selected' attribute that is local to the client
+    initialize: function(args) {
+        this.set('selected', false);
+    }
+});
+
+var Devices = UpdateableCollection.extend({
+    url: '/api/device/list/?details=true',
+    model: Device,
+    responseAttr: 'devices'
+});
+
+var Request = Backbone.Model.extend({
+    initialize: function(args) {
+        this.set('selected', false);
+    }
+});
+
+var Requests = UpdateableCollection.extend({
+    url: '/api/request/list/',
+    model: Request,
+    responseAttr: 'requests'
 });
 
 var PxeConfig = Backbone.Model.extend({
@@ -124,4 +141,3 @@ var Job = Backbone.Model.extend({
 var JobQueue = Backbone.Collection.extend({
     model: Job
 });
-

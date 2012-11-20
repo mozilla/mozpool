@@ -25,7 +25,6 @@ var TableView = Backbone.View.extend({
 
     render: function() {
         var self = this;
-        console.log('render: ' + self.collection);
 
         // dataTable likes to add sibling nodes, so add the table within
         // the enclosing div, this.el
@@ -80,12 +79,13 @@ var TableView = Backbone.View.extend({
         this.dataTable.redraw = _.debounce(function () { self.dataTable.fnDraw(false); }, 100);
 
         // now simulate an "add" for every element currently in the model
-        window.devices.each(function(m) { self.modelAdded(m); })
+        this.collection.each(function(m) { self.modelAdded(m); });
 
         return this;
     },
 
     modelAdded: function (m) {
+        //conosle.dir(m);
         new TableRowView({
             model: m,
             dataTable: this.dataTable,
@@ -100,7 +100,7 @@ var TableView = Backbone.View.extend({
     modelRemoved: function (m) {
         // TODO: rare in production, but should be handled..
     },
-xs
+
     // convert a TR element (not a jquery selector) to its position in the table
     getTablePositionFromTrElement: function(elt) {
         // this gets the index in the table data
@@ -246,6 +246,70 @@ var DeviceTableView = TableView.extend({
         return "[" + $('<div>').append(log_a).html() + "]"
              + '&nbsp;'
              + "[" + $('<div>').append(inv_a).html() + "]";
+    },
+});
+
+var RequestTableView = TableView.extend({
+    initialize: function(args) {
+        args.collection = window.requests;
+        TableView.prototype.initialize.call(this, args);
+    },
+
+    columns: [
+        { id: "selected", title: '', bSortable: false,
+            sClass: 'rowcheckbox', renderFn: "renderSelected" },
+        { id: "id", title: "ID" },
+        { id: "requested_device", title: "Requested Device",
+            renderFn: "renderRequested" },
+        { id: "assigned_device", title: "Assigned Device",
+            renderFn: "renderAssigned" },
+        // include creation time!
+        { id: "state", title: "State" },
+        { id: "expires", title: "Expires (UTC)", renderFn: "renderExpires" },
+        { id: "imaging_server", title: "Server" },
+        { id: "links", title: "Links", renderFn: "renderLinks" },
+    ],
+
+    renderSelected: function(model) {
+        var checked = '';
+        if (model.get('selected')) {
+            checked = ' checked=1';
+        }
+        var checkbox = '<input type="checkbox" id="device-' + model.get('id') + '"' + checked + '>';
+        return checkbox;
+    },
+
+    renderDeviceLink: function(deviceName)
+    {
+        return '<a href="lifeguard.html">' + deviceName + '</a>';
+    },
+
+    renderAssigned: function(model)
+    {
+        var assignedDevice = model.get('assigned_device');
+        if (!assignedDevice) {
+            return '-';
+        }
+        return this.renderDeviceLink(assignedDevice) + ' (' +
+            model.get('device_state') + ')';
+    },
+
+    renderRequested: function(model)
+    {
+        var requestedDevice = model.get('requested_device');
+        if (requestedDevice == 'any') {
+            return requestedDevice;
+        }
+        return this.renderDeviceLink(requestedDevice);
+    },
+
+    renderExpires: function(model) {
+        // a little more readable than what is returned from the server
+        return model.get('expires').replace('T', ' ').split('.')[0];
+    },
+
+    renderLinks: function(model) {
+        return "[close]";
     },
 });
 

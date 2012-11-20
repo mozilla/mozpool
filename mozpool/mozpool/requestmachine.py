@@ -156,7 +156,7 @@ class finding_device(Closable, Expirable, statemachine.State):
     """
 
     TIMEOUT = 10
-    MAX_ANY_REQUESTS = 12
+    MAX_ANY_REQUESTS = 60
     MAX_SPECIFIC_REQUESTS = 1
 
     def on_entry(self):

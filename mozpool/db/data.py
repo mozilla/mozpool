@@ -355,7 +355,7 @@ def create_request(requested_device, assignee, duration, boot_config):
     reservation = {'imaging_server_id': server_id,
                    'requested_device': requested_device,
                    'assignee': assignee,
-                   'expires': datetime.datetime.now() +
+                   'expires': datetime.datetime.utcnow() +
                               datetime.timedelta(seconds=duration),
                    'boot_config': json.dumps(boot_config),
                    'state': 'new',
@@ -455,7 +455,6 @@ def dump_requests(*request_ids, **kwargs):
         [requests.c.id,
          model.imaging_servers.c.fqdn.label('imaging_server'),
          requests.c.assignee, requests.c.boot_config, requests.c.state,
-         requests.c.state_counters, requests.c.state_timeout,
          requests.c.expires, requests.c.requested_device],
         from_obj=[requests.join(model.imaging_servers)])
     if request_ids:
@@ -472,26 +471,29 @@ def dump_requests(*request_ids, **kwargs):
     res = conn.execute(stmt)
     requests = [dict(row) for row in res]
     res = conn.execute(sqlalchemy.select([model.device_requests.c.request_id,
-                                          model.devices.c.name],
+                                          model.devices.c.name,
+                                          model.devices.c.state],
                                          from_obj=[model.device_requests.join(model.devices)]))
-    device_requests = dict([x for x in res])
+    device_requests = dict([(x[0], (x[1], x[2])) for x in res])
     for r in requests:
         if r['id'] in device_requests:
-            r['assigned_device'] = device_requests[r['id']]
+            r['assigned_device'] = device_requests[r['id']][0]
+            r['device_state'] = device_requests[r['id']][1]
         else:
             r['assigned_device'] = ''
+            r['device_state'] = ''
     return requests
 
 def renew_request(request_id, duration):
     conn = sql.get_conn()
-    conn.execute(model.requests.update(model.requests).values(expires=datetime.datetime.now() + datetime.timedelta(seconds=duration)).where(model.requests.c.id==request_id))
+    conn.execute(model.requests.update(model.requests).values(expires=datetime.datetime.utcnow() + datetime.timedelta(seconds=duration)).where(model.requests.c.id==request_id))
 
 def get_expired_requests(imaging_server_id):
     """
     Get a list of all requests whose 'expires' timestamp is in the past, are
     not in the 'expired' state, and which belong to this imaging server.
     """
-    now = datetime.datetime.now()
+    now = datetime.datetime.utcnow()
     res = sql.get_conn().execute(select(
             [model.requests.c.id],
             (model.requests.c.expires < now)

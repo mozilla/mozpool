@@ -271,8 +271,9 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         r = self.app.get("/api/request/3/details/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertGreater(body["expires"], datetime.datetime.now().isoformat())
-        self.assertLessEqual(body["expires"], (datetime.datetime.now() +
+        self.assertGreater(body["expires"],
+                           datetime.datetime.utcnow().isoformat())
+        self.assertLessEqual(body["expires"], (datetime.datetime.utcnow() +
                              datetime.timedelta(seconds=3600)).isoformat())
 
         # test renew
@@ -282,8 +283,9 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         r = self.app.get("/api/request/3/details/")
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertGreater(body["expires"], datetime.datetime.now().isoformat())
-        self.assertLessEqual(body["expires"], (datetime.datetime.now() +
+        self.assertGreater(body["expires"],
+                           datetime.datetime.utcnow().isoformat())
+        self.assertLessEqual(body["expires"], (datetime.datetime.utcnow() +
                              datetime.timedelta(seconds=360)).isoformat())
 
         # test redirects
