@@ -147,11 +147,13 @@ var TableView = Backbone.View.extend({
         var inv_a = $('<a/>', {
             // TODO get this link from config.ini
             href: 'https://inventory.mozilla.org/en-US/systems/show/' + model.get('inventory_id') + '/',
-            text: 'inv'
+            text: 'inv',
+            target: '_blank'
         });
         var log_a = $('<a/>', {
             href: 'log.html?device=' + model.get('name'),
-            text: 'log'
+            text: 'log',
+            target: '_blank'
         });
         // for each, wrap in a div and extract the contents as a string
         return "[" + $('<div>').append(log_a).html() + "]"
