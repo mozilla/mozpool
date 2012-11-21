@@ -290,10 +290,7 @@ var ActionButtonView = Backbone.View.extend({
 
     refreshButtonStatus: function() {
         // only enable the button if at least one device is selected
-        var any_selected = false;
-        window.devices.each(function (m) {
-            any_selected = any_selected ? true : m.get('selected');
-        });
+        var any_selected = window.devices.any(function (m) { return m.get('selected'); });
         this.$el.attr('disabled', !any_selected);
     },
 
