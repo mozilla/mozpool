@@ -291,51 +291,52 @@ var ActionButtonView = Backbone.View.extend({
     refreshButtonStatus: function() {
         // only enable the button if at least one device is selected
         var any_selected = false;
-        window.devices.each(function (b) {
-            any_selected = any_selected ? true : b.get('selected');
+        window.devices.each(function (m) {
+            any_selected = any_selected ? true : m.get('selected');
         });
         this.$el.attr('disabled', !any_selected);
     },
 
     buttonClicked: function() {
+        var self = this;
+        window.devices.each(function (m) {
+            if (m.get('selected')) {
+                var job = self.makeJob(m);
+                if (job) {
+                    job_queue.push(job);
+                }
+                m.set('selected', false);
+            }
+        });
+    },
+
+    makeJob: function(model) {
         // subclasses override this
     }
 });
 
 var BmmPowerCycleButtonView = ActionButtonView.extend({
-    buttonClicked: function() {
-        var selected_pxe_config = window.selected_pxe_config.get('name');
-        window.devices.each(function (b) {
-            if (b.get('selected')) {
-                job_queue.push({
-                    device: b,
-                    job_type: 'bmm-power-cycle',
-                    job_args: { pxe_config: selected_pxe_config, config: {} }
-                });
-                b.set('selected', false);
-            }
-        });
+    makeJob: function(m) {
+        return {
+            device: m,
+            job_type: 'bmm-power-cycle',
+            job_args: { pxe_config: window.selected_pxe_config.get('name'), config: {} }
+        };
     }
 });
 
 var BmmPowerOffButtonView = ActionButtonView.extend({
-    buttonClicked: function() {
-        var selected_pxe_config = window.selected_pxe_config.get('name');
-        window.devices.each(function (b) {
-            if (b.get('selected')) {
-                job_queue.push({
-                    device: b,
-                    job_type: 'bmm-power-off',
-                    job_args: {}
-                });
-                b.set('selected', false);
-            }
-        });
+    makeJob: function(m) {
+        return {
+            device: m,
+            job_type: 'bmm-power-off',
+            job_args: {}
+        }
     }
 });
 
 var LifeguardPleaseButtonView = ActionButtonView.extend({
-    buttonClicked: function() {
+    makeJob: function(m) {
         var selected_pxe_config = window.selected_pxe_config.get('name');
 
         var job_type, job_args;
@@ -353,16 +354,11 @@ var LifeguardPleaseButtonView = ActionButtonView.extend({
             job_args = {};
         }
 
-        window.devices.each(function (b) {
-            if (b.get('selected')) {
-                job_queue.push({
-                    device: b,
-                    job_type: job_type,
-                    job_args: job_args
-                });
-                b.set('selected', false);
-            }
-        });
+        return {
+            device: m,
+            job_type: job_type,
+            job_args: job_args
+        };
     },
     refreshButtonStatus: function() {
         // let the parent class handle enable/disable
@@ -371,23 +367,19 @@ var LifeguardPleaseButtonView = ActionButtonView.extend({
         // and change the text based on what's selected
         var selected_pxe_config = window.selected_pxe_config.get('name');
         var button_text = selected_pxe_config ? "PXE Boot" : "Power Cycle";
-        this.$el.text(button_text);
+        if (button_text != this.$el.text()) {
+            this.$el.text(button_text);
+        }
     }
 });
 
 var LifeguardForceStateButtonView = ActionButtonView.extend({
-    buttonClicked: function() {
-        var selected_pxe_config = window.selected_pxe_config.get('name');
-        window.devices.each(function (b) {
-            if (b.get('selected')) {
-                job_queue.push({
-                    device: b,
-                    job_type: 'lifeguard-force-state',
-                    job_args: { old_state: b.get('state'), new_state: window.current_force_state.get('state') }
-                });
-                b.set('selected', false);
-            }
-        });
+    makeJob: function(m) {
+        return {
+            device: m,
+            job_type: 'lifeguard-force-state',
+            job_args: { old_state: m.get('state'), new_state: window.current_force_state.get('state') }
+        };
     }
 });
 
