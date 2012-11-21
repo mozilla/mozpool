@@ -335,12 +335,12 @@ def request_status(request_id):
     return object_status(model.requests, model.requests.c.id, request_id,
                          logs.request_logs)
 
-def get_unassigned_ready_devices():
+def get_free_devices():
     # FIXME: prefer devices that already have the requested boot_config
     # installed.
     conn = sql.get_conn()
     res = conn.execute(select([model.devices.c.name],
-                              model.devices.c.state=="ready").where(
+                              model.devices.c.state=="free").where(
             not_(exists(select([model.device_requests.c.request_id]).where(
                         model.device_requests.c.device_id==model.devices.c.id)))
             ))
@@ -401,6 +401,28 @@ def clear_device_request(request_id):
     conn.execute(model.device_requests.delete().where(
             model.device_requests.c.request_id==request_id))
 
+def get_assigned_device(request_id):
+    conn = sql.get_conn()
+    res = conn.execute(select(
+            [model.devices.c.name],
+            from_obj=[model.device_requests.join(model.devices)]).where(
+            model.device_requests.c.request_id==request_id))
+    row = res.fetchone()
+    if row:
+        return row[0].encode('utf-8')
+    return None
+
+def get_request_for_device(device_name):
+    conn = sql.get_conn()
+    res = conn.execute(select(
+            [model.device_requests.c.request_id],
+            from_obj=[model.device_requests.join(model.devices)]).where(
+            model.devices.c.name==device_name))
+    row = res.fetchone()
+    if row:
+        return row[0]
+    return None
+
 def request_config(request_id):
     conn = sql.get_conn()
     res = conn.execute(select([model.requests.c.requested_device,
@@ -421,13 +443,9 @@ def request_config(request_id):
               'url': 'http://%s/api/request/%d/' %
                 (config.get('server', 'fqdn'), request_id)}
 
-    res = conn.execute(select(
-            [model.devices.c.name],
-            from_obj=[model.device_requests.join(model.devices)]).where(
-            model.device_requests.c.request_id==request_id))
-    row = res.fetchone()
-    if row:
-        request['assigned_device'] = row[0].encode('utf-8')
+    assigned_device = get_assigned_device(request_id)
+    if assigned_device:
+        request['assigned_device'] = assigned_device
     return request
 
 def dump_requests(*request_ids):

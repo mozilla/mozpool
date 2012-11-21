@@ -4,7 +4,7 @@
 
 import datetime
 from mozpool.db import model, sql
-from sqlalchemy.sql import and_, exists, select
+from sqlalchemy.sql import and_, select
 
 
 class Logs(object):

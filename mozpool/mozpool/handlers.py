@@ -62,7 +62,7 @@ class device_request:
                                          boot_config)
         mozpool.mozpool.driver.handle_event(request_id, 'find_device', None)
         response_data = {'request': data.request_config(request_id)}
-        if data.request_status(request_id)['state'] == 'device_busy':
+        if data.request_status(request_id)['state'] == 'closed':
             raise ConflictJSON(response_data)
         return response_data
 

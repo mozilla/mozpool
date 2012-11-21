@@ -5,6 +5,7 @@
 import datetime
 import json
 import random
+import requests
 import urllib
 
 from mozpool import config, statemachine, statedriver
@@ -74,19 +75,64 @@ class MozpoolDriver(statedriver.StateDriver):
 class Closable(object):
 
     def on_close(self, args):
-        self.machine.goto_state(closed)
+        logs.request_logs.add(self.machine.request_id, "request closed")
+        self.machine.goto_state(closing)
 
 
 class Expirable(object):
 
     def on_expire(self, args):
+        logs.request_logs.add(self.machine.request_id, "request expired")
         self.machine.goto_state(expired)
 
 
 class ClearDeviceRequests(object):
 
+    """
+    Represents a second-to-final stage. We attempt to return the device
+    to the 'free' state here.  If successful, or after permanent failure,
+    we move to 'closed', which deletes the request-device association from
+    the database.
+
+    Note that the 'ready' state of the device state machine verifies that the
+    device does indeed belong to a request and, if not, moves it back to 'free'.
+    """
+
+    TIMEOUT = 60
+    PERMANENT_FAILURE_COUNT = 10
+
     def on_entry(self):
-        data.clear_device_request(self.machine.request_id)
+        if self.free_device():
+            self.machine.goto_state(closed)
+        else:
+            count = self.machine.increment_counter(self.state_name)
+            if count < self.PERMANENT_FAILURE_COUNT:
+                logs.request_logs.add(
+                    self.machine.request_id,
+                    "too many failed attempts; just clearing request "
+                    "and giving up")
+                self.machine.goto_state(closed)
+
+    def on_timeout(self):
+        self.machine.goto_state(self.state_name)
+
+    def free_device(self):
+        assigned_device = data.get_assigned_device(self.machine.request_id)
+        if assigned_device:
+            device_url = 'http://%s/api/device/%s/event/free/' % (
+                data.get_server_for_device(assigned_device), assigned_device)
+            # FIXME: make this asynchronous so slow/missing servers don't halt
+            # the state machine.
+            try:
+                requests.post(device_url)
+            except (requests.ConnectionError, requests.Timeout,
+                    requests.HTTPError):
+                logs.request_logs.add(
+                    self.machine.request_id,
+                    "could not contact lifeguard server at %s to free device" %
+                    device_url)
+                return False
+        return True
 
 
 @RequestStateMachine.state_class
@@ -125,7 +171,7 @@ class finding_device(Closable, Expirable, statemachine.State):
         count = self.machine.increment_counter(self.state_name)
         request = data.dump_requests(self.machine.request_id)[0]
         if request['requested_device'] == 'any':
-            free_devices = data.get_unassigned_ready_devices()
+            free_devices = data.get_free_devices()
             if free_devices:
                 device_id = random.randint(0, len(free_devices) - 1)
                 device_name = free_devices[device_id]
@@ -147,6 +193,9 @@ class finding_device(Closable, Expirable, statemachine.State):
                     self.machine.goto_state(device_not_found)
             else:
                 if count >= self.MAX_SPECIFIC_REQUESTS:
+                    logs.request_logs.add(
+                        self.machine.request_id,
+                        'requested device %s is busy' % device_name)
                     self.machine.goto_state(device_busy)
 
 
@@ -158,6 +207,17 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
     PERMANENT_FAILURE_COUNT = 5
 
     def on_entry(self):
+        request_config = data.request_config(self.machine.request_id)
+        device_name = request_config['assigned_device']
+        device_state = data.device_status(device_name)['state']
+        if device_state != 'free':
+            logs.request_logs.add(
+                self.machine.request_id,
+                'assigned device %s is in unexpected state %s when about '
+                'to contact lifeguard.' % (device_name, device_state))
+            self.machine.goto_state(device_busy)
+            return
+
         if self.contact_lifeguard():
             self.machine.goto_state(pending)
             return
@@ -172,14 +232,6 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
     def contact_lifeguard(self):
         device_request_data = {}
         request_config = data.request_config(self.machine.request_id)
-        device_name = request_config['assigned_device']
-        device_state = data.device_status(device_name)['state']
-        if device_state != 'ready':
-            logs.request_logs.add(
-                self.machine.request_id,
-                'assigned device %s is in unexpected state %s when about '
-                'to contact lifeguard.' % (device_name, device_state))
-            self.machine.goto_state(device_busy)
 
         # Determine if we are imaging or just rebooting.
         # We need to pass boot_config as a JSON string, but verify that it's
@@ -195,7 +247,7 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
             event = 'please_power_cycle'
 
         device_url = 'http://%s/api/device/%s/event/%s/' % (
-            data.get_server_for_request(self.machine.request_id),
+            data.get_server_for_device(request_config['assigned_device']),
             request_config['assigned_device'], event)
 
         # FIXME: make this asynchronous so slow/missing servers don't halt
@@ -222,6 +274,7 @@ class pending(Closable, Expirable, statemachine.State):
         counter = self.machine.increment_counter(self.state_name)
         request_config = data.request_config(self.machine.request_id)
         device_name = request_config['assigned_device']
+        print 'device_name is %s' % device_name
         device_state = data.device_status(device_name)['state']
         if device_state == 'ready':
             self.machine.goto_state(ready)
@@ -237,22 +290,28 @@ class ready(Closable, Expirable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class expired(Closable, ClearDeviceRequests, statemachine.State):
+class closing(ClearDeviceRequests, statemachine.State):
+    "Device has been prepared and is ready for use."
+
+
+@RequestStateMachine.state_class
+class expired(ClearDeviceRequests, statemachine.State):
     "Request has expired."
 
 
 @RequestStateMachine.state_class
-class closed(ClearDeviceRequests, statemachine.State):
-    "Device was returned and request has been closed."
-
-
-@RequestStateMachine.state_class
-class device_not_found(Closable, Expirable, ClearDeviceRequests,
-                       statemachine.State):
+class device_not_found(ClearDeviceRequests, statemachine.State):
     "No working unassigned device could be found."
 
 
 @RequestStateMachine.state_class
-class device_busy(Closable, Expirable, ClearDeviceRequests,
-                  statemachine.State):
+class device_busy(ClearDeviceRequests, statemachine.State):
     "The requested device is already assigned."
+
+
+@RequestStateMachine.state_class
+class closed(statemachine.State):
+    "Device was returned and request has been closed."
+
+    def on_entry(self):
+        data.clear_device_request(self.machine.request_id)

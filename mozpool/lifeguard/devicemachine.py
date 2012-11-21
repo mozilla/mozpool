@@ -146,14 +146,37 @@ class unknown(AcceptPleaseRequests, statemachine.State):
 
 
 @DeviceStateMachine.state_class
+class free(AcceptPleaseRequests, statemachine.State):
+    "This device is not in use and available for mozpool requests."
+
+
+@DeviceStateMachine.state_class
 class ready(AcceptPleaseRequests, statemachine.State):
     """
-    This device is production-ready (or was when entering this state, anyway).
+    This device has been assigned via mozpool and is ready for use by the
+    client.
     """
+
+    TIMEOUT = 60
 
     # At one point, this state pinged devices in this state and power-cycled
     # them when they failed.  This resulted in a lot of unnecessary power cycles
     # for devices running "flaky" images, with no real benefit.
+
+    def on_free(self, args):
+        self.machine.goto_state(free)
+
+    def on_timeout(self):
+        # It's possible that we can get into this state after a request has
+        # terminated, e.g., if the request is returned but the device is
+        # still booting (since we want to continue through all the states).
+        # Check for that here and return to free if necessary.
+        if data.get_request_for_device(self.machine.device_name):
+            self.machine.goto_state(ready)
+        else:
+            self.logger.warn('in ready state but not assigned to a request; '
+                             'moving to free state' % self.machine.device_name)
+            self.machine.goto_state(free)
 
 
 ####

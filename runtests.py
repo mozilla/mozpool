@@ -224,9 +224,9 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         super(TestRequests, self).setUp()
         add_server("server1")
         add_server("server2")
-        add_device("device1", server="server1", state="ready")
-        add_device("device2", server="server1", state="ready")
-        add_device("device3", server="server1", state="ready")
+        add_device("device1", server="server1", state="free")
+        add_device("device2", server="server1", state="free")
+        add_device("device3", server="server1", state="free")
         add_request("server2", device="device3")
         mozpool.mozpool.driver = requestmachine.MozpoolDriver()
    
@@ -291,6 +291,9 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         # test return
         r = self.app.post("/api/request/%d/return/" % device2_request_id)
         self.assertEqual(204, r.status)
+        r = self.app.get("/api/device/device2/status/")
+        body = json.loads(r.body)
+        self.assertEqual(body["state"], "free")
         r = self.app.post("/api/device/device2/request/",
                           json.dumps(request_params))
         self.assertEqual(200, r.status)
