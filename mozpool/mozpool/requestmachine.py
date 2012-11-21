@@ -163,7 +163,7 @@ class finding_device(Closable, Expirable, statemachine.State):
         self.find_device()
 
     def on_timeout(self):
-        self.find_device()
+        self.machine.goto_state(finding_device)
 
     def find_device(self):
         # FIXME: refactor.
@@ -190,6 +190,9 @@ class finding_device(Closable, Expirable, statemachine.State):
             self.logger.warn('request failed!')
             if request['requested_device'] == 'any':
                 if count >= self.MAX_ANY_REQUESTS:
+                    logs.request_logs.add(
+                        self.machine.request_id,
+                        'hit maximum number of attempts; giving up')
                     self.machine.goto_state(device_not_found)
             else:
                 if count >= self.MAX_SPECIFIC_REQUESTS:
