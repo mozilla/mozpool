@@ -44,8 +44,9 @@ devices.
   a device, "assignee", "boot_config", "expires", "id", "requested_device",
   and "url".  The "url" attribute contains a partial URL
   for the request object and should be used in request calls, as detailed
-  below.  If a specific device is requested but is already assigned, returns 
-  409 Conflict; otherwise, returns 200 OK.
+  below.  If 'any' device was requested, always returns 200 OK, since it will
+  retry a few times if no devices are free.  If a specific device is requested
+  but is already assigned, returns 409 Conflict; otherwise, returns 200 OK.
 
   If a 200 OK code is returned, the client should then poll for the request's
   state (using the value of request["url"] returned in the JSON object with
