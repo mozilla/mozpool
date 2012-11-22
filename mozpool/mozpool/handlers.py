@@ -83,7 +83,9 @@ class device_status:
 class request_list:
     @templeton.handlers.json_response
     def GET(self):
-        return dict(requests=data.dump_requests())
+        args, _ = templeton.handlers.get_request_parms()
+        include_closed = args.get('include_closed', False)
+        return dict(requests=data.dump_requests(include_closed=include_closed))
 
 class request_details:
     @templeton.handlers.json_response

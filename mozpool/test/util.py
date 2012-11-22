@@ -86,7 +86,7 @@ def add_request(server, assignee="slave", state="new", expires=None,
                        state=state,
                        state_counters='{}')
     request_id = res.lastrowid
-    if device:
+    if device and state != 'closed':
         device_id = conn.execute(select(
                 [model.devices.c.id],
                 model.devices.c.name==device)).fetchone()[0]

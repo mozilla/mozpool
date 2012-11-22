@@ -58,11 +58,13 @@ devices.
 
 == Requests ==
 
-/api/request/list/
+/api/request/list/[?include_closed=1]
 * GET returns a JSON response body whose "requests" key contains an array of
   objects representing all current requests. The objects have the keys id,
   assignee, assigned_device, boot_config, expires, imaging_server,
   requested_device, and the state keys state, state_timeout, state_counters.
+  By default, closed requests are omitted.  They can be included by
+  giving the "include_closed" argument (with any value).
 
 Once a request is fulfilled using the "request" API above, all further
 actions related to the requested device should be done using that URL, which

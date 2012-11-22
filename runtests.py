@@ -226,16 +226,18 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         add_server("server2")
         add_device("device1", server="server1", state="free")
         add_device("device2", server="server1", state="free")
-        add_device("device3", server="server1", state="free")
-        add_request("server2", device="device3")
+        add_device("device3", server="server1", state="ready")
+        add_request("server2", device="device3", state="ready")
         mozpool.mozpool.driver = requestmachine.MozpoolDriver()
    
     def testRequestDevice(self):
+        # asserts related to IDs are mostly to identify them for debugging
         request_params = {"assignee": "slave1", "duration": 3600}
         r = self.app.post("/api/device/device1/request/",
                           json.dumps(request_params))
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
+        self.assertEqual(body["request"]["id"], 2)
         self.assertEqual(body["request"]["assigned_device"], "device1")
         self.assertEqual(urlparse.urlparse(body["request"]["url"]).path,
                          "/api/request/2/")
@@ -243,6 +245,7 @@ class TestRequests(ConfigMixin, unittest.TestCase):
                           json.dumps(request_params), expect_errors=True)
         self.assertEqual(409, r.status)
         body = json.loads(r.body)
+        self.assertEqual(body["request"]["id"], 3)
         self.assertEqual(body["request"]["assigned_device"], "")
 
         # test "any" request
@@ -250,14 +253,16 @@ class TestRequests(ConfigMixin, unittest.TestCase):
                           json.dumps(request_params))
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
-        self.assertEqual(body["request"]["assigned_device"], "device2")
         device2_request_id = body["request"]["id"]
+        self.assertEqual(device2_request_id, 4)
+        self.assertEqual(body["request"]["assigned_device"], "device2")
         r = self.app.post("/api/device/any/request/",
-                          json.dumps(request_params), expect_errors=True)
+                          json.dumps(request_params))
         # it will retry a few times to find a device, so we'll get back
         # a 200 error but no assigned device
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
+        self.assertEqual(body["request"]["id"], 5)
         self.assertEqual(body["request"]["assigned_device"], "")
 
         # test details for found and not found devices
@@ -297,6 +302,9 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         r = self.app.post("/api/device/device2/request/",
                           json.dumps(request_params))
         self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEqual(body["request"]["id"], 6)
+        self.assertEqual(body["request"]["assigned_device"], "device2")
         
         # test busy device
         add_device("device4", server="server1", state="pxe_booting")
@@ -304,8 +312,16 @@ class TestRequests(ConfigMixin, unittest.TestCase):
                           json.dumps(request_params), expect_errors=True)
         self.assertEqual(200, r.status)
         body = json.loads(r.body)
+        self.assertEqual(body["request"]["id"], 7)
         self.assertEqual(body["request"]["assigned_device"], "")
 
+        # test request list
+        r = self.app.get("/api/request/list/")
+        body = json.loads(r.body)
+        self.assertEqual(len(body["requests"]), 5)
+        r = self.app.get("/api/request/list/?include_closed=1")
+        body = json.loads(r.body)
+        self.assertEqual(len(body["requests"]), 7)
 
 class TestDevicePowerCycle(ConfigMixin, unittest.TestCase):
     def setUp(self):

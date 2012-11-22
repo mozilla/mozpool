@@ -448,7 +448,7 @@ def request_config(request_id):
         request['assigned_device'] = assigned_device
     return request
 
-def dump_requests(*request_ids):
+def dump_requests(*request_ids, **kwargs):
     conn = sql.get_conn()
     requests = model.requests
     stmt = sqlalchemy.select(
@@ -467,6 +467,8 @@ def dump_requests(*request_ids):
         else:
             id_exprs = or_(*id_exprs)
         stmt = stmt.where(id_exprs)
+    if not kwargs.get('include_closed', False):
+        stmt = stmt.where(requests.c.state!='closed')
     res = conn.execute(stmt)
     requests = [dict(row) for row in res]
     res = conn.execute(sqlalchemy.select([model.device_requests.c.request_id,
