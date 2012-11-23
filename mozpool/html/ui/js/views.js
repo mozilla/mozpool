@@ -16,11 +16,13 @@ var TableView = Backbone.View.extend({
 
     initialize: function(args) {
         this.collection = args.collection;
-        _.bindAll(this, 'render', 'modelAdded', 'modelRemoved',
-                        'domObjectChanged', 'checkboxClicked');
+        _.bindAll(this, 'render', 'modelAdded', 'domObjectChanged',
+                  'checkboxClicked');
 
         this.collection.bind('add', this.modelAdded);
-        this.collection.bind('remove', this.modelRemoved);
+        // remove handled by TableRowView
+
+        this.tableRowViews = [];
     },
 
     render: function() {
@@ -86,19 +88,24 @@ var TableView = Backbone.View.extend({
 
     modelAdded: function (m) {
         //conosle.dir(m);
-        new TableRowView({
+        this.tableRowViews.push(new TableRowView({
             model: m,
             dataTable: this.dataTable,
             parentView: this
-        });
+        }));
         // no need to render the view; dataTables already has the
 
         // schedule a (debounced) redraw
         this.dataTable.redraw();
     },
 
-    modelRemoved: function (m) {
-        // TODO: rare in production, but should be handled..
+    rowDeleted: function(idx) {
+        var self = this;
+        $.each(self.tableRowViews, function(i, v) {
+            if (v.row_index > idx) {
+                v.row_index--;
+            }
+        });
     },
 
     // convert a TR element (not a jquery selector) to its position in the table
@@ -275,7 +282,7 @@ var RequestTableView = TableView.extend({
         if (model.get('selected')) {
             checked = ' checked=1';
         }
-        var checkbox = '<input type="checkbox" id="device-' + model.get('id') + '"' + checked + '>';
+        var checkbox = '<input type="checkbox" id="request-' + model.get('id') + '"' + checked + '>';
         return checkbox;
     },
 
@@ -309,7 +316,13 @@ var RequestTableView = TableView.extend({
     },
 
     renderLinks: function(model) {
-        return "[close]";
+        var log_a = $('<a/>', {
+            href: 'log.html?request=' + model.get('id'),
+            text: 'log',
+            target: '_blank'
+        });
+        // for each, wrap in a div and extract the contents as a string
+        return "[" + $('<div>').append(log_a).html() + "]";
     },
 });
 
@@ -321,6 +334,7 @@ var TableRowView = Backbone.View.extend({
         this.parentView = args.parentView;
 
         _.bindAll(this, 'modelChanged');
+        _.bindAll(this, 'modelRemoved');
 
         // set up the row datal put the id in the hidden column 0
         var model = this.model;
@@ -335,6 +349,7 @@ var TableRowView = Backbone.View.extend({
         this.row_index = row_indexes[0];
 
         this.model.bind('change', this.modelChanged);
+        this.model.bind('remove', this.modelRemoved);
     },
 
     modelChanged: function() {
@@ -353,6 +368,12 @@ var TableRowView = Backbone.View.extend({
 
         // schedule a redraw, now that everything is updated
         self.dataTable.redraw();
+    },
+
+    modelRemoved: function() {
+        this.dataTable.fnDeleteRow(this.row_index);
+        this.parentView.rowDeleted(this.row_index);
+        this.dataTable.redraw();
     },
 });
 
@@ -532,6 +553,22 @@ var B2gBaseView = Backbone.View.extend({
 
     valueChanged: function() {
         window.current_b2gbase.set('b2gbase', this.$el.val());
+    }
+});
+
+var IncludeClosedView = Backbone.View.extend({
+    initialize: function(args) {
+        _.bindAll(this, 'valueChanged');
+        this.valueChanged();
+    },
+
+    events: {
+        'change': 'valueChanged'
+    },
+
+    valueChanged: function() {
+        window.requests.includeClosed = this.$el.attr('checked') != undefined;
+        window.requests.update();
     }
 });
 

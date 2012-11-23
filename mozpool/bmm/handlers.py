@@ -5,7 +5,6 @@
 import datetime
 import web
 import templeton
-import json
 from mozpool.db import data, logs
 from mozpool.web.handlers import deviceredirect
 from mozpool.bmm import api

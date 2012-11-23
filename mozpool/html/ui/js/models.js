@@ -28,7 +28,7 @@ var UpdateableCollection = Backbone.Collection.extend({
 
         // calculate added and removed elements from differences
         _.each(_.difference(old_ids, new_ids), function (id) {
-            self.get(id).remove();
+            self.remove(self.get(id));
         });
         _.each(_.difference(new_ids, old_ids), function (id) {
             var attrs = response[self.responseAttr][_.indexOf(new_ids, id)];
@@ -76,9 +76,12 @@ var Request = Backbone.Model.extend({
 });
 
 var Requests = UpdateableCollection.extend({
-    url: '/api/request/list/',
+    url: function() {
+        return '/api/request/list/' + (this.includeClosed ? '?include_closed=1' : '');
+    },
     model: Request,
-    responseAttr: 'requests'
+    responseAttr: 'requests',
+    includeClosed: false
 });
 
 var PxeConfig = Backbone.Model.extend({

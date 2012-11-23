@@ -11,6 +11,7 @@ function run_ui(next) {
 
         // create the required views
         new RequestTableView({ el: $('#container'), }).render();
+        new IncludeClosedView({ el: $('#include-closed') }).render();
         new B2gBaseView({ el: $('#boot-config-b2gbase'), }).render();
 
         new JobQueueView({ el: $('#job-queue'), }).render();
