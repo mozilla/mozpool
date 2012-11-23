@@ -10,18 +10,21 @@ function run_ui(next) {
     )
     .thenRun(function(next) {
         // client-side models
+        window.renew_duration = new RenewDuration();
         window.current_b2gbase = new CurrentB2gBase();
         window.job_queue = new JobQueue();
+        window.job_queue.model = RequestJob;
 
         // create the required views
         new RequestTableView({ el: $('#container'), }).render();
         new IncludeClosedView({ el: $('#include-closed') }).render();
+        new MozpoolCloseRequestsButtonView({ el: $('#close-requests-button') }).render();
         new B2gBaseView({ el: $('#boot-config-b2gbase'), }).render();
 
         new JobQueueView({ el: $('#job-queue'), }).render();
 
         // and the job runner
-        new JobRunner();
+        new JobRunner(window.requests);
 
         $('#loading').hide();
     });

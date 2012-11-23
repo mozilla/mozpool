@@ -7,7 +7,8 @@ var JobRunner = function () {
 };
 
 $.extend(JobRunner.prototype, {
-    initialize: function() {
+    initialize: function(args) {
+        this.collection = args[0];
         _.bindAll(this, 'maybeStartJob', 'jobFinished');
         this.running = null;
 
@@ -27,7 +28,7 @@ $.extend(JobRunner.prototype, {
         this.running = window.job_queue.at(0);
 
         // run the job
-        console.log("running", this.running.get('job_type'), 'for', this.running.get('device_name'));
+        console.log("running", this.running.get('job_type'), 'for', this.running.job_subject());
 
         var job_type = this.running.get('job_type');
         if (job_type == 'bmm-power-cycle') {
@@ -40,6 +41,8 @@ $.extend(JobRunner.prototype, {
             this.runLifeguardPxeBoot();
         } else if (job_type == 'lifeguard-force-state') {
             this.runLifeguardForceState();
+        } else if (job_type == 'mozpool-close-request') {
+            this.runMozpoolCloseRequest();
         } else {
             this.handleError('unknown job type ' + job_type);
             this.jobFinished();
@@ -140,11 +143,25 @@ $.extend(JobRunner.prototype, {
         });
     },
 
+    runMozpoolCloseRequest: function() {
+        var self = this;
+
+        var url = '//' + this.running.get('request').get('imaging_server') + '/api/request/' + this.running.get('request_id')  + '/return/';
+        $.ajax(url, {
+            type: 'POST',
+            error: function (jqxhr, textStatus, errorThrown) {
+                self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
+            },
+            complete: this.jobFinished
+        });
+    },
+
     jobFinished: function() {
         var self = this;
         this.running = null;
         window.job_queue.shift();
-        _.defer(function() { self.maybeStartJob() });
+        this.collection.update();
+        _.defer(function() { self.maybeStartJob(); });
     },
 
     handleError: function(msg) {

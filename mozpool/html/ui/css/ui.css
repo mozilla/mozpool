@@ -94,6 +94,10 @@ div#menu-bmm {
     background: #AEC94B;
 }
 
+body.mozpool div#toolbar {
+    height: 6em;
+}
+
 body.lifeguard div#toolbar {
     height: 4em;
 }

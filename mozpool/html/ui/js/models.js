@@ -110,6 +110,12 @@ var Log = Backbone.Collection.extend({
 
 // client-only models
 
+var RenewDuration = Backbone.Model.extend({
+    initialize: function(args) {
+        this.set('renewDuration', '');
+    }
+});
+
 var SelectedPxeConfig = Backbone.Model.extend({
     // currently-selected boot image in the <select>; name can be '' when no
     // image is selected
@@ -132,15 +138,32 @@ var CurrentForceState = Backbone.Model.extend({
     }
 });
 
-var Job = Backbone.Model.extend({
+var DeviceJob = Backbone.Model.extend({
     initialize: function (args) {
         this.device = args.device;
         this.set('job_type', args.job_type);
         this.set('job_args', args.job_args);
         this.set('device_name', this.device.get('name'));
     },
+
+    job_subject: function() {
+        return 'device ' + this.get('device_name');
+    }
+});
+
+var RequestJob = Backbone.Model.extend({
+    initialize: function (args) {
+        this.request = args.request;
+        this.set('job_type', args.job_type);
+        this.set('job_args', args.job_args);
+        this.set('request_id', this.request.get('id'));
+    },
+
+    job_subject: function() {
+        return 'request ' + this.get('request_id');
+    }
 });
 
 var JobQueue = Backbone.Collection.extend({
-    model: Job
+    model: null,  // override after creation
 });

@@ -15,6 +15,7 @@ function run_ui(next) {
         window.current_b2gbase = new CurrentB2gBase();
         window.current_force_state = new CurrentForceState();
         window.job_queue = new JobQueue();
+        window.job_queue.model = DeviceJob;
 
         // create the required views
         new DeviceTableView({ el: $('#container'), }).render();
@@ -26,9 +27,9 @@ function run_ui(next) {
         new JobQueueView({ el: $('#job-queue'), }).render();
 
         // and the job runner
-        new JobRunner();
+        new JobRunner(window.devices);
 
         $('#loading').hide();
-    })
+    });
 }
 

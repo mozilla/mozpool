@@ -22,8 +22,8 @@ function run_ui(next) {
         new JobQueueView({ el: $('#job-queue'), }).render();
 
         // and the job runner
-        new JobRunner();
+        new JobRunner(window.devices);
 
         $('#loading').hide();
-    })
+    });
 }

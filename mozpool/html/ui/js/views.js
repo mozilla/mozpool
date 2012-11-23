@@ -16,6 +16,7 @@ var TableView = Backbone.View.extend({
 
     initialize: function(args) {
         this.collection = args.collection;
+        this.checkboxRE = args.checkboxRE;
         _.bindAll(this, 'render', 'modelAdded', 'domObjectChanged',
                   'checkboxClicked');
 
@@ -147,7 +148,7 @@ var TableView = Backbone.View.extend({
                 // convert the table position to a model
                 var data_idx = aiDisplayMaster[from_pos];
                 var id = this.dataTable.fnGetData(data_idx, 0);
-                window.devices.get(id).set('selected', 1);
+                this.collection.get(id).set('selected', 1);
                 from_pos++;
             }
         } 
@@ -164,7 +165,7 @@ var TableView = Backbone.View.extend({
 
         // figure out the id
         var dom_id = evt.target.id;
-        var id = /device-(\d+)/.exec(dom_id)[1];
+        var id = this.checkboxRE.exec(dom_id)[1];
         if (id == '') {
             return;
         }
@@ -172,14 +173,15 @@ var TableView = Backbone.View.extend({
         // get the checked status
         var checked = this.$('#' + dom_id).is(':checked')? true : false;
 
-        var device = this.collection.get(id);
-        device.set('selected', checked);
+        var model = this.collection.get(id);
+        model.set('selected', checked);
     }
 });
 
 var DeviceTableView = TableView.extend({
     initialize: function(args) {
         args.collection = window.devices;
+        args.checkboxRE = /device-(\d+)/;
         TableView.prototype.initialize.call(this, args);
     },
 
@@ -259,6 +261,7 @@ var DeviceTableView = TableView.extend({
 var RequestTableView = TableView.extend({
     initialize: function(args) {
         args.collection = window.requests;
+        args.checkboxRE = /request-(\d+)/;
         TableView.prototype.initialize.call(this, args);
     },
 
@@ -282,7 +285,11 @@ var RequestTableView = TableView.extend({
         if (model.get('selected')) {
             checked = ' checked=1';
         }
-        var checkbox = '<input type="checkbox" id="request-' + model.get('id') + '"' + checked + '>';
+        var disabled = '';
+        if (model.get('state') == 'closed') {
+            disabled = ' disabled=1';
+        }
+        var checkbox = '<input type="checkbox" id="request-' + model.get('id') + '"' + checked + disabled + '>';
         return checkbox;
     },
 
@@ -378,10 +385,10 @@ var TableRowView = Backbone.View.extend({
 });
 
 var ActionButtonView = Backbone.View.extend({
-    initialize: function() {
+    initialize: function(args) {
+        this.collection = args.collection;
         _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
-        window.devices.bind('change', this.refreshButtonStatus);
-        window.selected_pxe_config.bind('change', this.refreshButtonStatus);
+        this.collection.bind('change', this.refreshButtonStatus);
     },
 
     events: {
@@ -395,7 +402,7 @@ var ActionButtonView = Backbone.View.extend({
     refreshButtonStatus: function() {
         // only enable the button if at least one device is selected
         var any_selected = false;
-        window.devices.each(function (b) {
+        this.collection.each(function (b) {
             any_selected = any_selected ? true : b.get('selected');
         });
         this.$el.attr('disabled', !any_selected);
@@ -406,7 +413,30 @@ var ActionButtonView = Backbone.View.extend({
     }
 });
 
+var MozpoolCloseRequestsButtonView = ActionButtonView.extend({
+    initialize: function() {
+        ActionButtonView.prototype.initialize.call(
+            this, {collection: window.requests});
+    },
+
+    buttonClicked: function() {
+        window.requests.each(function (b) {
+            if (b.get('selected')) {
+                job_queue.push({
+                    request: b,
+                    job_type: 'mozpool-close-request'
+                });
+            }
+        });
+    }
+});
+
 var BmmPowerCycleButtonView = ActionButtonView.extend({
+    initialize: function() {
+        ActionButtonView.prototype.initialize.call(
+            this, {collection: window.devices});
+    },
+
     buttonClicked: function() {
         var selected_pxe_config = window.selected_pxe_config.get('name');
         window.devices.each(function (b) {
@@ -423,6 +453,11 @@ var BmmPowerCycleButtonView = ActionButtonView.extend({
 });
 
 var BmmPowerOffButtonView = ActionButtonView.extend({
+    initialize: function() {
+        ActionButtonView.prototype.initialize.call(
+            this, {collection: window.devices});
+    },
+
     buttonClicked: function() {
         var selected_pxe_config = window.selected_pxe_config.get('name');
         window.devices.each(function (b) {
@@ -439,6 +474,12 @@ var BmmPowerOffButtonView = ActionButtonView.extend({
 });
 
 var LifeguardPleaseButtonView = ActionButtonView.extend({
+    initialize: function() {
+        ActionButtonView.prototype.initialize.call(
+            this, {collection: window.devices});
+        window.selected_pxe_config.bind('change', this.refreshButtonStatus);
+    },
+
     buttonClicked: function() {
         var selected_pxe_config = window.selected_pxe_config.get('name');
 
@@ -480,6 +521,11 @@ var LifeguardPleaseButtonView = ActionButtonView.extend({
 });
 
 var LifeguardForceStateButtonView = ActionButtonView.extend({
+    initialize: function() {
+        ActionButtonView.prototype.initialize.call(
+            this, {collection: window.devices});
+    },
+
     buttonClicked: function() {
         var selected_pxe_config = window.selected_pxe_config.get('name');
         window.devices.each(function (b) {
