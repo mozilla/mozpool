@@ -110,9 +110,9 @@ var Log = Backbone.Collection.extend({
 
 // client-only models
 
-var RenewDuration = Backbone.Model.extend({
+var CurrentRenewDuration = Backbone.Model.extend({
     initialize: function(args) {
-        this.set('renewDuration', '');
+        this.set('duration', '');
     }
 });
 

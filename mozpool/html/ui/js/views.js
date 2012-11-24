@@ -413,6 +413,22 @@ var ActionButtonView = Backbone.View.extend({
     }
 });
 
+var RenewDurationView = Backbone.View.extend({
+    initialize: function(args) {
+        _.bindAll(this, 'valueChanged');
+    },
+
+    events: {
+        'change': 'valueChanged',
+        'keyup': 'valueChanged',
+    },
+
+    valueChanged: function() {
+        console.log('value changed');
+        window.current_renew_duration.set('duration', this.$el.val());
+    }
+});
+
 var MozpoolCloseRequestsButtonView = ActionButtonView.extend({
     initialize: function() {
         ActionButtonView.prototype.initialize.call(
@@ -428,6 +444,36 @@ var MozpoolCloseRequestsButtonView = ActionButtonView.extend({
                 });
             }
         });
+    }
+});
+
+var MozpoolRenewRequestsButtonView = ActionButtonView.extend({
+    initialize: function() {
+        ActionButtonView.prototype.initialize.call(
+            this, {collection: window.requests});
+        window.current_renew_duration.bind('change', this.refreshButtonStatus);
+    },
+
+    buttonClicked: function() {
+        window.requests.each(function (b) {
+            if (b.get('selected')) {
+                job_queue.push({
+                    request: b,
+                    job_type: 'mozpool-renew-request',
+                    job_args: { duration: window.current_renew_duration.get('duration') }
+                });
+            }
+        });
+    },
+
+    refreshButtonStatus: function() {
+        console.log('refresh button');
+        var duration = window.current_renew_duration.get('duration');
+        if (duration == '' || isNaN(duration)) {
+            this.$el.attr('disabled', 'disabled');
+            return;
+        }
+        ActionButtonView.prototype.refreshButtonStatus.call(this);
     }
 });
 

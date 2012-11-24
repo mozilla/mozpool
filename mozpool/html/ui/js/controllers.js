@@ -43,6 +43,8 @@ $.extend(JobRunner.prototype, {
             this.runLifeguardForceState();
         } else if (job_type == 'mozpool-close-request') {
             this.runMozpoolCloseRequest();
+        } else if (job_type == 'mozpool-renew-request') {
+            this.runMozpoolRenewRequest();
         } else {
             this.handleError('unknown job type ' + job_type);
             this.jobFinished();
@@ -149,6 +151,22 @@ $.extend(JobRunner.prototype, {
         var url = '//' + this.running.get('request').get('imaging_server') + '/api/request/' + this.running.get('request_id')  + '/return/';
         $.ajax(url, {
             type: 'POST',
+            error: function (jqxhr, textStatus, errorThrown) {
+                self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
+            },
+            complete: this.jobFinished
+        });
+    },
+
+    runMozpoolRenewRequest: function() {
+        var self = this;
+
+        var url = '//' + this.running.get('request').get('imaging_server') + '/api/request/' + this.running.get('request_id')  + '/renew/';
+        var job_args = this.running.get('job_args');
+        var post_params = {duration: job_args['duration']};
+        $.ajax(url, {
+            type: 'POST',
+            data: JSON.stringify(post_params),
             error: function (jqxhr, textStatus, errorThrown) {
                 self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
             },

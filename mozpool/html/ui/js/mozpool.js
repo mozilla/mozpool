@@ -10,8 +10,8 @@ function run_ui(next) {
     )
     .thenRun(function(next) {
         // client-side models
-        window.renew_duration = new RenewDuration();
-        window.current_b2gbase = new CurrentB2gBase();
+        window.current_renew_duration = new CurrentRenewDuration();
+        //window.current_b2gbase = new CurrentB2gBase();
         window.job_queue = new JobQueue();
         window.job_queue.model = RequestJob;
 
@@ -19,7 +19,9 @@ function run_ui(next) {
         new RequestTableView({ el: $('#container'), }).render();
         new IncludeClosedView({ el: $('#include-closed') }).render();
         new MozpoolCloseRequestsButtonView({ el: $('#close-requests-button') }).render();
-        new B2gBaseView({ el: $('#boot-config-b2gbase'), }).render();
+        new MozpoolRenewRequestsButtonView({ el: $('#renew-requests-button') }).render();
+        //new B2gBaseView({ el: $('#boot-config-b2gbase'), }).render();
+        new RenewDurationView({ el: $('#renew-requests-duration') }).render();
 
         new JobQueueView({ el: $('#job-queue'), }).render();
 
@@ -29,4 +31,3 @@ function run_ui(next) {
         $('#loading').hide();
     });
 };
-
