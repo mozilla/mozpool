@@ -10,6 +10,11 @@
                                     .thenRun(function(next) { run_ui(next); }) </script>
   </head>
   <body class="mozpool">
+    <div id="header">
+      <div id="include-closed">
+        <input type="checkbox" name="include-closed-checkbox" id="include-closed-checkbox" /> Include closed requests
+      </div>
+    </div>
     <div id="container">
         <div id="loading">loading...</div>
     </div>
@@ -20,8 +25,6 @@
       <!-- B2G Base:
       <input type="text" name="boot-config-b2gbase" id="boot-config-b2gbase" /> -->
       <button id="renew-requests-button">Renew requests</button>for <input type="text" name="renew-requests-duration" id="renew-requests-duration" size="5" /> seconds
-      <br/>
-      <input type="checkbox" name="include-closed" id="include-closed" /> Include Closed
     </div>
   </body>
 </html>

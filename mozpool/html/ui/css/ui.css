@@ -1,9 +1,8 @@
 /* overall layout */
 
 body {
-    margin: 0;
-    /* leave room for the toolbar */
-    margin-bottom: 2em;
+    margin: 41px 0 0 0;
+    padding: 0;
 }
 
 body.lifeguard {
@@ -77,6 +76,16 @@ td.rowcheckbox input {
     margin-bottom: 3px;
 }
 
+/* fixed header */
+div#header {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    height: 40px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
 /* fixed bottom toolbar */
 
 div#toolbar {
@@ -95,7 +104,7 @@ div#menu-bmm {
 }
 
 body.mozpool div#toolbar {
-    height: 6em;
+    height: 4em;
 }
 
 body.lifeguard div#toolbar {
@@ -103,7 +112,7 @@ body.lifeguard div#toolbar {
 }
 
 body.lifeguard div#toolbar,
-div#menu-lifeguard {
+div#menu-lifeguard, div#header {
     background: #C9638B;
 }
 
@@ -112,10 +121,19 @@ div#menu-mozpool {
     background: #4BAAC9;
 }
 
+body.mozpool div#include-closed {
+    float: left;
+    padding: 5px;
+}
+
 div#toolbar button {
     height: 2.5em;
     margin: 0.25em;
     padding: 0px;
+}
+
+div.clear {
+    clear: both;
 }
 
 div.dataTables_filter {

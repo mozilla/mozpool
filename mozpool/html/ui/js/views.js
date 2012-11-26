@@ -72,7 +72,7 @@ var TableView = Backbone.View.extend({
         this.dataTable = this.$('table').dataTable(dtArgs);
 
         // transplant the search box from the table header to our toolbar
-        this.$('.dataTables_filter').detach().appendTo('#toolbar');
+        this.$('.dataTables_filter').detach().appendTo('#header');
 
         // attach a listener to the entire table, to catch events bubbled up from
         // the checkboxes
@@ -467,7 +467,6 @@ var MozpoolRenewRequestsButtonView = ActionButtonView.extend({
     },
 
     refreshButtonStatus: function() {
-        console.log('refresh button');
         var duration = window.current_renew_duration.get('duration');
         if (duration == '' || isNaN(duration)) {
             this.$el.attr('disabled', 'disabled');
@@ -648,7 +647,7 @@ var B2gBaseView = Backbone.View.extend({
     }
 });
 
-var IncludeClosedView = Backbone.View.extend({
+var IncludeClosedCheckboxView = Backbone.View.extend({
     initialize: function(args) {
         _.bindAll(this, 'valueChanged');
         this.valueChanged();
