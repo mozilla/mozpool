@@ -94,24 +94,20 @@ div#toolbar {
     left: 0px;
     right: 0px;
     border-top: thin solid #e0e0e0;
-    padding: 2pt;
+    padding: 5px;
 }
 
-body.bmm div#toolbar,
+body.bmm div#toolbar, body.bmm div#header,
 div#menu-bmm {
     background: #AEC94B;
 }
 
-body.mozpool div#toolbar {
-    padding: 5px 0 0 5px;
-}
-
 body.lifeguard div#toolbar,
-div#menu-lifeguard, div#header {
+div#menu-lifeguard, body.lifeguard div#header {
     background: #C9638B;
 }
 
-body.mozpool div#toolbar,
+body.mozpool div#toolbar, body.mozpool div#header,
 div#menu-mozpool {
     background: #4BAAC9;
 }
