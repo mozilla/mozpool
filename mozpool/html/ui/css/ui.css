@@ -1,7 +1,7 @@
 /* overall layout */
 
 body {
-    margin: 0 0 0 5px;
+    margin: 0;
 }
 
 body.bmm, body.lifeguard, body.mozpool {
@@ -93,7 +93,6 @@ div#toolbar {
     bottom: 0px;
     left: 0px;
     right: 0px;
-    height: 2em;
     border-top: thin solid #e0e0e0;
     padding: 2pt;
 }
@@ -104,12 +103,7 @@ div#menu-bmm {
 }
 
 body.mozpool div#toolbar {
-    height: 4.5em;
     padding: 5px 0 0 5px;
-}
-
-body.lifeguard div#toolbar {
-    height: 4em;
 }
 
 body.lifeguard div#toolbar,
