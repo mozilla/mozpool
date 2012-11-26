@@ -333,8 +333,9 @@ var RequestTableView = TableView.extend({
     },
 });
 
-// A class to represent each row in a TableView.  Because DataTables only allow strings
-// in the cells, there's not much to do here -- all of the action is above.
+// A class to represent each row in a TableView.  Because DataTables only allow
+// strings in the cells, there's not much to do here -- all of the action is
+// above.
 var TableRowView = Backbone.View.extend({
     initialize: function(args) {
         this.dataTable = args.dataTable;
@@ -410,69 +411,6 @@ var ActionButtonView = Backbone.View.extend({
 
     buttonClicked: function() {
         // subclasses override this
-    }
-});
-
-var RenewDurationView = Backbone.View.extend({
-    initialize: function(args) {
-        _.bindAll(this, 'valueChanged');
-    },
-
-    events: {
-        'change': 'valueChanged',
-        'keyup': 'valueChanged',
-    },
-
-    valueChanged: function() {
-        console.log('value changed');
-        window.current_renew_duration.set('duration', this.$el.val());
-    }
-});
-
-var MozpoolCloseRequestsButtonView = ActionButtonView.extend({
-    initialize: function() {
-        ActionButtonView.prototype.initialize.call(
-            this, {collection: window.requests});
-    },
-
-    buttonClicked: function() {
-        window.requests.each(function (b) {
-            if (b.get('selected')) {
-                job_queue.push({
-                    request: b,
-                    job_type: 'mozpool-close-request'
-                });
-            }
-        });
-    }
-});
-
-var MozpoolRenewRequestsButtonView = ActionButtonView.extend({
-    initialize: function() {
-        ActionButtonView.prototype.initialize.call(
-            this, {collection: window.requests});
-        window.current_renew_duration.bind('change', this.refreshButtonStatus);
-    },
-
-    buttonClicked: function() {
-        window.requests.each(function (b) {
-            if (b.get('selected')) {
-                job_queue.push({
-                    request: b,
-                    job_type: 'mozpool-renew-request',
-                    job_args: { duration: window.current_renew_duration.get('duration') }
-                });
-            }
-        });
-    },
-
-    refreshButtonStatus: function() {
-        var duration = window.current_renew_duration.get('duration');
-        if (duration == '' || isNaN(duration)) {
-            this.$el.attr('disabled', 'disabled');
-            return;
-        }
-        ActionButtonView.prototype.refreshButtonStatus.call(this);
     }
 });
 
@@ -599,6 +537,213 @@ var PxeConfigOptionView = Backbone.View.extend({
     }
 });
 
+var MozpoolRenewDurationView = Backbone.View.extend({
+    initialize: function(args) {
+        _.bindAll(this, 'valueChanged');
+    },
+
+    events: {
+        'change': 'valueChanged',
+        'keyup': 'valueChanged',
+    },
+
+    valueChanged: function() {
+        window.current_renew_duration.set('duration', this.$el.val());
+    }
+});
+
+var MozpoolCloseRequestsButtonView = ActionButtonView.extend({
+    initialize: function() {
+        ActionButtonView.prototype.initialize.call(
+            this, {collection: window.requests});
+    },
+
+    buttonClicked: function() {
+        window.requests.each(function (b) {
+            if (b.get('selected')) {
+                job_queue.push({
+                    request: b,
+                    job_type: 'mozpool-close-request'
+                });
+            }
+        });
+    }
+});
+
+var MozpoolRenewRequestsButtonView = ActionButtonView.extend({
+    initialize: function() {
+        ActionButtonView.prototype.initialize.call(
+            this, {collection: window.requests});
+        window.current_renew_duration.bind('change', this.refreshButtonStatus);
+    },
+
+    buttonClicked: function() {
+        window.requests.each(function (b) {
+            if (b.get('selected')) {
+                job_queue.push({
+                    request: b,
+                    job_type: 'mozpool-renew-request',
+                    job_args: { duration: window.current_renew_duration.get('duration') }
+                });
+            }
+        });
+    },
+
+    refreshButtonStatus: function() {
+        var duration = window.current_renew_duration.get('duration');
+        if (duration == '' || isNaN(duration)) {
+            this.$el.attr('disabled', 'disabled');
+            return;
+        }
+        ActionButtonView.prototype.refreshButtonStatus.call(this);
+    }
+});
+
+var MozpoolRequestedDeviceSelectView = Backbone.View.extend({
+    initialize: function(args) {
+        _.bindAll(this, 'refresh', 'selectChanged');
+
+        this.requested_device_views = [];
+        window.devicenames.bind('reset', this.refresh);
+    },
+
+    events: {
+        'change': 'selectChanged'
+    },
+
+    render: function() {
+        this.refresh();
+        return this;
+    },
+
+    refresh: function() {
+        var self = this;
+
+        // remove existing views, then add the whole new list of them
+        $.each(self.requested_device_views, function (v) { v.remove(); });
+        window.devicenames.each(function (device) {
+            var v = new MozpoolRequestedDeviceOptionView({ model: device });
+            $(self.el).append(v.render().el);
+            self.requested_device_views.push(v);
+        });
+    },
+
+    selectChanged: function() {
+        window.selected_requested_device.set('name', this.$el.val());
+    }
+});
+
+var MozpoolRequestedDeviceOptionView = Backbone.View.extend({
+    tagName: 'option',
+
+    initialize: function() {
+        _.bindAll(this, 'render');
+    },
+
+    render: function() {
+        $(this.el).attr('value', this.model.get('id')).html(this.model.get('id'));
+        return this;
+    }
+});
+
+var MozpoolRequestActionSelectView = Backbone.View.extend({
+    events: {
+        'change': 'selectChanged'
+    },
+
+    render: function() {
+        this.selectChanged();
+        return this;
+    },
+
+    selectChanged: function() {
+        var selected = this.$el.val();
+        window.selected_request_action.set('action', selected);
+        if (selected == 'reimage') {
+            $('#reimage-controls').show();
+        } else {
+            $('#reimage-controls').hide();
+        }
+    }
+});
+
+var MozpoolRequestAssigneeView = Backbone.View.extend({
+    initialize: function(args) {
+        _.bindAll(this, 'valueChanged');
+    },
+
+    events: {
+        'change': 'valueChanged',
+        'keyup': 'valueChanged',
+    },
+
+    valueChanged: function() {
+        window.current_request_assignee.set('assignee', this.$el.val());
+    }
+});
+
+var MozpoolRequestDurationView = Backbone.View.extend({
+    initialize: function(args) {
+        _.bindAll(this, 'valueChanged');
+    },
+
+    events: {
+        'change': 'valueChanged',
+        'keyup': 'valueChanged',
+    },
+
+    valueChanged: function() {
+        window.current_request_duration.set('duration', this.$el.val());
+    }
+});
+
+var MozpoolRequestSubmitButtonView = Backbone.View.extend({
+    initialize: function() {
+        _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
+        window.selected_request_action.bind('change', this.refreshButtonStatus);
+        window.current_request_assignee.bind('change', this.refreshButtonStatus);
+        window.current_request_duration.bind('change', this.refreshButtonStatus);
+        window.current_b2gbase.bind('change', this.refreshButtonStatus);
+    },
+
+    events: {
+        'click': 'buttonClicked'
+    },
+
+    render: function() {
+        this.refreshButtonStatus();
+    },
+
+    buttonClicked: function() {
+        var job_args = {
+            device: window.selected_requested_device.get('name'),
+            duration: window.current_request_duration.get('duration'),
+            assignee: window.current_request_assignee.get('assignee')
+        };
+
+        if (window.selected_request_action.get('action') == 'reimage') {
+            job_args.b2gbase = window.current_b2gbase.get('b2gbase');
+        }
+
+        job_queue.push({
+            job_type: 'mozpool-create-request',
+            job_args: job_args
+        });
+    },
+
+    refreshButtonStatus: function() {
+        var disabled = false;
+        var duration = window.current_request_duration.get('duration');
+        if (duration == '' || isNaN(duration) ||
+            !window.current_request_assignee.get('assignee') ||
+            (window.selected_request_action.get('action') == 'reimage' && !window.current_b2gbase.get('b2gbase'))) {
+            disabled = true;
+        }
+
+        this.$el.attr('disabled', disabled);
+    }
+});
+
 var PxeConfigSelectView = Backbone.View.extend({
     initialize: function(args) {
         _.bindAll(this, 'refresh', 'selectChanged');
@@ -639,7 +784,8 @@ var B2gBaseView = Backbone.View.extend({
     },
 
     events: {
-        'change': 'valueChanged'
+        'change': 'valueChanged',
+        'keyup': 'valueChanged'
     },
 
     valueChanged: function() {

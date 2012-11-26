@@ -20,11 +20,27 @@
     </div>
     <div id="error"></div>
     <div id="toolbar">
-      <button id="close-requests-button">Close requests</button>
-      <br/>
-      <!-- B2G Base:
-      <input type="text" name="boot-config-b2gbase" id="boot-config-b2gbase" /> -->
-      <button id="renew-requests-button">Renew requests</button>for <input type="text" name="renew-requests-duration" id="renew-requests-duration" size="5" /> seconds
+      <div id="selected-controls">
+        <button id="close-requests-button">Close selected requests</button>
+        <br/>
+        <button id="renew-requests-button">Renew selected requests</button>for <input type="text" name="renew-requests-duration" id="renew-requests-duration" size="5" /> seconds
+      </div>
+      <div id="other-controls">
+        Request device <select name="requested-device-select" id="requested-device-select"></select> and <select name="request-action-select" id="request-action-select"><option value="reboot" selected="selected">reboot</option><option value="reimage">reimage</option></select>,
+        assigned to <input type="text" name="request-assignee" id="request-assignee" />
+        <br/>
+        for <input type="text" name="request-duration" id="request-duration" size="5" /> seconds
+        <span id="reimage-controls">
+          with B2G base at url
+          <input type="text" name="boot-config-b2gbase" id="boot-config-b2gbase" />
+        </span>
+        <button id="request-submit-button">submit</button>
+      </div>
+      <div id="info">
+        <span id="job-queue"></span><br />
+      </div>
+      <div class="clear">
+      </div>
     </div>
   </body>
 </html>

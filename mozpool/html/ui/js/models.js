@@ -63,6 +63,37 @@ var Device = Backbone.Model.extend({
     }
 });
 
+var DeviceNames = UpdateableCollection.extend({
+    // only sets the 'id' attribute of the Device model to the device name
+    url: '/api/device/list/',
+    model: Device,
+    responseAttr: 'devices',
+
+    initialize: function() {
+        UpdateableCollection.prototype.initialize.call(this);
+        this.push(new this.model({id: 'any'}));
+    },
+
+    parse: function(response) {
+        var self = this;
+        var old_ids = self.map(function(b) { return b.get('id'); });
+        var new_ids = response[self.responseAttr];
+        new_ids.push('any');
+
+        _.each(_.difference(old_ids, new_ids), function (id) {
+            self.remove(self.get(id));
+        });
+
+        _.each(_.difference(new_ids, old_ids), function (id) {
+            var attrs = {id: id};
+            self.push(new self.model(attrs));
+        });
+
+        // this just instructs the fetch/add to not anything else:
+        return [];
+    },
+});
+
 var Devices = UpdateableCollection.extend({
     url: '/api/device/list/?details=true',
     model: Device,
@@ -77,7 +108,8 @@ var Request = Backbone.Model.extend({
 
 var Requests = UpdateableCollection.extend({
     url: function() {
-        return '/api/request/list/' + (this.includeClosed ? '?include_closed=1' : '');
+        return '/api/request/list/' + (this.includeClosed ? '?include_closed=1'
+                                                          : '');
     },
     model: Request,
     responseAttr: 'requests',
@@ -110,12 +142,6 @@ var Log = Backbone.Collection.extend({
 
 // client-only models
 
-var CurrentRenewDuration = Backbone.Model.extend({
-    initialize: function(args) {
-        this.set('duration', '');
-    }
-});
-
 var SelectedPxeConfig = Backbone.Model.extend({
     // currently-selected boot image in the <select>; name can be '' when no
     // image is selected
@@ -138,6 +164,38 @@ var CurrentForceState = Backbone.Model.extend({
     }
 });
 
+var CurrentRenewDuration = Backbone.Model.extend({
+    initialize: function(args) {
+        this.set('duration', '');
+    }
+});
+
+var CurrentRequestDuration = Backbone.Model.extend({
+    initialize: function(args) {
+        this.set('duration', '');
+    }
+});
+
+var CurrentRequestAssignee = Backbone.Model.extend({
+    initialize: function(args) {
+        this.set('assignee', '');
+    }
+});
+
+var SelectedRequestedDevice = Backbone.Model.extend({
+    // currently-selected requested device in the <select>; name can be '' when
+    // no image is selected
+    initialize: function (args) {
+        this.set('name', 'any');
+    }
+});
+
+var SelectedRequestAction = Backbone.Model.extend({
+    initialize: function (args) {
+        this.set('action', '');
+    }
+});
+
 var DeviceJob = Backbone.Model.extend({
     initialize: function (args) {
         this.device = args.device;
@@ -156,7 +214,7 @@ var RequestJob = Backbone.Model.extend({
         this.request = args.request;
         this.set('job_type', args.job_type);
         this.set('job_args', args.job_args);
-        this.set('request_id', this.request.get('id'));
+        this.set('request_id', this.request ? this.request.get('id') : 0);
     },
 
     job_subject: function() {

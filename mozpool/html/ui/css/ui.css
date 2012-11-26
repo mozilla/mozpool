@@ -1,12 +1,12 @@
 /* overall layout */
 
 body {
-    margin: 41px 0 0 0;
-    padding: 0;
+    margin: 0 0 0 5px;
 }
 
-body.lifeguard {
-    margin-bottom: 4em;
+body.bmm, body.lifeguard, body.mozpool {
+    /* leave room for header */
+    margin-top: 41px;
 }
 
 #loading {
@@ -104,7 +104,8 @@ div#menu-bmm {
 }
 
 body.mozpool div#toolbar {
-    height: 4em;
+    height: 4.5em;
+    padding: 5px 0 0 5px;
 }
 
 body.lifeguard div#toolbar {
@@ -126,10 +127,28 @@ body.mozpool div#include-closed {
     padding: 5px;
 }
 
+body.mozpool span#reimage-controls {
+    display: none;
+}
+
 div#toolbar button {
     height: 2.5em;
     margin: 0.25em;
     padding: 0px;
+}
+
+body.mozpool div#selected-controls {
+    float: left;
+    width: 33%;
+}
+
+body.mozpool div#other-controls {
+    float: left;
+    width: 40%;
+}
+
+body.mozpool div#info {
+    float: left;
 }
 
 div.clear {

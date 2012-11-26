@@ -45,6 +45,8 @@ $.extend(JobRunner.prototype, {
             this.runMozpoolCloseRequest();
         } else if (job_type == 'mozpool-renew-request') {
             this.runMozpoolRenewRequest();
+        } else if (job_type == 'mozpool-create-request') {
+            this.runMozpoolCreateRequest();
         } else {
             this.handleError('unknown job type ' + job_type);
             this.jobFinished();
@@ -164,6 +166,32 @@ $.extend(JobRunner.prototype, {
         var url = '//' + this.running.get('request').get('imaging_server') + '/api/request/' + this.running.get('request_id')  + '/renew/';
         var job_args = this.running.get('job_args');
         var post_params = {duration: job_args['duration']};
+        $.ajax(url, {
+            type: 'POST',
+            data: JSON.stringify(post_params),
+            error: function (jqxhr, textStatus, errorThrown) {
+                self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
+            },
+            complete: this.jobFinished
+        });
+    },
+
+    runMozpoolCreateRequest: function() {
+        var self = this;
+
+        var job_args = this.running.get('job_args');
+        var url = '/api/device/' + job_args.device  + '/request/';
+        var post_params = {
+            duration: job_args.duration,
+            assignee: job_args.assignee
+        };
+        if (job_args.b2gbase) {
+            post_params.boot_config = {
+                version: 1,
+                b2gbase: job_args.b2gbase
+            };
+        }
+        
         $.ajax(url, {
             type: 'POST',
             data: JSON.stringify(post_params),

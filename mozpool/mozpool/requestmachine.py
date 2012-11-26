@@ -175,7 +175,9 @@ class finding_device(Closable, Expirable, statemachine.State):
             if free_devices:
                 device_id = random.randint(0, len(free_devices) - 1)
                 device_name = free_devices[device_id]
-                self.logger.info('assigning device %s' % device_name)
+                logs.request_logs.add(
+                    self.machine.request_id,
+                    'assigning device %s' % device_name)
             else:
                 self.logger.info('no free devices')
         else:
