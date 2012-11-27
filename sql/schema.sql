@@ -156,7 +156,7 @@ CREATE TABLE requests (
   requested_device varchar(32) not null,
   -- short identifier for the requester/assignee
   assignee varchar(256) not null,
-  -- time at which the request will expire (if not renewed)
+  -- time (UTC) at which the request will expire (if not renewed)
   expires datetime not null,
   -- config to pass to device once assigned (JSON blob)
   boot_config text,

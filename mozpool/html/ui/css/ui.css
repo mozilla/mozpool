@@ -2,12 +2,11 @@
 
 body {
     margin: 0;
-    /* leave room for the toolbar */
-    margin-bottom: 2em;
 }
 
-body.lifeguard {
-    margin-bottom: 4em;
+body.bmm, body.lifeguard, body.mozpool {
+    /* leave room for header */
+    margin-top: 41px;
 }
 
 #loading {
@@ -77,6 +76,16 @@ td.rowcheckbox input {
     margin-bottom: 3px;
 }
 
+/* fixed header */
+div#header {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    height: 40px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
 /* fixed bottom toolbar */
 
 div#toolbar {
@@ -84,34 +93,56 @@ div#toolbar {
     bottom: 0px;
     left: 0px;
     right: 0px;
-    height: 2em;
     border-top: thin solid #e0e0e0;
-    padding: 2pt;
+    padding: 5px;
 }
 
-body.bmm div#toolbar,
+body.bmm div#toolbar, body.bmm div#header,
 div#menu-bmm {
     background: #AEC94B;
 }
 
-body.lifeguard div#toolbar {
-    height: 4em;
-}
-
 body.lifeguard div#toolbar,
-div#menu-lifeguard {
+div#menu-lifeguard, body.lifeguard div#header {
     background: #C9638B;
 }
 
-body.mozpool div#toolbar,
+body.mozpool div#toolbar, body.mozpool div#header,
 div#menu-mozpool {
     background: #4BAAC9;
+}
+
+body.mozpool div#include-closed {
+    float: left;
+    padding: 5px;
+}
+
+body.mozpool span#reimage-controls {
+    display: none;
 }
 
 div#toolbar button {
     height: 2.5em;
     margin: 0.25em;
     padding: 0px;
+}
+
+body.mozpool div#selected-controls {
+    float: left;
+    width: 33%;
+}
+
+body.mozpool div#other-controls {
+    float: left;
+    width: 40%;
+}
+
+body.mozpool div#info {
+    float: left;
+}
+
+div.clear {
+    clear: both;
 }
 
 div.dataTables_filter {

@@ -175,7 +175,7 @@ class ready(AcceptPleaseRequests, statemachine.State):
             self.machine.goto_state(ready)
         else:
             self.logger.warn('in ready state but not assigned to a request; '
-                             'moving to free state' % self.machine.device_name)
+                             'moving to free state')
             self.machine.goto_state(free)
 
 

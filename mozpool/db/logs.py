@@ -33,6 +33,20 @@ class Logs(object):
     def delete_all(self, object_id):
         sql.get_conn().execute(self.logs_table.delete().where(self.foreign_key_col==object_id))
 
+    def log_row_to_dict(self, row):
+        return {"timestamp": row["ts"].isoformat(),
+                "source": row["source"],
+                "message": row["message"]}
+
+    def get_all(self, name):
+        res = sql.get_conn().execute(
+            select([self.logs_table.c.ts,
+                    self.logs_table.c.source,
+                    self.logs_table.c.message]) \
+                .where(self.foreign_key_col==self._get_object_id(name)))
+
+        return [self.log_row_to_dict(row) for row in res]
+
     def get(self, name, timeperiod=datetime.timedelta(hours=1)):
         """Get log entries for a device for the past timeperiod."""
         from_time = datetime.datetime.utcnow() - timeperiod
@@ -43,9 +57,7 @@ class Logs(object):
                 .where(and_(self.foreign_key_col==self._get_object_id(name),
                             self.logs_table.c.ts>=from_time)))
 
-        return [{"timestamp": row["ts"].isoformat(),
-                 "source": row["source"],
-                 "message": row["message"]} for row in res]
+        return [self.log_row_to_dict(row) for row in res]
 
 
 class LogsByObjectName(Logs):

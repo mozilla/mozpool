@@ -8,7 +8,7 @@ import web
 
 import mozpool.mozpool
 from mozpool import config
-from mozpool.db import data
+from mozpool.db import data, logs
 from mozpool.web import handlers as mozpool_handlers
 
 urls = (
@@ -19,6 +19,7 @@ urls = (
     "/request/list/?", "request_list",
     "/request/([^/]+)/details/?", "request_details",
     "/request/([^/]+)/status/?", "request_status",
+    "/request/([^/]+)/log/?", "request_log",
     "/request/([^/]+)/renew/?", "request_renew",
     "/request/([^/]+)/return/?", "request_return",
 )
@@ -83,7 +84,9 @@ class device_status:
 class request_list:
     @templeton.handlers.json_response
     def GET(self):
-        return dict(requests=data.dump_requests())
+        args, _ = templeton.handlers.get_request_parms()
+        include_closed = args.get('include_closed', False)
+        return dict(requests=data.dump_requests(include_closed=include_closed))
 
 class request_details:
     @templeton.handlers.json_response
@@ -102,6 +105,11 @@ class request_status:
             return data.request_status(request_id)
         except IndexError:
             raise web.notfound()
+
+class request_log:
+    @templeton.handlers.json_response
+    def GET(self, request_id):
+        return {'log': logs.request_logs.get_all(request_id)}
 
 class request_renew:
     @requestredirect

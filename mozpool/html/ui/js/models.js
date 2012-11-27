@@ -1,25 +1,20 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 // NOTE: all top-level models appear as attributes of window, using the
 // lower-cased name.  So the Devices instance is window.devices.
 
 // db-backed models
 
-var Device = Backbone.Model.extend({
-    // in addition to all of the attributes from the REST API, this has a
-    // 'selected' attribute that is local to the client
-    initialize: function(args) {
-        this.set('selected', false);
-    },
-});
-
-var Devices = Backbone.Collection.extend({
-    url: '/api/device/list/?details=true',
-    model: Device,
+var UpdateableCollection = Backbone.Collection.extend({
+    responseAttr: '',  // override
     refreshInterval: 30000,
 
     initialize: function (args) {
         _.bindAll(this, 'update', 'parse');
 
-        // devices automatically update themselves; set up to update
+        // objects automatically update themselves; set up to update
         // TODO: this could be done better with fetch({merge:true}), but that's
         // not in backbone-0.9.2
         window.setTimeout(this.update, this.refreshInterval);
@@ -28,27 +23,28 @@ var Devices = Backbone.Collection.extend({
     parse: function(response) {
         var self = this;
         var old_ids = self.map(function(b) { return b.get('id'); });
-        var new_ids = _.map(response.devices, function (b) { return b.id; });
+        var new_ids = _.map(response[self.responseAttr],
+                            function (b) { return b.id; });
 
         // calculate added and removed elements from differences
         _.each(_.difference(old_ids, new_ids), function (id) {
-            self.get(id).remove();
+            self.remove(self.get(id));
         });
         _.each(_.difference(new_ids, old_ids), function (id) {
-            var device_attrs = response.devices[_.indexOf(new_ids, id)];
-            self.push(new self.model(device_attrs));
+            var attrs = response[self.responseAttr][_.indexOf(new_ids, id)];
+            self.push(new self.model(attrs));
         });
 
-        // then any updates to the individual devices that haven't been added or
+        // then any updates to the individual models that haven't been added or
         // removed
         _.each(_.intersection(new_ids, old_ids), function (id) {
-            var device_attrs = response.devices[_.indexOf(new_ids, id)];
+            var attrs = response[self.responseAttr][_.indexOf(new_ids, id)];
             var model = self.get(id);
-            model.set(device_attrs);
+            model.set(attrs);
         });
 
         // this just instructs the fetch/add to not anything else:
-        return []
+        return [];
     },
 
     update: function() {
@@ -56,8 +52,68 @@ var Devices = Backbone.Collection.extend({
         this.fetch({add: true, complete: function () {
             window.setTimeout(self.update, self.refreshInterval);
         }});
-
     }
+});
+
+var Device = Backbone.Model.extend({
+    // in addition to all of the attributes from the REST API, this has a
+    // 'selected' attribute that is local to the client
+    initialize: function(args) {
+        this.set('selected', false);
+    }
+});
+
+var DeviceNames = UpdateableCollection.extend({
+    // only sets the 'id' attribute of the Device model to the device name
+    url: '/api/device/list/',
+    model: Device,
+    responseAttr: 'devices',
+
+    initialize: function() {
+        UpdateableCollection.prototype.initialize.call(this);
+        this.push(new this.model({id: 'any'}));
+    },
+
+    parse: function(response) {
+        var self = this;
+        var old_ids = self.map(function(b) { return b.get('id'); });
+        var new_ids = response[self.responseAttr];
+        new_ids.push('any');
+
+        _.each(_.difference(old_ids, new_ids), function (id) {
+            self.remove(self.get(id));
+        });
+
+        _.each(_.difference(new_ids, old_ids), function (id) {
+            var attrs = {id: id};
+            self.push(new self.model(attrs));
+        });
+
+        // this just instructs the fetch/add to not anything else:
+        return [];
+    },
+});
+
+var Devices = UpdateableCollection.extend({
+    url: '/api/device/list/?details=true',
+    model: Device,
+    responseAttr: 'devices'
+});
+
+var Request = Backbone.Model.extend({
+    initialize: function(args) {
+        this.set('selected', false);
+    }
+});
+
+var Requests = UpdateableCollection.extend({
+    url: function() {
+        return '/api/request/list/' + (this.includeClosed ? '?include_closed=1'
+                                                          : '');
+    },
+    model: Request,
+    responseAttr: 'requests',
+    includeClosed: false
 });
 
 var PxeConfig = Backbone.Model.extend({
@@ -108,16 +164,64 @@ var CurrentForceState = Backbone.Model.extend({
     }
 });
 
-var Job = Backbone.Model.extend({
+var CurrentRenewDuration = Backbone.Model.extend({
+    initialize: function(args) {
+        this.set('duration', '');
+    }
+});
+
+var CurrentRequestDuration = Backbone.Model.extend({
+    initialize: function(args) {
+        this.set('duration', '');
+    }
+});
+
+var CurrentRequestAssignee = Backbone.Model.extend({
+    initialize: function(args) {
+        this.set('assignee', '');
+    }
+});
+
+var SelectedRequestedDevice = Backbone.Model.extend({
+    // currently-selected requested device in the <select>; name can be '' when
+    // no image is selected
+    initialize: function (args) {
+        this.set('name', 'any');
+    }
+});
+
+var SelectedRequestAction = Backbone.Model.extend({
+    initialize: function (args) {
+        this.set('action', '');
+    }
+});
+
+var DeviceJob = Backbone.Model.extend({
     initialize: function (args) {
         this.device = args.device;
         this.set('job_type', args.job_type);
         this.set('job_args', args.job_args);
         this.set('device_name', this.device.get('name'));
     },
+
+    job_subject: function() {
+        return 'device ' + this.get('device_name');
+    }
+});
+
+var RequestJob = Backbone.Model.extend({
+    initialize: function (args) {
+        this.request = args.request;
+        this.set('job_type', args.job_type);
+        this.set('job_args', args.job_args);
+        this.set('request_id', this.request ? this.request.get('id') : 0);
+    },
+
+    job_subject: function() {
+        return 'request ' + this.get('request_id');
+    }
 });
 
 var JobQueue = Backbone.Collection.extend({
-    model: Job
+    model: null,  // override after creation
 });
-
