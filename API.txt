@@ -133,12 +133,6 @@ a MozPool server or the device itself.
 
   200 OK is returned on success; on failure, 409 Conflict.
 
-/api/device/{id}/boot/{image}/
-* POST to indicate that this device should be booted with this image.
-  Optional request body should be JSON that is stored as the configuration
-  parameters for the boot.
-  204 No Content is returned as the response status.
-
 = Black Mobile Magic =
 
 Black Mobile Magic handles the hardware directly: power control, network boot
