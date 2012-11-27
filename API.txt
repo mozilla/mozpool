@@ -139,10 +139,6 @@ a MozPool server or the device itself.
   parameters for the boot.
   204 No Content is returned as the response status.
 
-/api/device/{id}/bootcomplete/
-* POST to indicate that the boot of this device has completed and
-  the PXE boot data can be removed.  No request body is required.
-
 = Black Mobile Magic =
 
 Black Mobile Magic handles the hardware directly: power control, network boot
