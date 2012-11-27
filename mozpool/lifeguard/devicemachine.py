@@ -189,7 +189,25 @@ class pc_power_cycling(PowerCycleMixin, statemachine.State):
     the power cycle is successful, go to state 'pc_pinging'.
     """
 
-    power_cycle_complete_state = 'pc_pinging'
+    power_cycle_complete_state = 'pc_rebooting'
+
+
+@DeviceStateMachine.state_class
+class pc_rebooting(statemachine.State):
+    """
+    We have power-cycled the device.  This state waits a short time for uboot
+    to start and boot from the sdcard, then begins pinging the device.  The
+    wait is to avoid a false positive ping from uboot, rather than the image
+    itself.
+    """
+
+    # The u-boot loader is also pingable, so we want to be very sure we don't get
+    # a false positive from it.  So, this is quite a bit longer than strictly
+    # necessary, but gives enough time to reboot, run u-boot, and then start b2g.
+    TIMEOUT = 120
+
+    def on_timeout(self):
+        self.machine.goto_state(pc_pinging)
 
 
 @DeviceStateMachine.state_class
