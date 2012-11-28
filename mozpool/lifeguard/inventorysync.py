@@ -3,6 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import re
 import argparse
 import requests
 from mozpool.db import data
@@ -17,10 +18,12 @@ from mozpool import config
 #  - imaging_server (from system.imaging_server.0)
 #  - relay_info (from system.relay.0)
 
-def get_devices(url, filter, username, password, verbose=False):
+def get_devices(url, filter, username, password, ignore_devices_on_servers_re=None, verbose=False):
     """
-    Return a list of hosts from inventory.  FILTER is a tastypie-style filter for
-    the desired hosts.  Any hosts without 'system.relay.0' are ignored.
+    Return a list of hosts from inventory.  FILTER is a tastypie-style filter
+    for the desired hosts.  Any hosts without 'system.relay.0' or the other
+    required inventory keys are ignored.  Any hosts with imaging servers
+    matching ignore_devices_on_servers_re are ignored.
     """
     # limit=100 selects 100 results at a time
     path = '/en-US/tasty/v3/system/?limit=100&' + filter
@@ -42,6 +45,12 @@ def get_devices(url, filter, username, password, verbose=False):
 
             name = hostname.split('.', 1)[0]
             mac_address = kv['nic.0.mac_address.0'].replace(':', '').lower()
+
+            if ignore_devices_on_servers_re and \
+               re.match(ignore_devices_on_servers_re, kv['system.imaging_server.0']):
+                if verbose: print hostname, 'SKIPPED - ignored imaging server'
+                continue
+            
             rv.append(dict(
                 name=name,
                 fqdn=hostname,
@@ -87,11 +96,15 @@ def merge_devices(from_db, from_inv):
             yield ('update', id, inv_row)
 
 def sync(verbose=False):
+    ignore_devices_on_servers_re = None
+    if config.has_option('inventory', 'ignore_devices_on_servers_re'):
+        ignore_devices_on_servers_re = config.get('inventory', 'ignore_devices_on_servers_re')
     from_inv = get_devices(
             config.get('inventory', 'url'),
             config.get('inventory', 'filter'),
             config.get('inventory', 'username'),
             config.get('inventory', 'password'),
+            ignore_devices_on_servers_re,
             verbose=verbose)
     # dump the db second, since otherwise the mysql server can go away while
     # get_devices is still running, which is no fun

@@ -529,11 +529,26 @@ class TestInvSyncGet(unittest.TestCase):
         self.set_responses([
             [ self.make_host('panda-001'), self.make_host('panda-002') ],
         ])
-        hosts = list(inventorysync.get_devices('https://inv', 'filter', 'me', 'pass'))
+        hosts = inventorysync.get_devices('https://inv', 'filter', 'me', 'pass', None)
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
              'fqdn': 'panda-001.vlan.dc.mozilla.com'},
+            {'inventory_id': 97, 'relay_info': 'relay9', 'name': 'panda-002',
+             'imaging_server': 'img1', 'mac_address': '86a1c8ce6ea2',
+             'fqdn': 'panda-002.vlan.dc.mozilla.com'},
+        ])
+        self.assertEqual(requests.get.call_args_list, [
+            mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
+        ])
+
+    def test_re_filter(self, get):
+        self.set_responses([
+            [ self.make_host('panda-001'), self.make_host('panda-002') ],
+        ])
+        hosts = inventorysync.get_devices('https://inv', 'filter', 'me', 'pass', '.*9')
+        self.assertEqual(hosts, [
+            # panda-001 was skipped, since 'img9' matches '.*9'
             {'inventory_id': 97, 'relay_info': 'relay9', 'name': 'panda-002',
              'imaging_server': 'img1', 'mac_address': '86a1c8ce6ea2',
              'fqdn': 'panda-002.vlan.dc.mozilla.com'},
@@ -549,7 +564,7 @@ class TestInvSyncGet(unittest.TestCase):
             [ self.make_host('panda-003'), self.make_host('panda-004', want_relay_info=False) ],
             [ self.make_host('panda-005'), self.make_host('panda-006', want_mac_address=False) ],
         ])
-        hosts = inventorysync.get_devices('https://inv', 'filter', 'me', 'pass')
+        hosts = inventorysync.get_devices('https://inv', 'filter', 'me', 'pass', None)
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
@@ -594,7 +609,32 @@ class TestInvSyncSync(unittest.TestCase):
         ]
         inventorysync.sync()
         dump_devices.assert_called_with()
-        get_devices.assert_called_with('http://foo/', 'hostname__startswith=panda-', 'u', 'p', verbose=False)
+        get_devices.assert_called_with('http://foo/', 'hostname__startswith=panda-', 'u', 'p', None,
+                verbose=False)
+        merge_devices.assert_called_with('dumped devices', 'gotten devices')
+        insert_device.assert_called_with(dict(insert=1))
+        delete_device.assert_called_with(10)
+        update_device.assert_called_with(11, dict(update=3))
+
+    def test_sync_with_res(self, merge_devices, get_devices, delete_device,
+                        update_device, insert_device, dump_devices):
+        config.reset()
+        config.set('inventory', 'url', 'http://foo/')
+        config.set('inventory', 'filter', 'hostname__startswith=panda-')
+        config.set('inventory', 'username', 'u')
+        config.set('inventory', 'password', 'p')
+        config.set('inventory', 'ignore_devices_on_servers_re', 're')
+        dump_devices.return_value = 'dumped devices'
+        get_devices.return_value = 'gotten devices'
+        merge_devices.return_value = [
+            ('insert', dict(insert=1)),
+            ('delete', 10, dict(delete=2)),
+            ('update', 11, dict(update=3)),
+        ]
+        inventorysync.sync()
+        dump_devices.assert_called_with()
+        get_devices.assert_called_with('http://foo/', 'hostname__startswith=panda-', 'u', 'p', 're',
+                verbose=False)
         merge_devices.assert_called_with('dumped devices', 'gotten devices')
         insert_device.assert_called_with(dict(insert=1))
         delete_device.assert_called_with(10)

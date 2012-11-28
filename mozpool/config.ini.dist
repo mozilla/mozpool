@@ -15,6 +15,10 @@ password =
 # TODO: use a better filter that can look for k/v entries indicating systems are managed by an imaging server
 filter = hostname__startswith=panda-
 
+# optional, if specified, this is a regexp for imaging servers whose devices should be
+# omitted.  This is used to split pools roughly by imaging server (bug 815758)
+# ignore_devices_on_servers_re=
+
 [server]
 # Defaults to socket.getfqdn
 #fqdn =

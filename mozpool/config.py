@@ -40,6 +40,9 @@ def reset():
 def get(*args, **kwargs):
     return _load().get(*args, **kwargs)
 
+def has_option(*args, **kwargs):
+    return _load().has_option(*args, **kwargs)
+
 def set(section, key, value):
     "like ConfigParser.set, but creates sections"
     _load()
