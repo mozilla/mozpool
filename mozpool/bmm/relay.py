@@ -120,7 +120,9 @@ class RelayClient(asyncore.dispatcher):
         return wrap
 
     def __init__(self, host, port, timeout, generator):
-        asyncore.dispatcher.__init__(self)
+        # use a unique map here to avoid asyncore keeping a reference to this object
+        # around forever if close() isn't called correctly
+        asyncore.dispatcher.__init__(self, map={})
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connect( (host, port) )
         self.state = 'connecting'
@@ -149,14 +151,13 @@ class RelayClient(asyncore.dispatcher):
 
     def handle_close(self):
         self._step(exc=(ConnectionLostError(),))
-        self.close()
 
     def handle_timeout(self):
         self._step(exc=(TimeoutError(),))
-        self.close()
 
     def handle_error(self):
         self._step(exc=sys.exc_info())
+
     def handle_read(self):
         if self.state != 'reading':
             return
@@ -180,14 +181,18 @@ class RelayClient(asyncore.dispatcher):
         return self.state == 'reading'
 
     def run(self):
-        while self.state != 'done':
-            timeout = self.complete_by - time.time()
-            if timeout <= 0:
-                if self.state != 'done':
-                    self.handle_timeout()
-                return
+        try:
+            while self.state != 'done':
+                timeout = self.complete_by - time.time()
+                if timeout <= 0:
+                    if self.state != 'done':
+                        self.handle_timeout()
+                    return
 
-            asyncore.loop(timeout=timeout, count=1, map={self.fileno() : self})
+                asyncore.loop(timeout=timeout, count=1, map={self.fileno() : self})
+        finally:
+            # be sure to call close unconditionally
+            self.close()
         return self.return_value
 
     def _step(self, value=None, exc=None):
