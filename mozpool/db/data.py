@@ -252,7 +252,7 @@ def device_relay_info(device):
     row = res.fetchone()
     if not row:
         raise NotFound
-    hostname, bank, relay = row[0].split(":", 2)
+    hostname, bank, relay = row[0].rsplit(":", 2)
     assert bank.startswith("bank") and relay.startswith("relay")
     return hostname, int(bank[4:]), int(relay[5:])
 
