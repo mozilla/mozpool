@@ -46,7 +46,12 @@ function run_ui(next) {
         // reimage
         new B2gBaseView({ el: $('#boot-config-b2gbase'), }).render();
 
+        // job queue display
         new JobQueueView({ el: $('#job-queue'), }).render();
+
+        // header and toolbar
+        new HeaderView({ el: $('#toolbar'), }).render();
+        new ToolbarView({ el: $('#toolbar'), }).render();
 
         // and the job runner
         new JobRunner(window.requests);

@@ -25,6 +25,8 @@ function run_ui(next) {
         new LifeguardPleaseButtonView({ el: $('#lifeguard-please-button'), }).render();
         new LifeguardForceStateButtonView({ el: $('#lifeguard-force-state-button'), }).render();
         new JobQueueView({ el: $('#job-queue'), }).render();
+        new HeaderView({ el: $('#toolbar'), }).render();
+        new ToolbarView({ el: $('#toolbar'), }).render();
 
         // and the job runner
         new JobRunner(window.devices);

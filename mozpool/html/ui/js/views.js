@@ -870,3 +870,31 @@ var LogView = Backbone.View.extend({
         });
     }
 });
+
+var ToolbarView = Backbone.View.extend({
+    tagName: 'div',
+
+    render: function() {
+        // make it slightly opaque so we can see any objects hidden behind it
+        $('div#toolbar').css('opacity', '.95');
+
+        // and set the body's margin-bottom to the height of the toolbar
+        var height = $('#toolbar').height();
+        height += 10; // 5px padding
+        $('body').css('margin-bottom', height + 'px');
+    }
+});
+
+var HeaderView = Backbone.View.extend({
+    tagName: 'div',
+
+    render: function() {
+        // make it slightly opaque so we can see any objects hidden behind it
+        $('div#header').css('opacity', '.95');
+
+        // and set the body's margin-bottom to the height of the header
+        var height = $('#header').height();
+        $('body').css('margin-top', height + 'px');
+    }
+});
+

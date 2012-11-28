@@ -20,6 +20,8 @@ function run_ui(next) {
         new BmmPowerCycleButtonView({ el: $('#bmm-power-cycle-button'), }).render();
         new BmmPowerOffButtonView({ el: $('#bmm-power-off-button'), }).render();
         new JobQueueView({ el: $('#job-queue'), }).render();
+        new HeaderView({ el: $('#toolbar'), }).render();
+        new ToolbarView({ el: $('#toolbar'), }).render();
 
         // and the job runner
         new JobRunner(window.devices);

@@ -5,8 +5,9 @@ body {
 }
 
 body.bmm, body.lifeguard, body.mozpool {
-    /* leave room for header */
-    margin-top: 41px;
+    /* leave room for header and toolbar.  These are both resized later by JS */
+    margin-top: 40px;
+    margin-bottom: 4em;
 }
 
 #loading {
