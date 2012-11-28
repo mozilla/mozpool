@@ -105,14 +105,6 @@ These are requests to a particular LifeGuard server to start low-level BMM
 operations.  These should *not* be called directly by anything other than
 a MozPool server or the device itself.
 
-/api/device/{id}/config/
-* GET returns a JSON response body whose "config" key contains
-  an object describing configuration parameters for the current
-  boot of the device.  The configuration parameters are specific
-  to each individual boot image and are simply implemented as a way
-  to provide extra data to the image on boot.  The image is intended
-  to GET this during the boot process.
-
 /api/device/{id}/event/{event}
 
 * POST to communicate a state-machine event to this device.  This may come
@@ -150,7 +142,7 @@ results, since lifeguard expects to be controlling the devices.
   specified, then the device is configured to boot with that PXE config;
   otherwise, the device boots from its internal storage.  If `boot_config` is
   supplied (as a string), it is stored for later use by the device via
-  `/api/device/{id}/config/`.
+  `/api/device/{id}/bootconfig/`.
 
 /api/device/{id}/power-off/
 * GET to initiate a power-off of this device.  Use the power-cycle API to
