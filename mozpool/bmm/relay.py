@@ -230,18 +230,7 @@ def get_status(host, bank, relay, timeout):
         # relay board will return 0 or 1 indicating its state
         res = yield client.read()
         raise StopIteration(res2status(res))
-    try:
-        with serialize_by_host(host):
-            return gen()
-    except TimeoutError:
-        logger.error("timeout communicating with %s:%d" % (host, PORT))
-        return None
-    except ConnectionLostError:
-        logger.error("connection to %s:%d lost" % (host, PORT))
-        return None
-    except socket.error, e:
-        logger.error("error communicating with relay host:", exc_info=e)
-        return None
+    return _run_gen(host, PORT, gen)
 
 def set_status(host, bank, relay, status, timeout):
     """
@@ -269,18 +258,7 @@ def set_status(host, bank, relay, status, timeout):
             raise StopIteration(False)
         else:
             raise StopIteration(True)
-    try:
-        with serialize_by_host(host):
-            return gen()
-    except TimeoutError:
-        logger.error("timeout communicating with %s:%d" % (host, PORT))
-        return False
-    except ConnectionLostError:
-        logger.error("connection to %s:%d lost" % (host, PORT))
-        return False
-    except socket.error, e:
-        logger.error("error communicating with relay host:", exc_info=e)
-        return False
+    return _run_gen(host, PORT, gen)
 
 def powercycle(host, bank, relay, timeout):
     """
@@ -325,6 +303,9 @@ def powercycle(host, bank, relay, timeout):
                 time.sleep(1)
         logger.info("power-cycle on %s bank %s relay %s successful" % (host, bank, relay))
         raise StopIteration(True)
+    return _run_gen(host, PORT, gen)
+
+def _run_gen(host, PORT, gen):
     try:
         with serialize_by_host(host):
             return gen()
@@ -335,5 +316,9 @@ def powercycle(host, bank, relay, timeout):
         logger.error("connection to %s:%d lost" % (host, PORT))
         return False
     except socket.error, e:
-        logger.error("error communicating with relay host:", exc_info=e)
+        # handle the common case with less traceback
+        if e.errno == 111:
+            logger.error("error communicating with relay host %s:%s: connection refused" % (host, PORT))
+        else:
+            logger.error("error communicating with relay host:", exc_info=e)
         return False
