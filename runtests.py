@@ -115,7 +115,6 @@ class TestData(ConfigMixin, unittest.TestCase):
             dict(device_id=1, ts=now, source='test', message='hi'),
             dict(device_id=1, ts=now, source='test', message='world'),
         ])
-        print conn.execute(model.devices.select()).fetchall()
         data.delete_device(1)
 
         # check that both logs and devices were deleted

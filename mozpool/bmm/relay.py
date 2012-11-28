@@ -230,7 +230,7 @@ def get_status(host, bank, relay, timeout):
         # relay board will return 0 or 1 indicating its state
         res = yield client.read()
         raise StopIteration(res2status(res))
-    return _run_gen(host, PORT, gen)
+    return _run_gen(host, PORT, gen, on_error=None)
 
 def set_status(host, bank, relay, status, timeout):
     """
@@ -305,20 +305,20 @@ def powercycle(host, bank, relay, timeout):
         raise StopIteration(True)
     return _run_gen(host, PORT, gen)
 
-def _run_gen(host, PORT, gen):
+def _run_gen(host, PORT, gen, on_error=False):
     try:
         with serialize_by_host(host):
             return gen()
     except TimeoutError:
         logger.error("timeout communicating with %s:%d" % (host, PORT))
-        return False
+        return on_error
     except ConnectionLostError:
         logger.error("connection to %s:%d lost" % (host, PORT))
-        return False
+        return on_error
     except socket.error, e:
         # handle the common case with less traceback
         if e.errno == 111:
             logger.error("error communicating with relay host %s:%s: connection refused" % (host, PORT))
         else:
             logger.error("error communicating with relay host:", exc_info=e)
-        return False
+        return on_error
