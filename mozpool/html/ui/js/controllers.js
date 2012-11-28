@@ -8,9 +8,14 @@ var JobRunner = function () {
 
 $.extend(JobRunner.prototype, {
     initialize: function(args) {
-        this.collection = args[0];
         _.bindAll(this, 'maybeStartJob', 'jobFinished');
         this.running = null;
+
+        // we'll call the collection's update method for each completed job, but
+        // do so only after a short delay, so we can concentrate on submitting jobs
+        // and not updating the page
+        this.collection = args[0];
+        this.debounced_collection_update = _.debounce(this.collection.update, 200);
 
         window.job_queue.bind('add', this.maybeStartJob);
     },
@@ -206,7 +211,7 @@ $.extend(JobRunner.prototype, {
         var self = this;
         this.running = null;
         window.job_queue.shift();
-        this.collection.update();
+        this.debounced_collection_update();
         _.defer(function() { self.maybeStartJob(); });
     },
 

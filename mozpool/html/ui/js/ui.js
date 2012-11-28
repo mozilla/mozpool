@@ -6,7 +6,7 @@ function show_error(errmsg) {
     $('#error').append('\n' + errmsg).show();
 }
 
-function load_model(name, class_name, next) {
+function load_and_fetch(name, class_name, next) {
     var model = eval('new ' + class_name + '()');
     model.fetch({
         add: true,

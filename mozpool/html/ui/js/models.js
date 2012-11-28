@@ -14,10 +14,14 @@ var UpdateableCollection = Backbone.Collection.extend({
     initialize: function (args) {
         _.bindAll(this, 'update', 'parse');
 
-        // objects automatically update themselves; set up to update
-        // TODO: this could be done better with fetch({merge:true}), but that's
-        // not in backbone-0.9.2
-        window.setTimeout(this.update, this.refreshInterval);
+        // keep track of whether we're updating *now*, and whether an update
+        // has been requested.  The timeoutId is the window.setTimeout
+        // identifier for the periodic updates.  callWhenUpdated keeps a list
+        // of functions to call when the current update is complete.
+        this.updating = false;
+        this.updateRequested = false;
+        this.timeoutId = null;
+        this.callWhenUpdated = [];
     },
 
     parse: function(response) {
@@ -47,11 +51,47 @@ var UpdateableCollection = Backbone.Collection.extend({
         return [];
     },
 
-    update: function() {
+    // request that the collection be updated soon.
+    update: function(next) {
+        this.updateRequested = true;
+        if (!this.updating) {
+            this._startUpdate();
+        }
+        if (next) {
+            this.callWhenUpdated.push(next);
+        }
+    },
+
+    _startUpdate: function() {
         var self = this;
-        this.fetch({add: true, complete: function () {
-            window.setTimeout(self.update, self.refreshInterval);
-        }});
+
+        if (this.timeoutId) {
+            window.clearTimeout(this.timeoutId);
+            this.timeoutId = null;
+        }
+        this.updating = true;
+        this.updateRequested = false;
+
+        this.fetch({
+            add: true,
+            success: function() {
+                var calls = self.callWhenUpdated;
+                self.callWhenUpdated = [];
+                _.each(calls, function(c) { c(); });
+
+                self.updating = false;
+                if (self.updateRequested) {
+                    self._startUpdate();
+                } else {
+                    // schedule to update again after refreshInterval
+                    self.timeoutId = window.setTimeout(self.update, self.refreshInterval);
+                }
+            },
+            error: function(jqxhr, response) {
+                show_error('AJAX Error while fetching ' + name + ': ' + response.statusText);
+                // this error is pretty much terminal...
+            }
+        });
     }
 });
 

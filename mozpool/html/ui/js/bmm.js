@@ -6,8 +6,8 @@ function run_ui(next) {
     run(setup_ui)
     // fetch data for our models
     .thenRun(
-        function(next) { load_model('devices', 'Devices', next); },
-        function(next) { load_model('pxe_configs', 'PxeConfigs', next); }
+        function(next) { window.devices = new Devices(); window.devices.update(next);  },
+        function(next) { load_and_fetch('pxe_configs', 'PxeConfigs', next); }
     )
     .thenRun(function(next) {
         // client-side models
