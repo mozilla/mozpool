@@ -842,10 +842,6 @@ var LogView = Backbone.View.extend({
     render: function() {
         var self = this;
         window.log.each(function(l, idx) {
-            if (!l.get('message')) {
-                // for some reason this model ends up with a blank LogLine in it?
-                return;
-            }
             var span;
             var line = $('<div>');
             line.attr('class', (idx % 2)? 'odd' : 'even');

@@ -14,7 +14,8 @@ function run_ui(next) {
             }
             var object = url_info[1];
             var name = url_info[2];
-            window.log = new Log({object: object, name: name});
+            window.log = new Log();
+            window.log.url = '/api/' + object + '/' + name + '/log/';
             window.log.fetch({
                 add: true,
                 success: next,

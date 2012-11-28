@@ -172,9 +172,7 @@ var LogLine = Backbone.Model.extend({
 
 var Log = Backbone.Collection.extend({
     model: LogLine,
-    initialize: function(args) {
-        this.url = '/api/' + args['object'] + '/' + args['name'] + '/log/';
-    },
+    url: null,
     parse: function(response) {
         return response.log;
     }
