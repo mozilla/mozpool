@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# This Source Code Form is subject to the terms of the Mozilla Public License,
+# v. 2.0. If a copy of the MPL was not distributed with this file, You can
+# obtain one at http://mozilla.org/MPL/2.0/.
 
 import os
 import logging
@@ -38,7 +38,8 @@ def main():
     os.chdir(os.path.join(os.path.dirname(mozpool.__file__), 'html'))
 
     # Set up logging
-    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG,
+            format="%(name)s %(levelname)s - [%(asctime)s] %(message)s")
 
     # start up the lifeguard driver
     # TODO: make this configurable, as well as poll freq
