@@ -16,6 +16,7 @@ import threading
 import urlparse
 import logging
 import cStringIO
+import sqlalchemy
 from mock import patch
 from paste.fixture import TestApp
 
@@ -109,15 +110,17 @@ class TestData(ConfigMixin, unittest.TestCase):
     def testDeleteBoard(self):
         conn = sql.get_conn()
         now = datetime.datetime.now()
+        add_device("device2", server="server1", relayinfo="relay-2:bank1:relay1")
         conn.execute(model.device_logs.insert(), [
             dict(device_id=1, ts=now, source='test', message='hi'),
             dict(device_id=1, ts=now, source='test', message='world'),
         ])
+        print conn.execute(model.devices.select()).fetchall()
         data.delete_device(1)
 
         # check that both logs and devices were deleted
-        res = conn.execute(model.devices.select())
-        self.assertEquals(res.fetchall(), [])
+        res = conn.execute(sqlalchemy.select([model.devices.c.name]))
+        self.assertEquals(res.fetchall(), [('device2',)])
         res = conn.execute(model.device_logs.select())
         self.assertEquals(res.fetchall(), [])
 

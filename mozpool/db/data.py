@@ -109,7 +109,7 @@ def delete_device(id):
     # This table is partitioned, so there's no need to later optimize these
     # deletes - they'll get flushed when their parititon is dropped.
     logs.device_logs.delete_all(id)
-    conn.execute(model.devices.delete(), whereclause=(model.devices.c.id==id))
+    conn.execute(model.devices.delete(whereclause=(model.devices.c.id==id)))
 
 def update_device(id, values):
     """Update an existing device with id ID into the DB.  VALUES should be in
