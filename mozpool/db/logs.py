@@ -25,7 +25,7 @@ class Logs(object):
     def add(self, name, message, source="webapp"):
         conn = sql.get_conn()
         values = {self.foreign_key_col.name: self._get_object_id(name),
-                  "ts": datetime.datetime.utcnow(),
+                  "ts": datetime.datetime.now(),
                   "source": source,
                   "message": message}
         conn.execute(self.logs_table.insert(), values)
