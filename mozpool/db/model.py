@@ -26,6 +26,9 @@ devices = sa.Table('devices', metadata,
 )
 
 requests = sa.Table('requests', metadata,
+    # the schema specifies this as a BigInt; we use Integer here because it
+    # seems that having the primary key as a BigInt doesn't work properly in
+    # sqlite.
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
     sa.Column('imaging_server_id', sa.Integer(unsigned=True),
         sa.ForeignKey('imaging_servers.id', ondelete='RESTRICT'),

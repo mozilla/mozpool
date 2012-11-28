@@ -148,7 +148,7 @@ CREATE TABLE devices (
 
 DROP TABLE IF EXISTS requests;
 CREATE TABLE requests (
-  id integer unsigned not null primary key auto_increment,
+  id bigint unsigned not null primary key auto_increment,
   -- fqdn of imaging server
   imaging_server_id integer unsigned not null,
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
@@ -168,7 +168,7 @@ CREATE TABLE requests (
 
 DROP TABLE IF EXISTS device_requests;
 CREATE TABLE device_requests (
-  request_id integer not null references requests.id on delete restrict,
+  request_id bigint not null references requests.id on delete restrict,
   device_id integer not null references devices.id on delete restrict,
   unique index request_id_idx (request_id),
   unique index device_id_idx (device_id)
@@ -192,7 +192,7 @@ CALL init_log_partitions('device_logs', 14, 1);
 DROP TABLE IF EXISTS request_logs;
 CREATE TABLE request_logs (
     -- request this log is for
-    request_id integer not null,
+    request_id bigint not null,
     ts timestamp not null,
     -- short string giving the origin of the message (syslog, api, etc.)
     source varchar(32) not null,

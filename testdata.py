@@ -66,12 +66,11 @@ for device_id in range(0, options.devices):
 
 for request_id in range(1, options.requests+1):
     conn.execute(model.requests.insert(),
-                 device_id=device_ids[request_id],
                  requested_device='any',
                  assignee='slave%d' % request_id,
                  state='new',
                  state_counters='{}',
-                 imaging_server_id=img_svr_id,
+                 imaging_server_id=img_svr_ids[0],
                  expires=datetime.datetime.now() +
                          datetime.timedelta(seconds=12*60*60))
 
