@@ -456,7 +456,7 @@ class b2g_downloading(statemachine.State):
 
     def on_timeout(self):
         if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
-            self.machine.goto_state(failed_b2g_extracting)
+            self.machine.goto_state(failed_b2g_downloading)
         else:
             self.machine.goto_state(pxe_power_cycling)
 
