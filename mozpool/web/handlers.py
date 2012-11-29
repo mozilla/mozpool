@@ -25,8 +25,10 @@ def deviceredirect(function):
         # otherwise, send an access-control header, so that pages in other domains can
         # call this API endpoint without trouble
         fqdns = data.all_imaging_servers()
-        origins = [ 'http://%s' % fqdn for fqdn in fqdns ]
-        web.header('Access-Control-Allow-Origin', ' '.join(origins))
+        # this needs to be a sequence of headers, not one whitespace-joined header
+        for fqdn in fqdns:
+            origin = 'http://%s' % fqdn
+            web.header('Access-Control-Allow-Origin', origin)
         return function(self, id, *args)
     return wrapped
 
