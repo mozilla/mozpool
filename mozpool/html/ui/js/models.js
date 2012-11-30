@@ -228,12 +228,6 @@ var SelectedRequestedDevice = Backbone.Model.extend({
     }
 });
 
-var SelectedRequestAction = Backbone.Model.extend({
-    initialize: function (args) {
-        this.set('action', '');
-    }
-});
-
 var DeviceJob = Backbone.Model.extend({
     initialize: function (args) {
         this.device = args.device;

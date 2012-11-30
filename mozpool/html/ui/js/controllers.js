@@ -188,14 +188,10 @@ $.extend(JobRunner.prototype, {
         var url = '/api/device/' + job_args.device  + '/request/';
         var post_params = {
             duration: job_args.duration,
-            assignee: job_args.assignee
+            assignee: job_args.assignee,
+            image: job_args.image,
+            b2gbase: job_args.b2gbase
         };
-        if (job_args.b2gbase) {
-            post_params.boot_config = {
-                version: 1,
-                b2gbase: job_args.b2gbase
-            };
-        }
         
         $.ajax(url, {
             type: 'POST',

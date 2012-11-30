@@ -16,7 +16,6 @@ function run_ui(next) {
 
         // create new request
         window.selected_requested_device = new SelectedRequestedDevice();
-        window.selected_request_action = new SelectedRequestAction();
         window.current_request_assignee = new CurrentRequestAssignee();
         window.current_request_duration = new CurrentRequestDuration();
 
@@ -38,7 +37,6 @@ function run_ui(next) {
 
         // create new request
         new MozpoolRequestedDeviceSelectView({ el: $('#requested-device-select') }).render();
-        new MozpoolRequestActionSelectView({ el: $('#request-action-select') }).render();
         new MozpoolRequestAssigneeView({ el: $('#request-assignee') }).render();
         new MozpoolRequestDurationView({ el: $('#request-duration') }).render();
         new MozpoolRequestSubmitButtonView({ el: $('#request-submit-button') }).render();

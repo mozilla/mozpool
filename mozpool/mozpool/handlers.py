@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import json
+import logging
 import templeton
 import web
 
@@ -53,12 +54,22 @@ class device_request:
     @templeton.handlers.json_response
     def POST(self, device_name):
         args, body = templeton.handlers.get_request_parms()
-        boot_config = body.get('boot_config', {})
         try:
             assignee = body['assignee']
             duration = int(body['duration'])
+            image = body['image']
         except (KeyError, ValueError):
             raise web.badrequest()
+
+        # only b2g support atm
+        if image != 'b2g':
+            raise web.badrequest()
+
+        try:
+            boot_config = {'b2gbase': body['b2gbase']}
+        except KeyError:
+            raise web.badrequest()
+
         request_id = data.create_request(device_name, assignee, duration,
                                          boot_config)
         mozpool.mozpool.driver.handle_event(request_id, 'find_device', None)

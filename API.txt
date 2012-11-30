@@ -28,16 +28,18 @@ devices.
 
 /api/device/{id}/request/
 * POST requests the given device.  {id} may be "any" to let MozPool choose an
-  unassigned device.  The body must be a JSON object with the keys "requester",
-  "boot_config", and "duration".  The value for "requester" takes an email
-  address, for human users, or a hostname, for machine users.  "boot_config"
-  is optional.  If given, it must be a JSON object containing the keys "version"
-  (currently, must be the integer 1) and "b2gbase", which should be a URL to a
-  b2g build directory containing boot, system, and userdata tarballs.
-  This object can be expanded in the future to specify other builds
-  (e.g. android with fennec).  If "boot_config" is not given, the device is
-  only rebooted and no image is installed.  "duration" must be a value, in
-  seconds, of the duration of the request (which can be renewed; see below).
+  unassigned device.  The body must be a JSON object with at least the keys
+  "requester", "duration", and "image".  The value for "requester" takes an
+  email address, for human users, or a hostname, for machine users.  "duration"
+  must be a value, in seconds, of the duration of the request (which can be
+  renewed; see below).
+
+  "image" specifies low-level configuration that should be done on the device
+  by mozpool.  Some image types will require additional parameters.  Currently
+  the only supported value is "b2g", for which a "b2gbase" key must also be
+  present.  The value of "b2gbase" must be a URL to a b2g build directory
+  containing boot, system, and userdata tarballs.
+
   If successful, returns 200 OK with a JSON object with the key "request".
   The value of "request" is an object detailing the request, with the keys
   "assigned_device" (which is blank if mozpool is still attempting to find

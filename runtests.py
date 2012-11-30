@@ -215,7 +215,7 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
         add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%')
 
     def testBoardConfig(self):
-        boot_config={'version':1, 'b2gbase':'BBB'}
+        boot_config={'b2gbase':'BBB'}
         add_device("device1", server="server1", config=json.dumps(boot_config))
         r = self.app.get("/api/device/device1/bootconfig/")
         self.assertEqual(200, r.status)
@@ -224,6 +224,8 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
 class TestRequests(ConfigMixin, unittest.TestCase): 
     def setUp(self):
         super(TestRequests, self).setUp()
+        config.set('mozpool', 'b2g_pxe_config', 'b2gimage1')
+        add_pxe_config('b2gimage1')
         add_server("server1")
         add_server("server2")
         add_device("device1", server="server1", state="free")
@@ -234,7 +236,21 @@ class TestRequests(ConfigMixin, unittest.TestCase):
    
     def testRequestDevice(self):
         # asserts related to IDs are mostly to identify them for debugging
-        request_params = {"assignee": "slave1", "duration": 3600}
+
+        # test bad requests
+        # no image
+        request_params = {"assignee": "slave1",
+                          "duration": 3600}
+        r = self.app.post("/api/device/device1/request/",
+                          json.dumps(request_params), expect_errors=True)
+        self.assertEqual(400, r.status)
+        # no b2gbase for b2g image
+        request_params["image"] = "b2g"
+        r = self.app.post("/api/device/device1/request/",
+                          json.dumps(request_params), expect_errors=True)
+        self.assertEqual(400, r.status)
+
+        request_params["b2gbase"] = "http://fakebuildserver/fakebuild/"
         r = self.app.post("/api/device/device1/request/",
                           json.dumps(request_params))
         self.assertEqual(200, r.status)

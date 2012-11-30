@@ -631,27 +631,6 @@ var MozpoolRequestedDeviceOptionView = Backbone.View.extend({
     }
 });
 
-var MozpoolRequestActionSelectView = Backbone.View.extend({
-    events: {
-        'change': 'selectChanged'
-    },
-
-    render: function() {
-        this.selectChanged();
-        return this;
-    },
-
-    selectChanged: function() {
-        var selected = this.$el.val();
-        window.selected_request_action.set('action', selected);
-        if (selected == 'reimage') {
-            $('#reimage-controls').show();
-        } else {
-            $('#reimage-controls').hide();
-        }
-    }
-});
-
 var MozpoolRequestAssigneeView = Backbone.View.extend({
     initialize: function(args) {
         _.bindAll(this, 'valueChanged');
@@ -685,7 +664,6 @@ var MozpoolRequestDurationView = Backbone.View.extend({
 var MozpoolRequestSubmitButtonView = Backbone.View.extend({
     initialize: function() {
         _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
-        window.selected_request_action.bind('change', this.refreshButtonStatus);
         window.current_request_assignee.bind('change', this.refreshButtonStatus);
         window.current_request_duration.bind('change', this.refreshButtonStatus);
         window.current_b2gbase.bind('change', this.refreshButtonStatus);
@@ -703,12 +681,10 @@ var MozpoolRequestSubmitButtonView = Backbone.View.extend({
         var job_args = {
             device: window.selected_requested_device.get('name'),
             duration: window.current_request_duration.get('duration'),
-            assignee: window.current_request_assignee.get('assignee')
+            assignee: window.current_request_assignee.get('assignee'),
+            image: 'b2g',
+            b2gbase: window.current_b2gbase.get('b2gbase')
         };
-
-        if (window.selected_request_action.get('action') == 'reimage') {
-            job_args.b2gbase = window.current_b2gbase.get('b2gbase');
-        }
 
         job_queue.push({
             job_type: 'mozpool-create-request',
@@ -721,7 +697,7 @@ var MozpoolRequestSubmitButtonView = Backbone.View.extend({
         var duration = window.current_request_duration.get('duration');
         if (duration == '' || isNaN(duration) ||
             !window.current_request_assignee.get('assignee') ||
-            (window.selected_request_action.get('action') == 'reimage' && !window.current_b2gbase.get('b2gbase'))) {
+            !window.current_b2gbase.get('b2gbase')) {
             disabled = true;
         }
 
