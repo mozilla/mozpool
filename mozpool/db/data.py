@@ -39,14 +39,31 @@ def row_to_dict(row, table, omit_cols=[]):
         result[col.name] = coldata
     return result
 
-def list_devices():
+def list_devices(detail=False):
     """
     Get the list of all devices known to the system.
     Returns a dict whose 'devices' entry is the list of devices.
+
+    If `detail` is True, then each device is represented by a dictionary
+    with keys id, name, fqdn, inventory_id, mac_address, imaging_server,
+    relay_info, state, last_pxe_config, and comments.
     """
     conn = sql.get_conn()
-    res = conn.execute(select([model.devices.c.name]))
-    return {'devices': [row[0].encode('utf-8') for row in res]}
+    if detail:
+        devices = model.devices
+        img_svrs = model.imaging_servers
+        pxe_configs = model.pxe_configs
+        stmt = sqlalchemy.select(
+            [devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id,
+            devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
+            devices.c.relay_info, devices.c.state, devices.c.comments,
+            pxe_configs.c.name.label('last_pxe_config')],
+            from_obj=[devices.join(img_svrs).outerjoin(pxe_configs)])
+        res = conn.execute(stmt)
+        return {'devices': [dict(row) for row in res]}
+    else:
+        res = conn.execute(select([model.devices.c.name]))
+        return {'devices': [row[0].encode('utf-8') for row in res]}
 
 def dump_devices(*device_names):
     """
@@ -61,7 +78,7 @@ def dump_devices(*device_names):
     stmt = sqlalchemy.select(
         [devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id,
          devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
-         devices.c.relay_info, devices.c.state],
+         devices.c.relay_info],
         from_obj=[devices.join(img_svrs)])
     if device_names:
         id_exprs = []
@@ -245,6 +262,12 @@ def set_device_config(device, pxe_config_name, boot_config):
                  values(last_pxe_config_id=pxe_config_id,
                          boot_config=boot_config))
     return config
+
+def set_device_comments(device_name, comments):
+    conn = sql.get_conn()
+    conn.execute(model.devices.update().
+                 where(model.devices.c.name==device_name).
+                 values(comments=comments))
 
 def device_relay_info(device):
     res = sql.get_conn().execute(select([model.devices.c.relay_info],

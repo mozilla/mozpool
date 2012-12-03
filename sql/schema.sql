@@ -141,6 +141,8 @@ CREATE TABLE devices (
   foreign key (last_pxe_config_id) references pxe_configs(id) on delete restrict,
   -- config the device will use on its next boot (JSON blob)
   boot_config text,
+  -- free-form comments about the device (for BMM + Lifeguard)
+  comments text,
 
   unique index name_idx (name),
   index state_timeout_idx (state_timeout)

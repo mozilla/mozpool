@@ -17,8 +17,8 @@ devices.
 /api/device/list?details=1
 * GET returns a JSON response body whose "devices" key
   contains an array of objects, each representing a single device.
-  The objects have keys id, name, fqdn, invenetory_id, mac_address,
-  imaging_server, and relay_info.
+  The objects have keys id, name, fqdn, inventory_id, mac_address,
+  imaging_server, relay_info, comments, and last_pxe_config.
 
 /api/device/{id}/status/
 * GET returns a JSON response body whose "status" key contains
@@ -168,6 +168,10 @@ results, since lifeguard expects to be controlling the devices.
 
 /api/device/{id}/bootconfig/
 * GET to get the boot configuration string set for this device.
+
+/api/device/{id}/set-comments/
+* POST to set the comments for a device.  The body should contain a 'comments'
+  key.
 
 == PXE Configs ==
 

@@ -77,10 +77,6 @@ def merge_devices(from_db, from_inv):
     from_db = dict([ (r['inventory_id'], r) for r in from_db ])
     from_inv = dict([ (r['inventory_id'], r) for r in from_inv ])
 
-    # drop the 'state' column from the db data, so it matches what we have from inventory
-    for r in from_db.itervalues():
-        del r['state']
-
     # get the insert and deletes out of the way
     for invid in set(from_db) - set(from_inv):
         yield ('delete', from_db[invid]['id'], from_db[invid])

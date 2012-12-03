@@ -17,6 +17,7 @@ urls = (
   "/device/([^/]+)/clear-pxe/?", "clear_pxe",
   "/device/([^/]+)/log/?", "log",
   "/device/([^/]+)/bootconfig/?", "device_bootconfig",
+  "/device/([^/]+)/set-comments/?", "device_set_comments",
   "/bmm/pxe_config/list/?", "pxe_config_list",
   "/bmm/pxe_config/([^/]+)/details/?", "pxe_config_details",
 )
@@ -76,6 +77,13 @@ class pxe_config_details:
     @templeton.handlers.json_response
     def GET(self, id):
         return data.pxe_config_details(id)
+
+class device_set_comments:
+    @deviceredirect
+    @templeton.handlers.json_response
+    def POST(self, id):
+        args, body = templeton.handlers.get_request_parms()
+        data.set_device_comments(id, body['comments'])
 
 class device_bootconfig:
     def GET(self, id):

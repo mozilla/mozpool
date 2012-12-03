@@ -82,10 +82,7 @@ class device_list:
     @templeton.handlers.json_response
     def GET(self):
         args, _ = templeton.handlers.get_request_parms()
-        if 'details' in args:
-            return dict(devices=data.dump_devices())
-        else:
-            return data.list_devices()
+        return data.list_devices(detail='details' in args)
 
 class device_status:
     @templeton.handlers.json_response

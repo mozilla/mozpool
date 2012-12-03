@@ -23,6 +23,7 @@ devices = sa.Table('devices', metadata,
         nullable=True),
     sa.Column('relay_info', sa.Text),
     sa.Column('boot_config', sa.Text),
+    sa.Column('comments', sa.Text),
 )
 
 requests = sa.Table('requests', metadata,

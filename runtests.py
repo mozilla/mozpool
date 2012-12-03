@@ -38,6 +38,10 @@ import mozpool.lifeguard
 from mozpool.lifeguard import devicemachine
 from mozpool.mozpool import requestmachine
 
+# like dict(), but with unicode keys
+def udict(**elts):
+    return dict((unicode(k), unicode(v) if isinstance(v, str) else v) for k, v in elts.iteritems())
+
 class ConfigMixin(object):
     def setUp(self):
         self.tempdir = tempfile.mkdtemp()
@@ -62,6 +66,8 @@ class ConfigMixin(object):
         shutil.rmtree(self.tempdir)
 
 class TestData(ConfigMixin, unittest.TestCase):
+    maxDiff = None
+
     def setUp(self):
         super(TestData, self).setUp()
         add_server("server1")
@@ -71,12 +77,26 @@ class TestData(ConfigMixin, unittest.TestCase):
         self.assertEquals(("relay-1", 1, 1),
                           data.device_relay_info("device1"))
 
-    def testDumpBoards(self):
-        self.assertEquals([
+    def testListDevices(self):
+        self.assertEquals(data.list_devices(), { 'devices' : [ 'device1' ] })
+
+    def testListDevicesDetails(self):
+        add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%', id=23)
+        add_device('device2', last_pxe_config_id=23, server='server1')
+        self.assertEquals(data.list_devices(detail=True), {'devices': [
+            udict(id=1, name='device1', fqdn='device1', inventory_id=1, mac_address='000000000000',
+                imaging_server='server1', relay_info='relay-1:bank1:relay1',
+                state='offline', comments=None, last_pxe_config=None),
+            udict(id=2, name='device2', fqdn='device2', inventory_id=2, mac_address='000000000000',
+                imaging_server='server1', relay_info='',
+                state='offline', comments=None, last_pxe_config='img1'),
+            ]})
+
+    def testDumpDevices(self):
+        self.assertEquals(data.dump_devices(), [
             dict(id=1, name='device1', fqdn='device1', inventory_id=1, mac_address='000000000000',
-                imaging_server='server1', relay_info='relay-1:bank1:relay1', state='offline'),
-            ],
-            data.dump_devices())
+                imaging_server='server1', relay_info='relay-1:bank1:relay1'),
+            ])
 
     def testInsertBoard(self):
         data.insert_device(dict(name='device2', fqdn='device2.fqdn', inventory_id=23,
@@ -94,17 +114,17 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device2',
              u'fqdn': u'device2.fqdn', u'inventory_id': 23, u'imaging_server_id': 2,
              u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 2,
-             u'last_pxe_config_id': None},
+             u'last_pxe_config_id': None, 'comments': None},
             {u'state': u'new',u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
              u'fqdn': u'device3.fqdn', u'inventory_id': 24, u'imaging_server_id': 1,
              u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 3,
-             u'last_pxe_config_id': None},
+             u'last_pxe_config_id': None, 'comments': None},
             {u'state': u'offline',u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1', u'inventory_id': 1, u'imaging_server_id': 1,
              u'boot_config': u'{}', u'mac_address': u'000000000000', u'id': 1,
-             u'last_pxe_config_id': None},
+             u'last_pxe_config_id': None, 'comments': None},
             ]))
 
     def testDeleteBoard(self):
@@ -132,7 +152,7 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
              u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1,
-             u'last_pxe_config_id': None},
+             u'last_pxe_config_id': None, u'comments': None},
         ])
 
     def testDeviceConfigEmpty(self):
@@ -451,7 +471,6 @@ class TestInvSyncMerge(unittest.TestCase):
             relay_info="relay-1:bank1:relay1")
         self.panda1_db = self.panda1_inv.copy()
         self.panda1_db['id'] = 401
-        self.panda1_db['state'] = 'new'
 
         self.panda2_inv = dict(
             name='panda-0002',
@@ -462,7 +481,6 @@ class TestInvSyncMerge(unittest.TestCase):
             relay_info="relay-1:bank2:relay2")
         self.panda2_db = self.panda2_inv.copy()
         self.panda2_db['id'] = 402
-        self.panda2_db['state'] = 'old'
 
     def test_merge_devices_no_change(self):
         commands = list(inventorysync.merge_devices(
