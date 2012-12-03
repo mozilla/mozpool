@@ -10,28 +10,12 @@
                                     .thenRun(function(next) { run_ui(next); }) </script>
   </head>
   <body class="lifeguard">
-    <div id="header">
-    </div>
+    <div id="header"></div>
     <div id="container">
       <div id="loading">loading...</div>
     </div>
     <div id="error"></div>
-    <div id="toolbar">
-      B2G Base:
-      <input type="text" name="boot-config-b2gbase" id="boot-config-b2gbase" />
-      &bull;
-      PXE Config:
-      <select id="pxe-config">
-        <option value=''>boot from sdcard</option>
-      </select>
-      &bull;
-      <button id="lifeguard-please-button">Power Cycle</button>
-      &bull; <span id="job-queue"></span><br />
-      New State:
-      <input type="text" name="force-state" id="force-state" />
-      &bull;
-      <button id="lifeguard-force-state-button">Force State</button>
-    </div>
+    <div id="toolbar"></div>
   </body>
 </html>
 

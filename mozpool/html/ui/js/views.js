@@ -185,22 +185,6 @@ var DeviceTableView = TableView.extend({
         TableView.prototype.initialize.call(this, args);
     },
 
-    columns: [
-        { id: "selected", title: '', bSortable: false,
-            sClass: 'rowcheckbox', renderFn: "renderSelected" },
-        { id: "fqdn", title: "FQDN",
-            renderFn: "renderFqdn" },
-        { id: "mac_address", title: "MAC",
-            renderFn: "renderMac" },
-        { id: "imaging_server", title: "Imaging Server",
-            renderFn: "renderImgServer" },
-        { id: "relay_info", title: "Relay Info",
-            renderFn: "renderRelayInfo" },
-        { id: "state", title: "State" },
-        { id: "links", title: "Links",
-            renderFn: "renderLinks" },
-    ],
-
     renderSelected: function(model) {
         var checked = '';
         if (model.get('selected')) {
@@ -258,11 +242,45 @@ var DeviceTableView = TableView.extend({
     },
 });
 
+var LifeguardTableView = DeviceTableView.extend({
+    columns: [
+        { id: "selected", title: '', bSortable: false,
+            sClass: 'rowcheckbox', renderFn: "renderSelected" },
+        { id: "name", title: "Name" },
+        { id: "state", title: "State" },
+        { id: "last_pxe_config", title: "PXE Cfg" },
+        { id: "comments", title: "Comments" },
+        { id: "links", title: "Links",
+            renderFn: "renderLinks" },
+    ],
+});
+
+var BMMTableView = DeviceTableView.extend({
+    columns: [
+        { id: "selected", title: '', bSortable: false,
+            sClass: 'rowcheckbox', renderFn: "renderSelected" },
+        { id: "fqdn", title: "FQDN",
+            renderFn: "renderFqdn" },
+        { id: "mac_address", title: "MAC",
+            renderFn: "renderMac" },
+        { id: "imaging_server", title: "Imaging Server",
+            renderFn: "renderImgServer" },
+        { id: "relay_info", title: "Relay Info",
+            renderFn: "renderRelayInfo" },
+        { id: "comments", title: "Comments" },
+        { id: "links", title: "Links",
+            renderFn: "renderLinks" },
+    ],
+});
+
 var RequestTableView = TableView.extend({
     initialize: function(args) {
         args.collection = window.requests;
         args.checkboxRE = /request-(\d+)/;
         TableView.prototype.initialize.call(this, args);
+
+        // get our "include closed" checkbox hooked up
+        new IncludeClosedCheckboxView({ el: $('#include-closed-checkbox') }).render();
     },
 
     columns: [
@@ -385,431 +403,9 @@ var TableRowView = Backbone.View.extend({
     },
 });
 
-var ActionButtonView = Backbone.View.extend({
-    initialize: function(args) {
-        this.collection = args.collection;
-        _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
-        this.collection.bind('change', this.refreshButtonStatus);
-    },
-
-    events: {
-        'click': 'buttonClicked'
-    },
-
-    render: function() {
-        this.refreshButtonStatus();
-    },
-
-    refreshButtonStatus: function() {
-        // only enable the button if at least one device is selected
-        var any_selected = this.collection.any(function (m) { return m.get('selected'); });
-        this.$el.attr('disabled', !any_selected);
-    },
-
-    buttonClicked: function() {
-        var self = this;
-        window.devices.each(function (m) {
-            if (m.get('selected')) {
-                var job = self.makeJob(m);
-                if (job) {
-                    job_queue.push(job);
-                }
-                m.set('selected', false);
-            }
-        });
-    },
-
-    makeJob: function(model) {
-        // subclasses override this
-    }
-});
-
-var BmmPowerCycleButtonView = ActionButtonView.extend({
-    initialize: function() {
-        ActionButtonView.prototype.initialize.call(
-            this, {collection: window.devices});
-    },
-    makeJob: function(m) {
-        return {
-            device: m,
-            job_type: 'bmm-power-cycle',
-            job_args: { pxe_config: window.selected_pxe_config.get('name'), config: {} }
-        };
-    }
-});
-
-var BmmPowerOffButtonView = ActionButtonView.extend({
-    initialize: function() {
-        ActionButtonView.prototype.initialize.call(
-            this, {collection: window.devices});
-    },
-    makeJob: function(m) {
-        return {
-            device: m,
-            job_type: 'bmm-power-off',
-            job_args: {}
-        }
-    }
-});
-
-var LifeguardPleaseButtonView = ActionButtonView.extend({
-    initialize: function() {
-        ActionButtonView.prototype.initialize.call(
-            this, {collection: window.devices});
-        window.selected_pxe_config.bind('change', this.refreshButtonStatus);
-    },
-    makeJob: function(m) {
-        var selected_pxe_config = window.selected_pxe_config.get('name');
-
-        var job_type, job_args;
-        if (selected_pxe_config) {
-            // for now, we just always provides a b2g-style boot_config
-            var b2gbase = window.current_b2gbase.get('b2gbase');
-            var boot_config = {};
-            if (b2gbase) {
-                boot_config = { version: 1, b2gbase: b2gbase };
-            };
-            job_type = 'lifeguard-pxe-boot';
-            job_args = { pxe_config: selected_pxe_config, boot_config: boot_config };
-        } else {
-            job_type = 'lifeguard-power-cycle';
-            job_args = {};
-        }
-
-        return {
-            device: m,
-            job_type: job_type,
-            job_args: job_args
-        };
-    },
-    refreshButtonStatus: function() {
-        // let the parent class handle enable/disable
-        ActionButtonView.prototype.refreshButtonStatus.call(this);
-
-        // and change the text based on what's selected
-        var selected_pxe_config = window.selected_pxe_config.get('name');
-        var button_text = selected_pxe_config ? "PXE Boot" : "Power Cycle";
-        if (button_text != this.$el.text()) {
-            this.$el.text(button_text);
-        }
-    }
-});
-
-var LifeguardForceStateButtonView = ActionButtonView.extend({
-    initialize: function() {
-        ActionButtonView.prototype.initialize.call(
-            this, {collection: window.devices});
-    },
-    makeJob: function(m) {
-        return {
-            device: m,
-            job_type: 'lifeguard-force-state',
-            job_args: { old_state: m.get('state'), new_state: window.current_force_state.get('state') }
-        };
-    }
-});
-
-var PxeConfigOptionView = Backbone.View.extend({
-    tagName: 'option',
-
-    initialize: function() {
-        _.bindAll(this, 'render');
-    },
-
-    render: function() {
-        $(this.el).attr('value', this.model.get('name')).html(this.model.get('name'));
-        return this;
-    }
-});
-
-var MozpoolRenewDurationView = Backbone.View.extend({
-    initialize: function(args) {
-        _.bindAll(this, 'valueChanged');
-    },
-
-    events: {
-        'change': 'valueChanged',
-        'keyup': 'valueChanged',
-    },
-
-    valueChanged: function() {
-        window.current_renew_duration.set('duration', this.$el.val());
-    }
-});
-
-var MozpoolCloseRequestsButtonView = ActionButtonView.extend({
-    initialize: function() {
-        ActionButtonView.prototype.initialize.call(
-            this, {collection: window.requests});
-    },
-
-    buttonClicked: function() {
-        window.requests.each(function (b) {
-            if (b.get('selected')) {
-                job_queue.push({
-                    request: b,
-                    job_type: 'mozpool-close-request'
-                });
-            }
-        });
-    }
-});
-
-var MozpoolRenewRequestsButtonView = ActionButtonView.extend({
-    initialize: function() {
-        ActionButtonView.prototype.initialize.call(
-            this, {collection: window.requests});
-        window.current_renew_duration.bind('change', this.refreshButtonStatus);
-    },
-
-    buttonClicked: function() {
-        window.requests.each(function (b) {
-            if (b.get('selected')) {
-                job_queue.push({
-                    request: b,
-                    job_type: 'mozpool-renew-request',
-                    job_args: { duration: window.current_renew_duration.get('duration') }
-                });
-            }
-        });
-    },
-
-    refreshButtonStatus: function() {
-        var duration = window.current_renew_duration.get('duration');
-        if (duration == '' || isNaN(duration)) {
-            this.$el.attr('disabled', 'disabled');
-            return;
-        }
-        ActionButtonView.prototype.refreshButtonStatus.call(this);
-    }
-});
-
-var MozpoolRequestedDeviceSelectView = Backbone.View.extend({
-    initialize: function(args) {
-        _.bindAll(this, 'refresh', 'selectChanged');
-
-        this.requested_device_views = [];
-        window.devicenames.bind('reset', this.refresh);
-    },
-
-    events: {
-        'change': 'selectChanged'
-    },
-
-    render: function() {
-        this.refresh();
-        return this;
-    },
-
-    refresh: function() {
-        var self = this;
-
-        // remove existing views, then add the whole new list of them
-        $.each(self.requested_device_views, function (v) { v.remove(); });
-        window.devicenames.each(function (device) {
-            var v = new MozpoolRequestedDeviceOptionView({ model: device });
-            $(self.el).append(v.render().el);
-            self.requested_device_views.push(v);
-        });
-    },
-
-    selectChanged: function() {
-        window.selected_requested_device.set('name', this.$el.val());
-    }
-});
-
-var MozpoolRequestedDeviceOptionView = Backbone.View.extend({
-    tagName: 'option',
-
-    initialize: function() {
-        _.bindAll(this, 'render');
-    },
-
-    render: function() {
-        $(this.el).attr('value', this.model.get('id')).html(this.model.get('id'));
-        return this;
-    }
-});
-
-var MozpoolRequestAssigneeView = Backbone.View.extend({
-    initialize: function(args) {
-        _.bindAll(this, 'valueChanged');
-    },
-
-    events: {
-        'change': 'valueChanged',
-        'keyup': 'valueChanged',
-    },
-
-    valueChanged: function() {
-        window.current_request_assignee.set('assignee', this.$el.val());
-    }
-});
-
-var MozpoolRequestDurationView = Backbone.View.extend({
-    initialize: function(args) {
-        _.bindAll(this, 'valueChanged');
-    },
-
-    events: {
-        'change': 'valueChanged',
-        'keyup': 'valueChanged',
-    },
-
-    valueChanged: function() {
-        window.current_request_duration.set('duration', this.$el.val());
-    }
-});
-
-var MozpoolRequestSubmitButtonView = Backbone.View.extend({
-    initialize: function() {
-        _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
-        window.current_request_assignee.bind('change', this.refreshButtonStatus);
-        window.current_request_duration.bind('change', this.refreshButtonStatus);
-        window.current_b2gbase.bind('change', this.refreshButtonStatus);
-    },
-
-    events: {
-        'click': 'buttonClicked'
-    },
-
-    render: function() {
-        this.refreshButtonStatus();
-    },
-
-    buttonClicked: function() {
-        var job_args = {
-            device: window.selected_requested_device.get('name'),
-            duration: window.current_request_duration.get('duration'),
-            assignee: window.current_request_assignee.get('assignee'),
-            image: 'b2g',
-            b2gbase: window.current_b2gbase.get('b2gbase')
-        };
-
-        job_queue.push({
-            job_type: 'mozpool-create-request',
-            job_args: job_args
-        });
-    },
-
-    refreshButtonStatus: function() {
-        var disabled = false;
-        var duration = window.current_request_duration.get('duration');
-        if (duration == '' || isNaN(duration) ||
-            !window.current_request_assignee.get('assignee') ||
-            !window.current_b2gbase.get('b2gbase')) {
-            disabled = true;
-        }
-
-        this.$el.attr('disabled', disabled);
-    }
-});
-
-var PxeConfigSelectView = Backbone.View.extend({
-    initialize: function(args) {
-        _.bindAll(this, 'refresh', 'selectChanged');
-
-        this.pxe_config_views = [];
-        window.pxe_configs.bind('reset', this.refresh);
-    },
-
-    events: {
-        'change': 'selectChanged'
-    },
-
-    render: function() {
-        this.refresh();
-        return this;
-    },
-
-    refresh: function() {
-        var self = this;
-
-        // remove existing views, then add the whole new list of them
-        $.each(self.pxe_config_views, function (v) { v.remove() });
-        window.pxe_configs.each(function (pxe_config) {
-            var v = new PxeConfigOptionView({ model: pxe_config });
-            $(self.el).append(v.render().el);
-            self.pxe_config_views.push(v);
-        });
-    },
-
-    selectChanged: function() {
-        window.selected_pxe_config.set('name', this.$el.val());
-    }
-});
-
-var B2gBaseView = Backbone.View.extend({
-    initialize: function(args) {
-        _.bindAll(this, 'valueChanged');
-    },
-
-    events: {
-        'change': 'valueChanged',
-        'keyup': 'valueChanged'
-    },
-
-    valueChanged: function() {
-        window.current_b2gbase.set('b2gbase', this.$el.val());
-    }
-});
-
-var IncludeClosedCheckboxView = Backbone.View.extend({
-    initialize: function(args) {
-        _.bindAll(this, 'valueChanged');
-        this.valueChanged();
-    },
-
-    events: {
-        'change': 'valueChanged'
-    },
-
-    valueChanged: function() {
-        window.requests.includeClosed = this.$el.attr('checked') != undefined;
-        window.requests.update();
-    }
-});
-
-var ForceStateView = Backbone.View.extend({
-    initialize: function(args) {
-        _.bindAll(this, 'valueChanged');
-    },
-
-    events: {
-        'change': 'valueChanged'
-    },
-
-    valueChanged: function() {
-        window.current_force_state.set('state', this.$el.val());
-    }
-});
-
-var JobQueueView = Backbone.View.extend({
-    initialize: function(args) {
-        _.bindAll(this, 'refresh');
-
-        window.job_queue.bind('change', this.refresh);
-        window.job_queue.bind('add', this.refresh);
-        window.job_queue.bind('remove', this.refresh);
-    },
-
-    render: function() {
-        this.refresh();
-        return this;
-    },
-
-    refresh: function() {
-        var length = window.job_queue.length;
-
-        if (length == 1) {
-            this.$el.text('1 job queued');
-        } else if (!length) {
-            this.$el.text('no jobs queued');
-        } else {
-            this.$el.text(length + ' jobs queued');
-        }
-    }
-});
+/*
+ * Logfiles
+ */
 
 var LogView = Backbone.View.extend({
     tagName: 'pre',
@@ -843,19 +439,738 @@ var LogView = Backbone.View.extend({
     }
 });
 
+/*
+ * Toolbar
+ */
+
 var ToolbarView = Backbone.View.extend({
     tagName: 'div',
+    initialize: function(args) {
+        this.subview_classes = args['subview_classes'];
+        _.bindAll(this, 'activateView', 'render', 'refresh');
+    },
 
     render: function() {
+        var self = this;
+        self.subviews = [];
+
+        var view = new JobQueueView();
+        this.$el.append(view.render().$el);
+
+        var ul = $('<ul>');
+        ul.attr('class', 'toolbar-actions');
+        self.$el.append(ul)
+
+        _.each(self.subview_classes, function(cls) {
+            var sv_div = $('<div>');
+            sv_div.attr('class', 'toolbar-action');
+            self.$el.append(sv_div)
+
+            var sv = new cls({ el: sv_div });
+            self.subviews.push(sv);
+            sv.render();
+
+            var li = $('<li>');
+            li.text(sv.title);
+            li.click(function() {
+                self.activateView(sv);
+            });
+            sv.$li = li;
+            ul.append(li);
+        });
+
+        self.activateView(self.subviews[0]);
+
         // make it slightly opaque so we can see any objects hidden behind it
         $('div#toolbar').css('opacity', '.95');
 
-        // and set the body's margin-bottom to the height of the toolbar
+        self.refresh();
+        return self;
+    },
+
+    activateView: function(subview) {
+        _.each(this.subviews, function (sv) {
+            if (sv != subview) {
+                sv.$el.hide();
+                sv.$li.removeClass('active');
+            }
+        });
+        subview.$el.show();
+        subview.$li.addClass('active');
+
+        this.refresh();
+    },
+
+    refresh: function() {
+        // reset the body's margin-bottom to the height of the toolbar plus some padding
         var height = $('#toolbar').height();
         height += 10; // 5px padding
         $('body').css('margin-bottom', height + 'px');
     }
 });
+
+/* 
+ * Toolbar Actions
+ */
+
+var BmmPxeBootView = Backbone.View.extend({
+    name: 'pxe-boot',
+    title: 'PXE Boot',
+
+    render: function() {
+        var view;
+
+        view = new HelpView({help_text: 
+            'This view allows you to manually PXE boot a device.  ' +
+            'It is almost always better to use lifeguard to do this, as it can track state and retry.'});
+        this.$el.append(view.render().$el);
+
+        this.$el.append('PXE Config: ');
+
+        view = new PxeConfigSelectView({});
+        this.$el.append(view.render().$el);
+
+        view = new NewJobButtonView({
+            buttonText: 'PXE Boot',
+            collection: window.devices,
+            disabled_unless: [ 'pxe_config', 'boot_config', 'selected' ],
+            job_type: 'bmm-power-cycle',
+            job_args: ['pxe_config', 'boot_config_raw', 'comments']});
+        this.$el.append(view.render().$el);
+
+        this.$el.append($('<br>'));
+        this.$el.append('Boot Config (JSON): ');
+
+        view = new TextView({ control_state_attribute: 'boot_config', size: 80 });
+        this.$el.append(view.render().$el);
+
+        this.$el.append($('<br>'));
+        this.$el.append('Update Comments: ');
+        view = new CommentsView();
+        this.$el.append(view.render().$el);
+    },
+});
+
+var BmmPowerControlView = Backbone.View.extend({
+    name: 'power-control',
+    title: 'Power Control',
+
+    render: function() {
+        var view;
+
+        view = new HelpView({help_text: 
+            'This view allows you to directly control the power to a device.  ' +
+            'Note that doing so may confuse lifeguard if it is actively managing the device.'});
+        this.$el.append(view.render().$el);
+
+        view = new NewJobButtonView({
+            buttonText: 'Power Cycle',
+            collection: window.devices,
+            disabled_unless: [ 'selected' ],
+            job_type: 'bmm-power-cycle',
+            job_args: [ 'comments' ]});
+        this.$el.append(view.render().$el);
+
+        view = new NewJobButtonView({
+            buttonText: 'Power Off',
+            collection: window.devices,
+            disabled_unless: [ 'selected' ],
+            job_type: 'bmm-power-off',
+            job_args: [ 'comments' ]});
+        this.$el.append(view.render().$el);
+
+        this.$el.append($('<br>'));
+        this.$el.append('Update Comments: ');
+        view = new CommentsView();
+        this.$el.append(view.render().$el);
+    },
+});
+
+var UpdateCommentsView = Backbone.View.extend({
+    name: 'comments',
+    title: 'Comments',
+
+    render: function() {
+        var view;
+
+        view = new HelpView({help_text: 
+            'This view allows you to comment on one or more devices.  ' +
+            'To clear out old comments, tick the checkbox but leave the text field blank.'});
+        this.$el.append(view.render().$el);
+
+        this.$el.append('Update Comments: ');
+        view = new CommentsView();
+        this.$el.append(view.render().$el);
+
+        view = new NewJobButtonView({
+            buttonText: 'Comment',
+            collection: window.devices,
+            disabled_unless: [ 'selected', 'set_comments' ],
+            // no job_type, as there's nothing to do beyond comments
+            job_args: ['comments']});
+        this.$el.append(view.render().$el);
+    },
+});
+
+var LifeguardPleaseView = Backbone.View.extend({
+    name: 'please',
+    title: 'Please..',
+
+    render: function() {
+        var view;
+
+        view = new HelpView({help_text: 
+            'This advanced tool requests "managed" operations from lifeguard.  ' +
+            'Power-cycling requires no arguments (PXE config and boot config are ignored).  ' +
+            'PXE-booting requires a PXE config, and depending on the PXE config may also require a boot config ' +
+            '(e.g., B2G requires a boot config with a "b2gbase" key).'});
+        this.$el.append(view.render().$el);
+
+        this.$el.append(new PleaseVerbView().render().$el);
+
+        this.$el.append(' with PXE config ')
+
+        view = new PxeConfigSelectView({});
+        this.$el.append(view.render().$el);
+
+        view = new NewJobButtonView({
+            buttonText: 'Go',
+            collection: window.devices,
+            disabled_unless: [ 'please_verb', 'selected' ],
+            job_type: 'lifeguard-please',
+            job_args: ['please_verb', 'pxe_config', 'boot_config_raw', 'comments']});
+        this.$el.append(view.render().$el);
+
+        this.$el.append($('<br>'));
+        this.$el.append('Boot Config (JSON): ');
+
+        view = new TextView({ control_state_attribute: 'boot_config', size: 80 });
+        this.$el.append(view.render().$el);
+
+        this.$el.append($('<br>'));
+        this.$el.append('Update Comments: ');
+        view = new CommentsView();
+        this.$el.append(view.render().$el);
+    },
+});
+
+var LifeguardForceStateView = Backbone.View.extend({
+    name: 'force',
+    title: 'Force State',
+
+    render: function() {
+        var view;
+
+        view = new HelpView({help_text: 
+            'This advanced tool forces a device into a specified state.  ' +
+            'This can be used to "lock out" a device, or to return a device from that state.'});
+        this.$el.append(view.render().$el);
+
+        this.$el.append('State:')
+        view = new TextView({ control_state_attribute: 'state', size: 20 });
+        this.$el.append(view.render().$el);
+
+        view = new NewJobButtonView({
+            buttonText: 'Force State',
+            collection: window.devices,
+            disabled_unless: [ 'state', 'selected' ],
+            job_type: 'lifeguard-force-state',
+            job_args: ['old_state', 'new_state', 'comments']});
+        this.$el.append(view.render().$el);
+
+        this.$el.append($('<br>'));
+        this.$el.append('Update Comments: ');
+        view = new CommentsView();
+        this.$el.append(view.render().$el);
+    },
+});
+
+var MozpoolCloseRequestsView = Backbone.View.extend({
+    name: 'close-requests',
+    title: 'Close Requests',
+
+    render: function() {
+        var view;
+
+        view = new HelpView({help_text: 
+            'This tool allows you to close requests before their expiration time.'});
+        this.$el.append(view.render().$el);
+
+        view = new NewJobButtonView({
+            buttonText: 'Close Requests',
+            collection: window.requests,
+            disabled_unless: [ 'selected' ],
+            job_type: 'mozpool-close-request',
+            job_args: []});
+        this.$el.append(view.render().$el);
+    },
+});
+
+var MozpoolRenewRequestsView = Backbone.View.extend({
+    name: 'renew-requests',
+    title: 'Renew Requests',
+
+    render: function() {
+        var view;
+
+        view = new HelpView({help_text: 
+            'This tool allows you to renew requests, extending their expiration time.'});
+        this.$el.append(view.render().$el);
+
+        view = new NewJobButtonView({
+            buttonText: 'Renew Requests',
+            collection: window.requests,
+            disabled_unless: [ 'renew_duration', 'selected' ],
+            job_type: 'mozpool-renew-request',
+            job_args: [ 'renew_duration' ]});
+        this.$el.append(view.render().$el);
+
+        this.$el.append(' for ');
+
+        view = new TextView({ control_state_attribute: 'renew_duration', size: 6 });
+        this.$el.append(view.render().$el);
+
+        this.$el.append(' seconds');
+    },
+});
+
+var MozpoolNewRequestView = Backbone.View.extend({
+    name: 'new-request',
+    title: 'New Request',
+
+    render: function() {
+        var view;
+
+        view = new HelpView({help_text: 
+            'This tool allows you to request a new device.  ' + 
+            'It currently only supports requesting devices with a B2G image.  ' +
+            'You may request "any" device, which allows mozpool to select a suitable device, or request a specific device.  ' +
+            'The device will be yours for the given duration, after which time it will be returned to the pool.  ' +
+            'Enter your email address in the "assigned to" field.  ' +
+            'The B2G Base URL should point to a directory containing three partition tarballs.'});
+        this.$el.append(view.render().$el);
+
+        this.$el.append('Request device ');
+        view = new MozpoolRequestedDeviceSelectView();
+        this.$el.append(view.render().$el);
+
+        this.$el.append(' for ');
+
+        view = new TextView({ control_state_attribute: 'request_duration', size: 6 });
+        this.$el.append(view.render().$el);
+
+        this.$el.append(' seconds ');
+
+        view = new NewJobButtonView({
+            buttonText: 'Request',
+            job_type: 'mozpool-create-request',
+            job_args: [ 'image', 'request_duration', 'assignee', 'b2gbase', 'device' ],
+            disabled_unless: [ 'image', 'request_duration', 'assignee', 'b2gbase', 'device' ],
+        });
+        this.$el.append(view.render().$el);
+
+        this.$el.append($('<br>'));
+        this.$el.append('Assigned to ');
+
+        view = new TextView({ control_state_attribute: 'assignee', size: 30 });
+        this.$el.append(view.render().$el);
+
+        this.$el.append($('<br>'));
+        this.$el.append('With B2G Base URL ');
+
+        view = new TextView({ control_state_attribute: 'b2gbase', size: 80 });
+        this.$el.append(view.render().$el);
+    },
+});
+
+/*
+ * Toolbar Controls
+ *
+ * N.B. Unlike other views here, these create their own elements
+ */
+
+var NewJobButtonView = Backbone.View.extend({
+    tagName: 'button',
+
+    initialize: function(args) {
+        this.collection = args.collection;
+        this.buttonText = args.buttonText;
+        this.job_type = args.job_type;
+        this.job_args = args.job_args;
+        this.disabled_unless = args.disabled_unless;
+
+        _.bindAll(this, 'refreshButtonStatus', 'buttonClicked');
+
+        if (this.collection) {
+            this.collection.bind('change', this.refreshButtonStatus);
+        }
+        window.control_state.bind('change', this.refreshButtonStatus);
+    },
+
+    events: {
+        'click': 'buttonClicked'
+    },
+
+    render: function() {
+        this.$el.text(this.buttonText);
+        this.refreshButtonStatus();
+        return this;
+    },
+
+    refreshButtonStatus: function() {
+        var self = this;
+
+        // check through the args for disabled_unless
+        var enabled = _.all(self.disabled_unless, function (u) {
+            if (u === "selected") {
+                rv = self.collection.any(function (m) { return m.get('selected'); });
+            } else {
+                rv = window.control_state.get(u);
+            }
+            return rv;
+        });
+        self.$el.attr('disabled', !enabled);
+    },
+
+    buttonClicked: function() {
+        var self = this;
+        if (!self.collection) {
+            // make a job in general, without a model
+            var job = self.makeJob(null);
+            job_queue.push(job);
+        } else {
+            // new job for each selected element
+            var set_comments = window.control_state.get('set_comments')
+                && (-1 != $.inArray('comments', self.job_args));
+            var comments = window.control_state.get('comments');
+
+            self.collection.each(function (m) {
+                if (m.get('selected')) {
+                    if (self.job_type) {
+                        var job = self.makeJob(m);
+                        job_queue.push(job);
+                    }
+
+                    // if comments are requested, add a new job for those, too
+                    if (set_comments) {
+                        job_queue.push({
+                            model: m,
+                            job_type: 'set-comments',
+                            job_args: { 'comments': comments }
+                        });
+                    }
+
+                    m.set('selected', false);
+                }
+            });
+
+            // uncheck the comments checkbox, so they're not applied next time
+            window.control_state.set('set_comments', false);
+        }
+    },
+
+    makeJob: function(m) {
+        var job_args = {};
+        // TODO: yikes, this is a little overwrought and due for a refactor..
+        _.each(this.job_args, function(arg) {
+            if (arg === 'pxe_config') {
+                job_args.pxe_config = window.control_state.get('pxe_config');
+                if (!('config' in job_args)) {
+                    job_args.config = {};
+                }
+            } else if (arg === 'boot_config_raw') {
+                job_args.boot_config_raw = window.control_state.get('boot_config');
+            } else if (arg === 'please_verb') {
+                job_args.please_verb = window.control_state.get('please_verb');
+            } else if (arg === 'old_state') {
+                job_args.old_state = m.get('state');
+            } else if (arg === 'new_state') {
+                job_args.new_state = window.control_state.get('state');
+            } else if (arg === 'renew_duration') {
+                job_args.duration = window.control_state.get('renew_duration');
+            } else if (arg === 'device') {
+                job_args.device = window.control_state.get('device');
+            } else if (arg === 'request_duration') {
+                job_args.duration = window.control_state.get('request_duration');
+            } else if (arg === 'assignee') {
+                job_args.assignee = window.control_state.get('assignee');
+            } else if (arg === 'image') {
+                job_args.image = window.control_state.get('image');
+            } else if (arg === 'b2gbase') {
+                job_args.b2gbase = window.control_state.get('b2gbase');
+            }
+        });
+        return { model: m, job_type: this.job_type, job_args: job_args };
+    }
+});
+
+var TextView = Backbone.View.extend({
+    tagName: 'input',
+    initialize: function(args) {
+        this.control_state_attribute = args.control_state_attribute;
+        this.size = args.size;
+
+        _.bindAll(this, 'valueChanged', 'modelChanged');
+        window.control_state.bind('change', this.modelChanged);
+        this.valueChanged = _.debounce(this.valueChanged, 100);
+    },
+
+    events: {
+        'change': 'valueChanged',
+        'keyup': 'valueChanged'
+    },
+
+    render: function() {
+        this.$el.attr('type', 'text');
+        this.$el.attr('size', this.size);
+        this.modelChanged();
+        return this;
+    },
+
+    valueChanged: function() {
+        window.control_state.set(this.control_state_attribute, this.$el.val());
+    },
+
+    modelChanged: function() {
+        this.$el.val(window.control_state.get(this.control_state_attribute));
+    }
+});
+
+var PxeConfigSelectView = Backbone.View.extend({
+    tagName: 'select',
+    initialize: function(args) {
+        _.bindAll(this, 'refresh', 'selectChanged', 'modelChanged');
+
+        this.pxe_config_views = [];
+        window.pxe_configs.bind('reset', this.refresh);
+        window.control_state.bind('change', this.modelChanged);
+    },
+
+    events: {
+        'change': 'selectChanged'
+    },
+
+    render: function() {
+        this.refresh();
+        if (window.control_state.get('pxe_config') == '') {
+            // the select will have picked one; use that
+            this.selectChanged();
+        }
+        return this;
+    },
+
+    refresh: function() {
+        var self = this;
+
+        // remove existing views, then add the whole new list of them
+        $.each(self.pxe_config_views, function (v) { v.remove() });
+        window.pxe_configs.each(function (pxe_config) {
+            var v = new PxeConfigOptionView({ model: pxe_config });
+            self.$el.append(v.render().el);
+            self.pxe_config_views.push(v);
+        });
+    },
+
+    modelChanged: function() {
+        this.$el.val(window.control_state.get('pxe_config'));
+    },
+
+    selectChanged: function() {
+        window.control_state.set('pxe_config', this.$el.val());
+    }
+});
+
+var PxeConfigOptionView = Backbone.View.extend({
+    tagName: 'option',
+
+    initialize: function() {
+        _.bindAll(this, 'render');
+    },
+
+    render: function() {
+        $(this.el).attr('value', this.model.get('name')).html(this.model.get('name'));
+        return this;
+    }
+});
+
+var PleaseVerbView = Backbone.View.extend({
+    tagName: 'select',
+
+    verbs: [ 'please_pxe_boot', 'please_power_cycle' ],
+
+    initialize: function(args) {
+        _.bindAll(this, 'refresh', 'selectChanged', 'modelChanged');
+        window.control_state.bind('change', this.modelChanged);
+    },
+
+    events: {
+        'change': 'selectChanged'
+    },
+
+    render: function() {
+        this.refresh();
+        if (window.control_state.get('please_verb') == '') {
+            // the select will have picked one; use that
+            this.selectChanged();
+        }
+        return this;
+    },
+
+    refresh: function() {
+        var self = this;
+
+        _.each(self.verbs, function (verb) {
+            var opt = $('<option>');
+            opt.attr('value', verb);
+            opt.text(verb);
+            self.$el.append(opt);
+        });
+    },
+
+    modelChanged: function() {
+        this.$el.val(window.control_state.get('please_verb'));
+    },
+
+    selectChanged: function() {
+        window.control_state.set('please_verb', this.$el.val());
+    }
+});
+
+var MozpoolRequestedDeviceSelectView = Backbone.View.extend({
+    tagName: 'select',
+
+    initialize: function(args) {
+        _.bindAll(this, 'refresh', 'selectChanged', 'modelChanged');
+
+        this.requested_device_views = [];
+        window.devicenames.bind('reset', this.refresh);
+        window.control_state.bind('change', this.modelChanged);
+    },
+
+    events: {
+        'change': 'selectChanged'
+    },
+
+    render: function() {
+        this.refresh();
+        return this;
+    },
+
+    refresh: function() {
+        var self = this;
+
+        // remove existing views, then add the whole new list of them
+        $.each(self.requested_device_views, function (v) { v.remove(); });
+        window.devicenames.each(function (device) {
+            var v = new MozpoolRequestedDeviceOptionView({ model: device });
+            $(self.el).append(v.render().el);
+            self.requested_device_views.push(v);
+        });
+    },
+
+    modelChanged: function() {
+        this.$el.val(window.control_state.get('device'));
+    },
+
+    selectChanged: function() {
+        window.control_state.set('device', this.$el.val());
+    }
+});
+
+var MozpoolRequestedDeviceOptionView = Backbone.View.extend({
+    tagName: 'option',
+
+    initialize: function() {
+        _.bindAll(this, 'render');
+    },
+
+    render: function() {
+        $(this.el).attr('value', this.model.get('id')).html(this.model.get('id'));
+        return this;
+    }
+});
+
+var IncludeClosedCheckboxView = Backbone.View.extend({
+    initialize: function(args) {
+        _.bindAll(this, 'valueChanged');
+        this.valueChanged();
+    },
+
+    events: {
+        'change': 'valueChanged'
+    },
+
+    valueChanged: function() {
+        window.requests.includeClosed = this.$el.attr('checked') != undefined;
+        window.requests.update();
+    }
+});
+
+var CommentsView = Backbone.View.extend({
+    tagName: 'span',
+    initialize: function(args) {
+        _.bindAll(this, 'valueChanged', 'checkboxChanged', 'modelChanged');
+        window.control_state.bind('change', this.modelChanged);
+        this.valueChanged = _.debounce(this.valueChanged, 100);
+    },
+
+    render: function() {
+        var e;
+
+        this.checkbox = e = $('<input>');
+        e.attr('type', 'checkbox');
+        e.change(this.checkboxChanged);
+        this.$el.append(e);
+
+        this.text = e = $('<input>');
+        e.attr('type', 'text');
+        e.attr('size', '80');
+        e.change(this.valueChanged);
+        e.keyup(this.valueChanged);
+        this.$el.append(e);
+
+        this.modelChanged();
+        return this;
+    },
+
+    valueChanged: function() {
+        var val = this.text.val();
+
+        window.control_state.set('comments', val);
+
+        // check the checkbox if it isn't already
+        if (val && !window.control_state.get('set_comments')) {
+            window.control_state.set('set_comments', true);
+        }
+    },
+
+    checkboxChanged: function() {
+        window.control_state.set('set_comments', this.checkbox.prop('checked') ? true : false);
+    },
+
+    modelChanged: function() {
+        this.checkbox.prop('checked', window.control_state.get('set_comments'));
+        this.text.val(window.control_state.get('comments'));
+    }
+});
+
+var HelpView = Backbone.View.extend({
+    tagName: 'div',
+
+    initialize: function(args) {
+        this.help_text = args.help_text;
+    },
+
+    render: function() {
+        this.$el.addClass('help');
+        this.$el.text(this.help_text);
+        return this;
+    }
+});
+
+/*
+ * Header
+ */
 
 var HeaderView = Backbone.View.extend({
     tagName: 'div',
@@ -867,6 +1182,39 @@ var HeaderView = Backbone.View.extend({
         // and set the body's margin-bottom to the height of the header
         var height = $('#header').height();
         $('body').css('margin-top', height + 'px');
+    }
+});
+
+var JobQueueView = Backbone.View.extend({
+    tagType: 'div',
+    initialize: function(args) {
+        _.bindAll(this, 'refresh');
+
+        window.job_queue.bind('change', this.refresh);
+        window.job_queue.bind('add', this.refresh);
+        window.job_queue.bind('remove', this.refresh);
+    },
+
+    render: function() {
+        this.$el.addClass('job-queue');
+        this.$el.css('float', 'right');
+        this.qlen = $('<span>');
+        this.$el.append(this.qlen);
+
+        this.refresh();
+        return this;
+    },
+
+    refresh: function() {
+        var length = window.job_queue.length;
+
+        if (length == 1) {
+            this.qlen.text('1 job queued');
+        } else if (!length) {
+            this.qlen.text('no jobs queued');
+        } else {
+            this.qlen.text(length + ' jobs queued');
+        }
     }
 });
 

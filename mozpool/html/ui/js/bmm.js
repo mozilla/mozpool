@@ -10,18 +10,21 @@ function run_ui(next) {
         function(next) { load_and_fetch('pxe_configs', 'PxeConfigs', next); }
     )
     .thenRun(function(next) {
-        // client-side models
-        window.selected_pxe_config = new SelectedPxeConfig();
+        window.control_state = new CurrentControlState();
         window.job_queue = new JobQueue();
+        window.job_queue.model = DeviceJob;
 
         // create the required views
-        new DeviceTableView({ el: $('#container'), }).render();
-        new PxeConfigSelectView({ el: $('#pxe-config'), }).render();
-        new BmmPowerCycleButtonView({ el: $('#bmm-power-cycle-button'), }).render();
-        new BmmPowerOffButtonView({ el: $('#bmm-power-off-button'), }).render();
-        new JobQueueView({ el: $('#job-queue'), }).render();
-        new HeaderView({ el: $('#toolbar'), }).render();
-        new ToolbarView({ el: $('#toolbar'), }).render();
+        new BMMTableView({ el: $('#container'), }).render();
+        new HeaderView({ el: $('#header'), }).render();
+        new ToolbarView({
+            el: $('#toolbar'),
+            subview_classes: [
+                BmmPowerControlView,
+                BmmPxeBootView,
+                UpdateCommentsView,
+            ],
+        }).render();
 
         // and the job runner
         new JobRunner(window.devices);

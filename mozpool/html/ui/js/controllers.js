@@ -40,10 +40,8 @@ $.extend(JobRunner.prototype, {
             this.runBmmPowerCycle();
         } else if (job_type == 'bmm-power-off') {
             this.runBmmPowerOff();
-        } else if (job_type == 'lifeguard-power-cycle') {
-            this.runLifeguardPowerCycle();
-        } else if (job_type == 'lifeguard-pxe-boot') {
-            this.runLifeguardPxeBoot();
+        } else if (job_type == 'lifeguard-please') {
+            this.runLifeguardPlease();
         } else if (job_type == 'lifeguard-force-state') {
             this.runLifeguardForceState();
         } else if (job_type == 'mozpool-close-request') {
@@ -52,6 +50,8 @@ $.extend(JobRunner.prototype, {
             this.runMozpoolRenewRequest();
         } else if (job_type == 'mozpool-create-request') {
             this.runMozpoolCreateRequest();
+        } else if (job_type == 'set-comments') {
+            this.runSetComments();
         } else {
             this.handleError('unknown job type ' + job_type);
             this.jobFinished();
@@ -67,7 +67,11 @@ $.extend(JobRunner.prototype, {
         var post_params = {};
         if (job_args['pxe_config']) {
             post_params['pxe_config'] = job_args['pxe_config'];
-            post_params['boot_config'] = JSON.stringify(job_args['boot_config']);
+            if (typeof job_args['boot_config_raw'] !== 'undefined') {
+                post_params['boot_config'] = job_args['boot_config_raw'];
+            } else {
+                post_params['boot_config'] = JSON.stringify(job_args['boot_config']);
+            }
         }
         $.ajax(url, {
             type: 'POST',
@@ -94,31 +98,20 @@ $.extend(JobRunner.prototype, {
         });
     },
 
-    runLifeguardPowerCycle: function() {
+    runLifeguardPlease: function() {
         var self = this;
 
         var job_args = this.running.get('job_args');
         var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
-            + this.running.get('device_name') + '/event/please_power_cycle/';
-        $.ajax(url, {
-            type: 'GET',
-            error: function (jqxhr, textStatus, errorThrown) {
-                self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
-            },
-            complete: this.jobFinished
-        });
-    },
-
-    runLifeguardPxeBoot: function() {
-        var self = this;
-
-        var job_args = this.running.get('job_args');
-        var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
-            + this.running.get('device_name') + '/event/please_pxe_boot/';
+            + this.running.get('device_name') + '/event/' + job_args['please_verb'] + '/';
         var post_params = {};
         if (job_args['pxe_config']) {
             post_params['pxe_config'] = job_args['pxe_config'];
-            post_params['boot_config'] = JSON.stringify(job_args['boot_config']);
+            if (typeof job_args['boot_config_raw'] !== 'undefined') {
+                post_params['boot_config'] = job_args['boot_config_raw'];
+            } else {
+                post_params['boot_config'] = JSON.stringify(job_args['boot_config']);
+            }
         }
         $.ajax(url, {
             type: 'POST',
@@ -168,7 +161,7 @@ $.extend(JobRunner.prototype, {
     runMozpoolRenewRequest: function() {
         var self = this;
 
-        var url = '//' + this.running.get('request').get('imaging_server') + '/api/request/' + this.running.get('request_id')  + '/renew/';
+        var url = '//' + this.running.get('request').get('imaging_server') + '/api/request/' + this.running.get('request').get('id')  + '/renew/';
         var job_args = this.running.get('job_args');
         var post_params = {duration: job_args['duration']};
         $.ajax(url, {
@@ -192,6 +185,24 @@ $.extend(JobRunner.prototype, {
             image: job_args.image,
             b2gbase: job_args.b2gbase
         };
+        
+        $.ajax(url, {
+            type: 'POST',
+            data: JSON.stringify(post_params),
+            error: function (jqxhr, textStatus, errorThrown) {
+                self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
+            },
+            complete: this.jobFinished
+        });
+    },
+
+    runSetComments: function() {
+        var self = this;
+
+        var job_args = this.running.get('job_args');
+        var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
+            + this.running.get('device_name') + '/set-comments/';
+        var post_params = { comments: job_args.comments };
         
         $.ajax(url, {
             type: 'POST',

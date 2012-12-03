@@ -87,6 +87,12 @@ div#header {
     border-bottom: 1px solid #e0e0e0;
 }
 
+div.dataTables_filter {
+    /* note that this gets transplanted into the toolbar */
+    float: right;
+    padding: 6px;
+}
+
 /* fixed bottom toolbar */
 
 div#toolbar {
@@ -98,17 +104,90 @@ div#toolbar {
     padding: 5px;
 }
 
-body.bmm div#toolbar, body.bmm div#header,
+div#toolbar button {
+    height: 2.5em;
+    margin: 0.25em;
+    padding: 0px;
+}
+
+div.clear {
+    clear: both;
+}
+
+div#toolbar {
+    margin-top: 1em;
+}
+
+div#toolbar ul {
+    margin: 0px;
+    margin-top: 0px;
+    padding: 1px 1em;
+}
+
+div#toolbar ul li {
+    /* These are supposed to be tabs..  For goodness sake, someone do something better! */
+    display: inline-block;
+    margin: 0px 0.5em;
+    padding: 0em 0.5em;
+    border-bottom: none;
+    color: #505050;
+    cursor: pointer;
+}
+
+div#toolbar ul li:before {
+    content: "[";
+}
+
+div#toolbar ul li:after {
+    content: "]";
+}
+
+div#toolbar ul li:hover {
+    color: #101010;
+}
+
+div#toolbar ul li.active {
+    color: black;
+}
+
+div#toolbar div.toolbar-action {
+    display: none;
+}
+
+div#toolbar div.job-queue {
+    font-size: 65%;
+}
+
+div#toolbar div.help {
+    font-size: 75%;
+    width: 30%;
+    float: right;
+    background: white;
+    opacity: 0.8;
+    padding: 3px;
+    border-radius: 5px;
+}
+
+/* BMM */
+
+body.bmm div#toolbar,
+body.bmm div#header,
 div#menu-bmm {
     background: #AEC94B;
 }
 
+/* Lifeguard */
+
 body.lifeguard div#toolbar,
-div#menu-lifeguard, body.lifeguard div#header {
+body.lifeguard div#header,
+div#menu-lifeguard {
     background: #C9638B;
 }
 
-body.mozpool div#toolbar, body.mozpool div#header,
+/* Mozpool */
+
+body.mozpool div#toolbar,
+body.mozpool div#header,
 div#menu-mozpool {
     background: #4BAAC9;
 }
@@ -120,36 +199,6 @@ body.mozpool div#include-closed {
 
 body.mozpool span#reimage-controls {
     display: none;
-}
-
-div#toolbar button {
-    height: 2.5em;
-    margin: 0.25em;
-    padding: 0px;
-}
-
-body.mozpool div#selected-controls {
-    float: left;
-    width: 33%;
-}
-
-body.mozpool div#other-controls {
-    float: left;
-    width: 40%;
-}
-
-body.mozpool div#info {
-    float: left;
-}
-
-div.clear {
-    clear: both;
-}
-
-div.dataTables_filter {
-    /* note that this gets transplanted into the toolbar */
-    float: right;
-    padding: 6px;
 }
 
 /* menu styling */

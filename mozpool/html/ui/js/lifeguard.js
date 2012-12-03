@@ -10,23 +10,21 @@ function run_ui(next) {
         function(next) { load_and_fetch('pxe_configs', 'PxeConfigs', next); }
     )
     .thenRun(function(next) {
-        // client-side models
-        window.selected_pxe_config = new SelectedPxeConfig();
-        window.current_b2gbase = new CurrentB2gBase();
-        window.current_force_state = new CurrentForceState();
+        window.control_state = new CurrentControlState();
         window.job_queue = new JobQueue();
         window.job_queue.model = DeviceJob;
 
         // create the required views
-        new DeviceTableView({ el: $('#container'), }).render();
-        new PxeConfigSelectView({ el: $('#pxe-config'), }).render();
-        new B2gBaseView({ el: $('#boot-config-b2gbase'), }).render();
-        new ForceStateView({ el: $('#force-state'), }).render();
-        new LifeguardPleaseButtonView({ el: $('#lifeguard-please-button'), }).render();
-        new LifeguardForceStateButtonView({ el: $('#lifeguard-force-state-button'), }).render();
-        new JobQueueView({ el: $('#job-queue'), }).render();
+        new LifeguardTableView({ el: $('#container'), }).render();
         new HeaderView({ el: $('#toolbar'), }).render();
-        new ToolbarView({ el: $('#toolbar'), }).render();
+        new ToolbarView({
+            el: $('#toolbar'),
+            subview_classes: [
+                LifeguardPleaseView,
+                LifeguardForceStateView,
+                UpdateCommentsView,
+            ],
+        }).render();
 
         // and the job runner
         new JobRunner(window.devices);

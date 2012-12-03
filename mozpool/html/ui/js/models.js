@@ -188,49 +188,28 @@ var SelectedPxeConfig = Backbone.Model.extend({
     }
 });
 
-var CurrentB2gBase = Backbone.Model.extend({
-    // current URL in the input box
+var CurrentControlState = Backbone.Model.extend({
+    // current values for all of the onscreen controls
     initialize: function (args) {
-        this.set('b2gbase', '');
-    }
-});
-
-var CurrentForceState = Backbone.Model.extend({
-    // current URL in the input box
-    initialize: function (args) {
-        this.set('state', '');
-    }
-});
-
-var CurrentRenewDuration = Backbone.Model.extend({
-    initialize: function(args) {
-        this.set('duration', '');
-    }
-});
-
-var CurrentRequestDuration = Backbone.Model.extend({
-    initialize: function(args) {
-        this.set('duration', '');
-    }
-});
-
-var CurrentRequestAssignee = Backbone.Model.extend({
-    initialize: function(args) {
+        this.set('device', 'any');
         this.set('assignee', '');
-    }
-});
-
-var SelectedRequestedDevice = Backbone.Model.extend({
-    // currently-selected requested device in the <select>; name can be '' when
-    // no image is selected
-    initialize: function (args) {
-        this.set('name', 'any');
+        this.set('request_duration', '3600');
+        this.set('renew_duration', '3600');
+        this.set('state', '');
+        this.set('pxe_config', '');
+        this.set('boot_config', '{"b2gbase":"http://..."}');
+        this.set('b2gbase', '');
+        this.set('please_verb', '');
+        this.set('image', 'b2g');
+        this.set('set_comments', false);
+        this.set('comments', '');
     }
 });
 
 var DeviceJob = Backbone.Model.extend({
     initialize: function (args) {
-        this.device = args.device;
+        this.device = args.model;
+        this.set('device', this.device);
         this.set('job_type', args.job_type);
         this.set('job_args', args.job_args);
         this.set('device_name', this.device.get('name'));
@@ -243,7 +222,8 @@ var DeviceJob = Backbone.Model.extend({
 
 var RequestJob = Backbone.Model.extend({
     initialize: function (args) {
-        this.request = args.request;
+        this.request = args.model;
+        this.set('request', this.request);
         this.set('job_type', args.job_type);
         this.set('job_args', args.job_args);
         this.set('request_id', this.request ? this.request.get('id') : 0);
