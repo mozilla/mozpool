@@ -149,6 +149,10 @@ class unknown(AcceptPleaseRequests, statemachine.State):
 class free(AcceptPleaseRequests, statemachine.State):
     "This device is not in use and available for mozpool requests."
 
+@DeviceStateMachine.state_class
+class locked_out(statemachine.State):
+    """This device is handled outside of mozpool, and mozpool should not touch it.
+    The device must be forced out of this state."""
 
 @DeviceStateMachine.state_class
 class ready(AcceptPleaseRequests, statemachine.State):
@@ -570,11 +574,6 @@ class failed(AcceptPleaseRequests, statemachine.State):
 @DeviceStateMachine.state_class
 class failed_power_cycling(failed):
     "The power-cycle operation itself has failed or timed out multiple times"
-
-
-@DeviceStateMachine.state_class
-class failed_reboot_complete(failed):
-    "While rebooting, device has been power-cycled multiple times, but the image has not run."
 
 @DeviceStateMachine.state_class
 class failed_pxe_booting(failed):
