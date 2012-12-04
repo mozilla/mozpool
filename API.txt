@@ -18,7 +18,7 @@ devices.
 * GET returns a JSON response body whose "devices" key
   contains an array of objects, each representing a single device.
   The objects have keys id, name, fqdn, inventory_id, mac_address,
-  imaging_server, relay_info, comments, and last_pxe_config.
+  imaging_server, relay_info, comments, environment, and last_pxe_config.
 
 /api/device/{id}/status/
 * GET returns a JSON response body whose "status" key contains
@@ -38,7 +38,9 @@ devices.
   by mozpool.  Some image types will require additional parameters.  Currently
   the only supported value is "b2g", for which a "b2gbase" key must also be
   present.  The value of "b2gbase" must be a URL to a b2g build directory
-  containing boot, system, and userdata tarballs.
+  containing boot, system, and userdata tarballs.  If supplied, the
+  "environment" key limits the available devices to those in the given
+  environment; the default is 'any', which can also be supplied explicitly.
 
   If successful, returns 200 OK with a JSON object with the key "request".
   The value of "request" is an object detailing the request, with the keys
@@ -174,6 +176,14 @@ results, since lifeguard expects to be controlling the devices.
 /api/device/{id}/set-comments/
 * POST to set the comments for a device.  The body should contain a 'comments'
   key.
+
+/api/device/{id}/set-environment/
+* POST to set the environment for a device.  The body should contain an
+  'environment' key.
+
+/api/environment/list/
+* GET to get a list of all environments containing one or more devices.
+  Returns an object with an 'environments' key.
 
 == PXE Configs ==
 

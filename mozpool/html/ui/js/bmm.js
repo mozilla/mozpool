@@ -22,6 +22,7 @@ function run_ui(next) {
             subview_classes: [
                 BmmPowerControlView,
                 BmmPxeBootView,
+                BmmEnvironmentView,
                 UpdateCommentsView,
             ],
         }).render();

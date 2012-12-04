@@ -2,14 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// NOTE: all top-level models appear as attributes of window, using the
-// lower-cased name.  So the Devices instance is window.devices.
-
+//
 // db-backed models
+//
 
 var UpdateableCollection = Backbone.Collection.extend({
-    responseAttr: '',  // override
     refreshInterval: 30000,
+    // controls parsing the result of the fetch
+    responseAttr: '',  // expect data at this key in the response
+    namesOnly: false, // if true, the response is a list of names
+    // whether to add, remove, or update collection items when
+    // merging new data
+    addWhenMerging: true,
+    removeWhenMerging: true,
+    updateWhenMerging: true,
+    // ids that should always be in the model
 
     initialize: function (args) {
         _.bindAll(this, 'update', 'parse');
@@ -24,28 +31,44 @@ var UpdateableCollection = Backbone.Collection.extend({
         this.callWhenUpdated = [];
     },
 
+    mungeResponse: function(response) {
+    },
+
     parse: function(response) {
         var self = this;
+
+        response = response[this.responseAttr];
+        if (this.namesOnly) {
+            // add id columns, based on the names
+            response = $.map(response, function(name) { return { name: name, id: name }; });
+        }
+
         var old_ids = self.map(function(b) { return b.get('id'); });
-        var new_ids = _.map(response[self.responseAttr],
-                            function (b) { return b.id; });
+        var new_ids = _.map(response, function (b) { return b.id; });
 
         // calculate added and removed elements from differences
-        _.each(_.difference(old_ids, new_ids), function (id) {
-            self.remove(self.get(id));
-        });
-        _.each(_.difference(new_ids, old_ids), function (id) {
-            var attrs = response[self.responseAttr][_.indexOf(new_ids, id)];
-            self.push(new self.model(attrs));
-        });
+        if (self.removeWhenMerging) {
+            _.each(_.difference(old_ids, new_ids), function (id) {
+                self.remove(self.get(id));
+            });
+        }
+
+        if (self.addWhenMerging) {
+            _.each(_.difference(new_ids, old_ids), function (id) {
+                var attrs = response[_.indexOf(new_ids, id)];
+                self.push(new self.model(attrs));
+            });
+        }
 
         // then any updates to the individual models that haven't been added or
         // removed
-        _.each(_.intersection(new_ids, old_ids), function (id) {
-            var attrs = response[self.responseAttr][_.indexOf(new_ids, id)];
-            var model = self.get(id);
-            model.set(attrs);
-        });
+        if (self.updateWhenMerging) {
+            _.each(_.intersection(new_ids, old_ids), function (id) {
+                var attrs = response[_.indexOf(new_ids, id)];
+                var model = self.get(id);
+                model.set(attrs);
+            });
+        }
 
         // this just instructs the fetch/add to not anything else:
         return [];
@@ -103,41 +126,30 @@ var Device = Backbone.Model.extend({
     }
 });
 
+var Devices = UpdateableCollection.extend({
+    url: '/api/device/list/?details=true',
+    model: Device,
+    responseAttr: 'devices'
+});
+
 var DeviceNames = UpdateableCollection.extend({
     // only sets the 'id' attribute of the Device model to the device name
     url: '/api/device/list/',
     model: Device,
     responseAttr: 'devices',
-
-    initialize: function() {
-        UpdateableCollection.prototype.initialize.call(this);
-        this.push(new this.model({id: 'any'}));
-    },
-
-    parse: function(response) {
-        var self = this;
-        var old_ids = self.map(function(b) { return b.get('id'); });
-        var new_ids = response[self.responseAttr];
-        new_ids.push('any');
-
-        _.each(_.difference(old_ids, new_ids), function (id) {
-            self.remove(self.get(id));
-        });
-
-        _.each(_.difference(new_ids, old_ids), function (id) {
-            var attrs = {id: id};
-            self.push(new self.model(attrs));
-        });
-
-        // this just instructs the fetch/add to not anything else:
-        return [];
-    },
+    namesOnly: true,
+    updateWhenMerging: false // no need, since they're just names
 });
 
-var Devices = UpdateableCollection.extend({
-    url: '/api/device/list/?details=true',
-    model: Device,
-    responseAttr: 'devices'
+var Environment = Backbone.Model.extend({
+});
+
+var Environments = UpdateableCollection.extend({
+    url: '/api/environment/list/',
+    model: Environment,
+    responseAttr: 'environments',
+    namesOnly: true,
+    updateWhenMerging: false, // no need, since they're just names
 });
 
 var Request = Backbone.Model.extend({
@@ -159,12 +171,11 @@ var Requests = UpdateableCollection.extend({
 var PxeConfig = Backbone.Model.extend({
 });
 
-var PxeConfigs = Backbone.Collection.extend({
+var PxeConfigs = UpdateableCollection.extend({
     url: '/api/bmm/pxe_config/list/?active_only=1',
     model: PxeConfig,
-    parse: function(response) {
-        return $.map(response.pxe_configs, function(name, id) { return { name: name, id: id }; });
-    }
+    responseAttr: 'pxe_configs',
+    namesOnly: true
 });
 
 var LogLine = Backbone.Model.extend({
@@ -190,26 +201,21 @@ var Log = UpdateableCollection.extend({
     },
 });
 
-// client-only models
-
-var SelectedPxeConfig = Backbone.Model.extend({
-    // currently-selected boot image in the <select>; name can be '' when no
-    // image is selected
-    initialize: function (args) {
-        this.set('name', '');
-    }
-});
+//
+// client-side control state
+//
 
 var CurrentControlState = Backbone.Model.extend({
     // current values for all of the onscreen controls
     initialize: function (args) {
         this.set('device', 'any');
+        this.set('environment', '');
         this.set('assignee', '');
         this.set('request_duration', '3600');
         this.set('renew_duration', '3600');
-        this.set('state', '');
+        this.set('new_state', '');
         this.set('pxe_config', '');
-        this.set('boot_config', '{"b2gbase":"http://..."}');
+        this.set('boot_config_raw', '{"b2gbase":"http://..."}');
         this.set('b2gbase', '');
         this.set('please_verb', '');
         this.set('image', 'b2g');
@@ -217,6 +223,29 @@ var CurrentControlState = Backbone.Model.extend({
         this.set('comments', '');
     }
 });
+
+//
+// Static Data
+//
+
+var PleaseVerb = Backbone.Model.extend({
+});
+
+var PleaseVerbs = Backbone.Collection.extend({
+    model: PleaseVerb,
+
+    initialize: function(args) {
+        // fill with static values
+        _.each([ 'please_pxe_boot', 'please_power_cycle' ], function(s) {
+            this.push({name: s, id: s});
+        }, this);
+    }
+});
+
+
+//
+// Jobs
+//
 
 var DeviceJob = Backbone.Model.extend({
     initialize: function (args) {

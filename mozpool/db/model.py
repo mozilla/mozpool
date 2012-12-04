@@ -24,6 +24,7 @@ devices = sa.Table('devices', metadata,
     sa.Column('relay_info', sa.Text),
     sa.Column('boot_config', sa.Text),
     sa.Column('comments', sa.Text),
+    sa.Column('environment', sa.String(32)),
 )
 
 # NOTE:
@@ -42,6 +43,7 @@ requests = sa.Table('requests', metadata,
     sa.Column('state', sa.String(32), nullable=False),
     sa.Column('state_counters', sa.Text, nullable=False),
     sa.Column('state_timeout', sa.DateTime, nullable=True),
+    sa.Column('environment', sa.String(32)),
 )
 
 device_requests = sa.Table('device_requests', metadata,

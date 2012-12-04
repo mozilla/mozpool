@@ -56,6 +56,7 @@ for device_id in range(0, options.devices):
                      fqdn='device%d.fqdn' % (device_id + 1),
                      inventory_id=1111 * (device_id + 1),
                      state='free',
+                     environment='odd' if (device_id % 2) else 'even',
                      state_counters='{}',
                      mac_address='%012x' % device_id,
                      imaging_server_id=img_svr_ids[server_id],

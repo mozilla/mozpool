@@ -52,6 +52,8 @@ $.extend(JobRunner.prototype, {
             this.runMozpoolCreateRequest();
         } else if (job_type == 'set-comments') {
             this.runSetComments();
+        } else if (job_type == 'set-environment') {
+            this.runSetEnvironment();
         } else {
             this.handleError('unknown job type ' + job_type);
             this.jobFinished();
@@ -67,11 +69,7 @@ $.extend(JobRunner.prototype, {
         var post_params = {};
         if (job_args['pxe_config']) {
             post_params['pxe_config'] = job_args['pxe_config'];
-            if (typeof job_args['boot_config_raw'] !== 'undefined') {
-                post_params['boot_config'] = job_args['boot_config_raw'];
-            } else {
-                post_params['boot_config'] = JSON.stringify(job_args['boot_config']);
-            }
+            post_params['boot_config'] = job_args['boot_config_raw'];
         }
         $.ajax(url, {
             type: 'POST',
@@ -163,7 +161,7 @@ $.extend(JobRunner.prototype, {
 
         var url = '//' + this.running.get('request').get('imaging_server') + '/api/request/' + this.running.get('request').get('id')  + '/renew/';
         var job_args = this.running.get('job_args');
-        var post_params = {duration: job_args['duration']};
+        var post_params = {duration: job_args.renew_duration};
         $.ajax(url, {
             type: 'POST',
             data: JSON.stringify(post_params),
@@ -180,12 +178,13 @@ $.extend(JobRunner.prototype, {
         var job_args = this.running.get('job_args');
         var url = '/api/device/' + job_args.device  + '/request/';
         var post_params = {
-            duration: job_args.duration,
+            duration: job_args.request_duration,
             assignee: job_args.assignee,
             image: job_args.image,
-            b2gbase: job_args.b2gbase
+            b2gbase: job_args.b2gbase,
+            environment: job_args.environment
         };
-        
+
         $.ajax(url, {
             type: 'POST',
             data: JSON.stringify(post_params),
@@ -203,7 +202,25 @@ $.extend(JobRunner.prototype, {
         var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
             + this.running.get('device_name') + '/set-comments/';
         var post_params = { comments: job_args.comments };
-        
+
+        $.ajax(url, {
+            type: 'POST',
+            data: JSON.stringify(post_params),
+            error: function (jqxhr, textStatus, errorThrown) {
+                self.handleError('error from server: ' + textStatus + ' - ' + errorThrown);
+            },
+            complete: this.jobFinished
+        });
+    },
+
+    runSetEnvironment: function() {
+        var self = this;
+
+        var job_args = this.running.get('job_args');
+        var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
+            + this.running.get('device_name') + '/set-environment/';
+        var post_params = { environment: job_args.environment };
+
         $.ajax(url, {
             type: 'POST',
             data: JSON.stringify(post_params),

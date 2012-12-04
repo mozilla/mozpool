@@ -46,7 +46,7 @@ def list_devices(detail=False):
 
     If `detail` is True, then each device is represented by a dictionary
     with keys id, name, fqdn, inventory_id, mac_address, imaging_server,
-    relay_info, state, last_pxe_config, and comments.
+    relay_info, state, last_pxe_config, environment, and comments.
     """
     conn = sql.get_conn()
     if detail:
@@ -57,7 +57,8 @@ def list_devices(detail=False):
             [devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id,
             devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
             devices.c.relay_info, devices.c.state, devices.c.comments,
-            pxe_configs.c.name.label('last_pxe_config')],
+            pxe_configs.c.name.label('last_pxe_config'),
+            devices.c.environment],
             from_obj=[devices.join(img_svrs).outerjoin(pxe_configs)])
         res = conn.execute(stmt)
         return {'devices': [dict(row) for row in res]}
@@ -269,6 +270,18 @@ def set_device_comments(device_name, comments):
                  where(model.devices.c.name==device_name).
                  values(comments=comments))
 
+def set_device_environment(device_name, environment):
+    conn = sql.get_conn()
+    conn.execute(model.devices.update().
+                 where(model.devices.c.name==device_name).
+                 values(environment=environment))
+
+def list_environments():
+    conn = sql.get_conn()
+    res = conn.execute(
+            sqlalchemy.select([sqlalchemy.distinct(model.devices.c.environment)]))
+    return { 'environments' : [ row.environment for row in res.fetchall() ] }
+
 def device_relay_info(device):
     res = sql.get_conn().execute(select([model.devices.c.relay_info],
                                         model.devices.c.name==device))
@@ -304,6 +317,15 @@ def device_fqdn(device):
                                         model.devices.c.name==device))
     row = res.fetchone()
     return row['fqdn']
+
+def device_environment(device):
+    """
+    Get the environment of device.
+    """
+    res = sql.get_conn().execute(select([model.devices.c.environment],
+                                        model.devices.c.name==device))
+    row = res.fetchone()
+    return row['environment']
 
 def list_pxe_configs(active_only=False):
     conn = sql.get_conn()
@@ -369,7 +391,7 @@ def get_free_devices():
             ))
     return [row[0] for row in res]
 
-def create_request(requested_device, assignee, duration, boot_config):
+def create_request(requested_device, environment, assignee, duration, boot_config):
     conn = sql.get_conn()
     server_id = conn.execute(select(
             [model.imaging_servers.c.id],
@@ -377,6 +399,7 @@ def create_request(requested_device, assignee, duration, boot_config):
                              ).fetchall()[0][0]
     reservation = {'imaging_server_id': server_id,
                    'requested_device': requested_device,
+                   'environment': environment,
                    'assignee': assignee,
                    'expires': datetime.datetime.utcnow() +
                               datetime.timedelta(seconds=duration),
@@ -478,7 +501,8 @@ def dump_requests(*request_ids, **kwargs):
         [requests.c.id,
          model.imaging_servers.c.fqdn.label('imaging_server'),
          requests.c.assignee, requests.c.boot_config, requests.c.state,
-         requests.c.expires, requests.c.requested_device],
+         requests.c.expires, requests.c.requested_device,
+         requests.c.environment],
         from_obj=[requests.join(model.imaging_servers)])
     if request_ids:
         id_exprs = []

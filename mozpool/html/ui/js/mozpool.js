@@ -7,6 +7,7 @@ function run_ui(next) {
     // fetch data for our models
     .thenRun(
         function(next) { load_and_fetch('devicenames', 'DeviceNames', next); },
+        function(next) { load_and_fetch('environments', 'Environments', next); },
         function(next) { window.requests = new Requests(); window.requests.update(next); }
     )
     .thenRun(function(next) {

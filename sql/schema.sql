@@ -143,6 +143,8 @@ CREATE TABLE devices (
   boot_config text,
   -- free-form comments about the device (for BMM + Lifeguard)
   comments text,
+  -- fields for filtering devices when requesting
+  environment varchar(32) not null default 'none',
 
   unique index name_idx (name),
   index state_timeout_idx (state_timeout)
@@ -165,7 +167,9 @@ CREATE TABLE requests (
   -- state machine variables
   state varchar(32) not null,
   state_counters text not null,
-  state_timeout datetime
+  state_timeout datetime,
+  -- constraining fields for the request
+  environment varchar(32) not null default 'any',
 );
 
 DROP TABLE IF EXISTS device_requests;

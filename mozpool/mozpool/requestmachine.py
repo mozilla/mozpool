@@ -172,18 +172,21 @@ class finding_device(Closable, Expirable, statemachine.State):
         request = data.dump_requests(self.machine.request_id)[0]
         if request['requested_device'] == 'any':
             free_devices = data.get_free_devices()
-            if free_devices:
-                device_id = random.randint(0, len(free_devices) - 1)
-                device_name = free_devices[device_id]
-                logs.request_logs.add(
-                    self.machine.request_id,
-                    'assigning device %s' % device_name)
-            else:
-                self.logger.info('no free devices')
+            random.shuffle(free_devices)
         else:
-            device_name = request['requested_device']
-            self.logger.info('assigning requested device %s' % device_name)
+            free_devices = [request['requested_device']]
+        for device_name in free_devices:
+            # check against environment
+            env = request['environment']
+            if env != 'any' and data.device_environment(device_name) != env:
+                self.logger.info('%s does not match env %s' % (device_name, env))
+                continue
+            break
+        else:
+            self.logger.info('no free devices matching requirements')
+            return
 
+        self.logger.info('assigning device %s' % (device_name,))
         if device_name and data.reserve_device(self.machine.request_id,
                                                device_name):
             self.logger.info('request succeeded')
@@ -279,7 +282,6 @@ class pending(Closable, Expirable, statemachine.State):
         counter = self.machine.increment_counter(self.state_name)
         request_config = data.request_config(self.machine.request_id)
         device_name = request_config['assigned_device']
-        print 'device_name is %s' % device_name
         device_state = data.device_status(device_name)['state']
         if device_state == 'ready':
             self.machine.goto_state(ready)

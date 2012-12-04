@@ -18,6 +18,8 @@ urls = (
   "/device/([^/]+)/log/?", "log",
   "/device/([^/]+)/bootconfig/?", "device_bootconfig",
   "/device/([^/]+)/set-comments/?", "device_set_comments",
+  "/device/([^/]+)/set-environment/?", "device_set_environment",
+  "/environment/list/?", "environment_list",
   "/bmm/pxe_config/list/?", "pxe_config_list",
   "/bmm/pxe_config/([^/]+)/details/?", "pxe_config_details",
 )
@@ -69,6 +71,11 @@ class log:
         else:
             return {'log':logs.device_logs.get_all(device_name)}
 
+class environment_list:
+    @templeton.handlers.json_response
+    def GET(self):
+        return data.list_environments()
+
 class pxe_config_list:
     @templeton.handlers.json_response
     def GET(self):
@@ -89,6 +96,13 @@ class device_set_comments:
     def POST(self, id):
         args, body = templeton.handlers.get_request_parms()
         data.set_device_comments(id, body['comments'])
+
+class device_set_environment:
+    @deviceredirect
+    @templeton.handlers.json_response
+    def POST(self, id):
+        args, body = templeton.handlers.get_request_parms()
+        data.set_device_environment(id, body['environment'])
 
 class device_bootconfig:
     def GET(self, id):

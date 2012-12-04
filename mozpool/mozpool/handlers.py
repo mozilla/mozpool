@@ -58,6 +58,7 @@ class device_request:
             assignee = body['assignee']
             duration = int(body['duration'])
             image = body['image']
+            environment = body.get('environment', 'any')
         except (KeyError, ValueError):
             raise web.badrequest()
 
@@ -70,7 +71,7 @@ class device_request:
         except KeyError:
             raise web.badrequest()
 
-        request_id = data.create_request(device_name, assignee, duration,
+        request_id = data.create_request(device_name, environment, assignee, duration,
                                          boot_config)
         mozpool.mozpool.driver.handle_event(request_id, 'find_device', None)
         response_data = {'request': data.request_config(request_id)}

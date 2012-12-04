@@ -31,7 +31,11 @@ function setup_ui(next) {
     // load our own code
     .thenLoad(
         '/ui/js/models.js',
-        '/ui/js/views.js',
+        '/ui/js/views-tables.js',
+        '/ui/js/views-toolbar.js',
+        '/ui/js/views-controls.js',
+        '/ui/js/views-header.js',
+        '/ui/js/views-logfiles.js',
         '/ui/js/controllers.js')
     .thenRun(next)
 }
