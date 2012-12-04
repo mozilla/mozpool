@@ -26,10 +26,11 @@ devices = sa.Table('devices', metadata,
     sa.Column('comments', sa.Text),
 )
 
+# NOTE:
+# the SQL schema specifies primary keys as BigInt; we use Integer here because
+# SQLite does not support non-integer primary keys
+
 requests = sa.Table('requests', metadata,
-    # the schema specifies this as a BigInt; we use Integer here because it
-    # seems that having the primary key as a BigInt doesn't work properly in
-    # sqlite.
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
     sa.Column('imaging_server_id', sa.Integer(unsigned=True),
         sa.ForeignKey('imaging_servers.id', ondelete='RESTRICT'),
@@ -66,6 +67,7 @@ pxe_configs = sa.Table('pxe_configs', metadata,
 )
 
 device_logs = sa.Table('device_logs', metadata,
+    sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
     sa.Column('device_id', sa.Integer(unsigned=True), nullable=False),
     sa.Column('ts', sa.DateTime, nullable=False),
     sa.Column('source', sa.String(32), nullable=False),
@@ -73,6 +75,7 @@ device_logs = sa.Table('device_logs', metadata,
 )
 
 request_logs = sa.Table('request_logs', metadata,
+    sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
     sa.Column('request_id', sa.Integer(unsigned=True), nullable=False),
     sa.Column('ts', sa.DateTime, nullable=False),
     sa.Column('source', sa.String(32), nullable=False),

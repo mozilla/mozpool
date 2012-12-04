@@ -170,12 +170,24 @@ var PxeConfigs = Backbone.Collection.extend({
 var LogLine = Backbone.Model.extend({
 });
 
-var Log = Backbone.Collection.extend({
+var Log = UpdateableCollection.extend({
     model: LogLine,
-    url: null,
-    parse: function(response) {
-        return response.log;
-    }
+    refreshInterval: 5000, // 5s, so we don't crush the DB
+    url: null, // filled in by log.js
+    doneInitialFetch: false,
+    responseAttr: 'log',
+
+    fetch: function(args) {
+        // update the URL if we've done the initial fetch
+        var rv = UpdateableCollection.prototype.fetch.call(this, args);
+        if (!this.doneInitialFetch) {
+            this.doneInitialFetch = true;
+            // only fetch the last five minutes from here on out, to make merging easier.
+            // This lets us miss our refreshInterval by quite a bit, but not forever (TODO)
+            this.url = this.url + '?timeperiod=300';
+        }
+        return rv;
+    },
 });
 
 // client-only models

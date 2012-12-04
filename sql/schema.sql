@@ -178,6 +178,7 @@ CREATE TABLE device_requests (
 
 DROP TABLE IF EXISTS device_logs;
 CREATE TABLE device_logs (
+    id bigint not null auto_increment,
     -- foreign key for the device
     device_id integer not null,
     ts timestamp not null,
@@ -187,12 +188,14 @@ CREATE TABLE device_logs (
     message text not null,
     -- indices
     index device_id_idx (device_id),
-    index ts_idx (ts)
+    index ts_idx (ts),
+    primary key pk (id, ts)
 );
 CALL init_log_partitions('device_logs', 14, 1);
 
 DROP TABLE IF EXISTS request_logs;
 CREATE TABLE request_logs (
+    id bigint not null auto_increment,
     -- request this log is for
     request_id bigint not null,
     ts timestamp not null,
@@ -202,7 +205,8 @@ CREATE TABLE request_logs (
     message text not null,
     -- indices
     index request_id_idx (request_id),
-    index ts_idx (ts)
+    index ts_idx (ts),
+    primary key pk (id, ts)
 );
 CALL init_log_partitions('request_logs', 14, 1);
 

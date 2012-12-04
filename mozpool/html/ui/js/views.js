@@ -409,33 +409,56 @@ var TableRowView = Backbone.View.extend({
 
 var LogView = Backbone.View.extend({
     tagName: 'pre',
+    initialize: function(args) {
+        _.bindAll(this, 'render', 'addRow', 'scrollToBottom');
+        this.scrollToBottom = _.debounce(this.scrollToBottom, 100);
 
-    // NOTE: for now, this just renders the initial model contents; it does not update
+        // note that we ignore "remove" events, so such rows will be deleted from
+        // the model but stay in the DOM
+        window.log.bind('add', this.addRow);
+    },
+
     render: function() {
-        var self = this;
+
         window.log.each(function(l, idx) {
-            var span;
-            var line = $('<div>');
-            line.attr('class', (idx % 2)? 'odd' : 'even');
-            self.$el.append(line);
+            this.addRow(l);
+        }, this);
 
-            span = $('<span>')
-            span.attr('class', 'timestamp');
-            span.text(l.get('timestamp'));
-            line.append(span);
-            line.append(' ');
+        return this;
+    },
 
-            span = $('<span>')
-            span.attr('class', 'source');
-            span.text(l.get('source'));
-            line.append(span);
-            line.append(' ');
+    addRow: function(l) {
+        var self = this;
+        var line;
 
-            span = $('<span>')
-            span.attr('class', 'message');
-            span.text(l.get('message'));
-            line.append(span);
-        });
+        var span;
+        var line = $('<div>');
+        //line.attr('class', (idx % 2)? 'odd' : 'even');
+        self.$el.append(line);
+
+        span = $('<span>')
+        span.attr('class', 'timestamp');
+        span.text(l.get('timestamp'));
+        line.append(span);
+        line.append(' ');
+
+        span = $('<span>')
+        span.attr('class', 'source');
+        span.text(l.get('source'));
+        line.append(span);
+        line.append(' ');
+
+        span = $('<span>')
+        span.attr('class', 'message');
+        span.text(l.get('message'));
+        line.append(span);
+
+        this.$el.append(line);
+        this.scrollToBottom();
+    },
+
+    scrollToBottom: function() {
+        $('html, body').animate({ scrollTop: $('body').height() }, 700);
     }
 });
 

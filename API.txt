@@ -163,8 +163,10 @@ results, since lifeguard expects to be controlling the devices.
 == Information ==
 
 /api/device/{id}/log/
-* GET to get a list of recent log lines for this device.  The return value has
+* GET to get a list of all log lines for this device.  The return value has
   a 'log' key containing a list of objects representing log lines.
+  If the query parameter '?timeperiod={secs}' is added, only log entries from
+  the last {secs} seconds will be included
 
 /api/device/{id}/bootconfig/
 * GET to get the boot configuration string set for this device.

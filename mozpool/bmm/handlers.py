@@ -60,9 +60,14 @@ class clear_pxe:
 class log:
     @templeton.handlers.json_response
     def GET(self, device_name):
-        one_day = datetime.timedelta(days=1)
-        return {'log':logs.device_logs.get(device_name,
-                timeperiod=one_day)}
+        args, _ = templeton.handlers.get_request_parms()
+        if 'timeperiod' in args:
+            seconds = int(args['timeperiod'][0])
+            history = datetime.timedelta(seconds=seconds)
+            return {'log':logs.device_logs.get(device_name,
+                    timeperiod=history)}
+        else:
+            return {'log':logs.device_logs.get_all(device_name)}
 
 class pxe_config_list:
     @templeton.handlers.json_response

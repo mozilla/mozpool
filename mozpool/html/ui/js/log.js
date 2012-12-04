@@ -16,13 +16,7 @@ function run_ui(next) {
             var name = url_info[2];
             window.log = new Log();
             window.log.url = '/api/' + object + '/' + name + '/log/';
-            window.log.fetch({
-                add: true,
-                success: next,
-                error: function(jqxhr, response) {
-                    show_error('AJAX Error while fetching logs: ' + response.statusText);
-                }
-            });
+            window.log.update(next=next);
         }
     )
     .thenRun(function(next) {
