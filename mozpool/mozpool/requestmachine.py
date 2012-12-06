@@ -64,7 +64,7 @@ class MozpoolDriver(statedriver.StateDriver):
     def _get_timed_out_machine_names(self):
         return data.get_timed_out_requests(self.imaging_server_id)
 
-    def _tick(self):
+    def poll_others(self):
         for request_id in data.get_expired_requests(self.imaging_server_id):
             self.handle_event(request_id, 'expire', None)
 
