@@ -38,25 +38,39 @@ class StateDriver(threading.Thread):
         self.join()
         self.logger.removeHandler(self.log_handler)
 
-    def run(self):
+    def run(self): # temp for bug 817762
+        try:
+            try:
+                self._run();
+            except:
+                self.logger.error("_run failed", exc_info=True)
+        finally:
+            self.logger.info("_run returned")
+
+    def _run(self):
         last_poll = 0
         while True:
             # wait for our poll interval
             seconds_left = last_poll + self.poll_frequency - time.time()
             if seconds_left > 0:
+                self.logger.info("sleeping %s" % seconds_left)
                 time.sleep(seconds_left)
             if self._stop:
+                self.logger.info("stopping")
                 break
 
+            self.logger.info("tick")
             self._tick()
             last_poll = time.time()
             for machine_name in self._get_timed_out_machine_names():
+                self.logger.info("%s.handle_timeout" % machine_name)
                 machine = self._get_machine(machine_name)
                 try:
                     machine.handle_timeout()
                 except:
                     self.logger.error("(ignored) error while handling timeout:",
                                       exc_info=True)
+                self.logger.info("handle_timeout complete")
 
     def handle_event(self, machine_name, event, args):
         """
