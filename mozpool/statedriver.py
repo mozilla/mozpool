@@ -38,39 +38,42 @@ class StateDriver(threading.Thread):
         self.join()
         self.logger.removeHandler(self.log_handler)
 
-    def run(self): # temp for bug 817762
+    def run(self):
         try:
-            try:
-                self._run();
-            except:
-                self.logger.error("_run failed", exc_info=True)
+            # a tight loop that just launches the polling in a thread.  Then, if
+            # it takes more than the poll interval, we can log loudly, but there's
+            # nothing in this loop that's at risk of breaking
+            while True:
+                if self._stop:
+                    self.logger.info("stopping on request")
+                    break
+
+                started_at = time.time()
+                polling_thd = threading.Thread(target=self._tick)
+                polling_thd.setDaemon(1)
+                polling_thd.start()
+
+                time.sleep(self.poll_frequency)
+                # if the thread is still alive, we have a problem
+                delay = 1
+                while polling_thd.isAlive():
+                    elapsed = time.time() - started_at
+                    self.logger.warning("polling thread still running at %ds; not starting another" % elapsed)
+                    time.sleep(delay)
+                    # exponential backoff up to 1m
+                    delay = delay if delay > 60 else delay * 1.1
+        except Exception:
+            self.logger.error("run loop failed", exc_info=True)
         finally:
-            self.logger.info("_run returned")
+            self.logger.warning("run loop returned (this should not happen!)")
 
-    def _run(self):
-        last_poll = 0
-        while True:
-            # wait for our poll interval
-            seconds_left = last_poll + self.poll_frequency - time.time()
-            if seconds_left > 0:
-                self.logger.info("sleeping %s" % seconds_left)
-                time.sleep(seconds_left)
-            if self._stop:
-                self.logger.info("stopping")
-                break
-
-            self.logger.info("tick")
-            self._tick()
-            last_poll = time.time()
-            for machine_name in self._get_timed_out_machine_names():
-                self.logger.info("%s.handle_timeout" % machine_name)
-                machine = self._get_machine(machine_name)
-                try:
-                    machine.handle_timeout()
-                except:
-                    self.logger.error("(ignored) error while handling timeout:",
-                                      exc_info=True)
-                self.logger.info("handle_timeout complete")
+    def _tick(self):
+        try:
+            self.poll_for_timeouts()
+            self.poll_others()
+        except Exception:
+            self.logger.error("failure in _tick", exc_info=True)
+            # don't worry, we'll get called again, for surez..
 
     def handle_event(self, machine_name, event, args):
         """
@@ -91,10 +94,20 @@ class StateDriver(threading.Thread):
         machine = self._get_machine(machine_name)
         return machine.conditional_goto_state(old_state, new_state, call_first)
 
+    def poll_for_timeouts(self):
+        for machine_name in self._get_timed_out_machine_names():
+            self.logger.info("handling timeout on %s" % machine_name)
+            machine = self._get_machine(machine_name)
+            try:
+                machine.handle_timeout()
+            except:
+                self.logger.error("(ignored) error while handling timeout:",
+                                exc_info=True)
+
     def _get_machine(self, machine_name):
         return self.state_machine_cls(machine_name)
     
-    def _tick(self):
+    def poll_others(self):
         """
         Override with any activities to be performed each pass through the
         loop.
