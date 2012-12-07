@@ -231,15 +231,15 @@ CREATE TABLE device_requests (
 
 
 --
--- Events
+-- Maintenance
 --
 
 DELIMITER $$
 
--- and then update every day (this can't be set up in init_log_partitions)
-DROP EVENT IF EXISTS update_log_partitions $$
-CREATE EVENT update_log_partitions  ON SCHEDULE EVERY 1 day
-DO BEGIN
+-- and then update every day; this is called by cron on the admin host
+DROP PROCEDURE IF EXISTS dbcron $$
+CREATE PROCEDURE dbcron()
+BEGIN
     CALL update_log_partitions('device_logs', 14, 1);
     CALL update_log_partitions('request_logs', 14, 1);
     -- TODO: optimize requests and any other tables that get lots of deletes
