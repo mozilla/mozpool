@@ -289,7 +289,7 @@ var RequestTableView = TableView.extend({
             renderFn: "renderRequested" },
         { id: "assigned_device", title: "Assigned Device",
             renderFn: "renderAssigned" },
-        // include creation time!
+        { id: "assignee", title: "Assignee" },
         { id: "state", title: "State" },
         { id: "expires", title: "Expires (UTC)", renderFn: "renderExpires" },
         { id: "imaging_server", title: "Server" },
