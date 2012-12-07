@@ -17,6 +17,11 @@ from mozpool import config
 #  - mac_address (from nic.0.mac_address.0)
 #  - imaging_server (from system.imaging_server.0)
 #  - relay_info (from system.relay.0)
+#  - hardware_type (default value used for now)
+#  - hardware_model (default value used for now)
+
+DEFAULT_HARDWARE_TYPE = 'panda'
+DEFAULT_HARDWARE_MODEL = 'ES Rev B2'
 
 def get_devices(url, filter, username, password, ignore_devices_on_servers_re=None, verbose=False):
     """
@@ -51,13 +56,16 @@ def get_devices(url, filter, username, password, ignore_devices_on_servers_re=No
                 if verbose: print hostname, 'SKIPPED - ignored imaging server'
                 continue
             
+            # FIXME: hardware type and model are hard-coded for now.
             rv.append(dict(
                 name=name,
                 fqdn=hostname,
                 inventory_id=o['id'],
                 mac_address=mac_address,
                 imaging_server=kv['system.imaging_server.0'],
-                relay_info=kv['system.relay.0']))
+                relay_info=kv['system.relay.0'],
+                hardware_type=DEFAULT_HARDWARE_TYPE,
+                hardware_model=DEFAULT_HARDWARE_MODEL))
 
             if verbose: print hostname, 'downloaded.'
 

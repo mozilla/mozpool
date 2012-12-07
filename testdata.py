@@ -46,6 +46,10 @@ for i in range(0, num_servers):
     r = conn.execute(model.imaging_servers.insert(), fqdn=fqdn)
     img_svr_ids.append(r.inserted_primary_key[0])
 
+r = conn.execute(model.hardware_types.insert(),
+                 type='panda', model='ES Rev B2')
+hardware_type_id = r.inserted_primary_key[0]
+
 device_ids = []
 
 for device_id in range(0, options.devices):
@@ -62,7 +66,8 @@ for device_id in range(0, options.devices):
                      imaging_server_id=img_svr_ids[server_id],
                      relay_info='%s:bank%d:relay%d' % (fqdns[server_id], bank,
                                                        relay),
-                     boot_config='')
+                     boot_config='',
+                     hardware_type_id=hardware_type_id)
     device_ids.append(r.inserted_primary_key[0])
 
 for request_id in range(1, options.requests+1):

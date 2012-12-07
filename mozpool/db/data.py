@@ -5,7 +5,7 @@
 import datetime
 import json
 import sqlalchemy
-from sqlalchemy.sql import exists, not_, or_, select
+from sqlalchemy.sql import exists, and_, not_, or_, select
 from itertools import izip_longest
 from mozpool.db import logs, model, sql
 from mozpool import config
@@ -108,6 +108,24 @@ def find_imaging_server_id(name):
                         whereclause=(model.imaging_servers.c.fqdn==name)))
     return res.fetchall()[0].id
 
+def find_hardware_type_id(hardware_type, hardware_model):
+    """Given a hardware type and model, either return the existing ID, or a
+    new ID."""
+    conn = sql.get_conn()
+
+    # try inserting, ignoring failures (most likely due to duplicate row)
+    try:
+        conn.execute(model.hardware_types.insert(), type=hardware_type,
+                     model=hardware_model)
+    except sqlalchemy.exc.SQLAlchemyError:
+        pass # probably already exists
+
+    res = conn.execute(sqlalchemy.select(
+            [ model.hardware_types.c.id ],
+            and_(model.hardware_types.c.type==hardware_type,
+                 model.hardware_types.c.model==hardware_model)))
+    return res.fetchall()[0].id
+
 def insert_device(values):
     """Insert a new device into the DB.  VALUES should be in the dictionary
     format used for inventorysync - see inventorysync.py"""
@@ -115,6 +133,8 @@ def insert_device(values):
 
     # convert imaging_server to its ID, and add a default state and counters
     values['imaging_server_id'] = find_imaging_server_id(values.pop('imaging_server'))
+    values['hardware_type_id'] = find_hardware_type_id(
+        values.pop('hardware_type'), values.pop('hardware_model'))
     values['state'] = 'new'
     values['state_counters'] = '{}'
 

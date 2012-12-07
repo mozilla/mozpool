@@ -31,7 +31,8 @@ from mozpool.bmm import pxe
 from mozpool.bmm import ping
 from mozpool.bmm import scripts
 from mozpool.lifeguard import inventorysync
-from mozpool.test.util import add_server, add_device, add_pxe_config, add_request, setup_db
+from mozpool.test.util import (add_server, add_hardware_type, add_device,
+    add_pxe_config, add_request, setup_db)
 from mozpool.test import fakerelay
 import mozpool.bmm.api
 import mozpool.lifeguard
@@ -71,7 +72,14 @@ class TestData(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestData, self).setUp()
         add_server("server1")
+        add_hardware_type("panda", "ES Rev B2")
         add_device("device1", server="server1", relayinfo="relay-1:bank1:relay1")
+
+    def testInsertHardwareType(self):
+        add_hardware_type("phone", "samsung_galaxy_s2")
+        self.assertRaises(sqlalchemy.exc.SQLAlchemyError,
+                          lambda: add_hardware_type("phone",
+                                                    "samsung_galaxy_s2"))
 
     def testRelayInfo(self):
         self.assertEquals(("relay-1", 1, 1),
@@ -99,13 +107,17 @@ class TestData(ConfigMixin, unittest.TestCase):
             ])
 
     def testInsertBoard(self):
-        data.insert_device(dict(name='device2', fqdn='device2.fqdn', inventory_id=23,
-            mac_address='aabbccddeeff', imaging_server='server2',
-                relay_info='relay-2:bank2:relay2'))
+        data.insert_device(dict(
+                name='device2', fqdn='device2.fqdn', inventory_id=23,
+                mac_address='aabbccddeeff', imaging_server='server2',
+                relay_info='relay-2:bank2:relay2',
+                hardware_type='panda', hardware_model='ES Rev B2'))
         # device with existing imaging_server to test the insert-if-not-found behavior
-        data.insert_device(dict(name='device3', fqdn='device3.fqdn', inventory_id=24,
-            mac_address='aabbccddeeff', imaging_server='server1',
-                relay_info='relay-2:bank2:relay2'))
+        data.insert_device(dict(
+                name='device3', fqdn='device3.fqdn', inventory_id=24,
+                mac_address='aabbccddeeff', imaging_server='server1',
+                relay_info='relay-2:bank2:relay2',
+                hardware_type='panda', hardware_model='ES Rev B2'))
         conn = sql.get_conn()
         res = conn.execute(model.devices.select())
         self.assertEquals(sorted([ dict(r) for r in res.fetchall() ]),
@@ -114,17 +126,20 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device2',
              u'fqdn': u'device2.fqdn', u'inventory_id': 23, u'imaging_server_id': 2,
              u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 2,
-             u'last_pxe_config_id': None, 'comments': None, 'environment': None},
+             u'last_pxe_config_id': None, 'comments': None, 'environment': None,
+             'hardware_type_id': 1},
             {u'state': u'new',u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
              u'fqdn': u'device3.fqdn', u'inventory_id': 24, u'imaging_server_id': 1,
              u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 3,
-             u'last_pxe_config_id': None, 'comments': None, 'environment': None},
+             u'last_pxe_config_id': None, 'comments': None, 'environment': None,
+             'hardware_type_id': 1},
             {u'state': u'offline',u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1', u'inventory_id': 1, u'imaging_server_id': 1,
              u'boot_config': u'{}', u'mac_address': u'000000000000', u'id': 1,
-             u'last_pxe_config_id': None, 'comments': None, 'environment': None},
+             u'last_pxe_config_id': None, 'comments': None, 'environment': None,
+             'hardware_type_id': 1},
             ]))
 
     def testDeleteBoard(self):
@@ -152,7 +167,8 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
              u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1,
-             u'last_pxe_config_id': None, u'comments': None, 'environment': None},
+             u'last_pxe_config_id': None, u'comments': None, 'environment': None,
+             'hardware_type_id': 1},
         ])
 
     def testDeviceConfigEmpty(self):
@@ -569,10 +585,12 @@ class TestInvSyncGet(unittest.TestCase):
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
-             'fqdn': 'panda-001.vlan.dc.mozilla.com'},
+             'fqdn': 'panda-001.vlan.dc.mozilla.com', 'hardware_type': 'panda',
+             'hardware_model': 'ES Rev B2'},
             {'inventory_id': 97, 'relay_info': 'relay9', 'name': 'panda-002',
              'imaging_server': 'img1', 'mac_address': '86a1c8ce6ea2',
-             'fqdn': 'panda-002.vlan.dc.mozilla.com'},
+             'fqdn': 'panda-002.vlan.dc.mozilla.com', 'hardware_type': 'panda',
+             'hardware_model': 'ES Rev B2'},
         ])
         self.assertEqual(requests.get.call_args_list, [
             mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
@@ -587,7 +605,8 @@ class TestInvSyncGet(unittest.TestCase):
             # panda-001 was skipped, since 'img9' matches '.*9'
             {'inventory_id': 97, 'relay_info': 'relay9', 'name': 'panda-002',
              'imaging_server': 'img1', 'mac_address': '86a1c8ce6ea2',
-             'fqdn': 'panda-002.vlan.dc.mozilla.com'},
+             'fqdn': 'panda-002.vlan.dc.mozilla.com', 'hardware_type': 'panda',
+             'hardware_model': 'ES Rev B2'},
         ])
         self.assertEqual(requests.get.call_args_list, [
             mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
@@ -604,15 +623,18 @@ class TestInvSyncGet(unittest.TestCase):
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
-             'fqdn': 'panda-001.vlan.dc.mozilla.com'},
+             'fqdn': 'panda-001.vlan.dc.mozilla.com', 'hardware_type': 'panda',
+             'hardware_model': 'ES Rev B2'},
             # panda-002 was skipped
             {'inventory_id': 52, 'relay_info': 'relay4', 'name': 'panda-003',
              'imaging_server': 'img9', 'mac_address': 'aec31326594a',
-             'fqdn': 'panda-003.vlan.dc.mozilla.com'},
+             'fqdn': 'panda-003.vlan.dc.mozilla.com', 'hardware_type': 'panda',
+             'hardware_model': 'ES Rev B2'},
             # panda-004 was skipped
             {'inventory_id': 6, 'relay_info': 'relay9', 'name': 'panda-005',
              'imaging_server': 'img3', 'mac_address': 'c19b00f9644b',
-             'fqdn': 'panda-005.vlan.dc.mozilla.com'}
+             'fqdn': 'panda-005.vlan.dc.mozilla.com', 'hardware_type': 'panda',
+             'hardware_model': 'ES Rev B2'}
             # panda-006 was skipped
         ])
         self.assertEqual(requests.get.call_args_list, [

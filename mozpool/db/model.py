@@ -25,6 +25,9 @@ devices = sa.Table('devices', metadata,
     sa.Column('boot_config', sa.Text),
     sa.Column('comments', sa.Text),
     sa.Column('environment', sa.String(32)),
+    sa.Column('hardware_type_id', sa.Integer(unsigned=True),
+        sa.ForeignKey('hardware_types.id', ondelete='RESTRICT'),
+        nullable=False)
 )
 
 # NOTE:
@@ -58,6 +61,14 @@ device_requests = sa.Table('device_requests', metadata,
 imaging_servers = sa.Table('imaging_servers', metadata,
     sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
     sa.Column('fqdn', sa.String(256), nullable=False, unique=True),
+)
+
+hardware_types = sa.Table('hardware_types', metadata,
+    sa.Column('id', sa.Integer(unsigned=True), primary_key=True,
+              nullable=False),
+    sa.Column('type', sa.String(32), nullable=False),
+    sa.Column('model', sa.String(32), nullable=False),
+    sa.UniqueConstraint('type', 'model')
 )
 
 pxe_configs = sa.Table('pxe_configs', metadata,

@@ -92,7 +92,15 @@ DELIMITER ;
 -- Tables
 --
 
+DROP TABLE IF EXISTS device_requests;
+DROP TABLE IF EXISTS devices;
+DROP TABLE IF EXISTS requests;
 DROP TABLE IF EXISTS imaging_servers;
+DROP TABLE IF EXISTS pxe_configs;
+DROP TABLE IF EXISTS hardware_types;
+DROP TABLE IF EXISTS device_logs;
+DROP TABLE IF EXISTS request_logs;
+
 CREATE TABLE imaging_servers (
   id integer UNSIGNED not null primary key auto_increment,
   -- fqdn of imaging server
@@ -101,7 +109,6 @@ CREATE TABLE imaging_servers (
   unique index fqdn_idx (fqdn)
 );
 
-DROP TABLE IF EXISTS pxe_configs;
 CREATE TABLE pxe_configs (
   id integer unsigned not null primary key auto_increment,
   -- short identifier
@@ -116,7 +123,48 @@ CREATE TABLE pxe_configs (
   unique index name_idx (name)
 );
 
-DROP TABLE IF EXISTS devices;
+CREATE TABLE hardware_types (
+  id integer unsigned not null primary key auto_increment,
+  -- type of hardware, e.g. panda, tegra, phone, ...
+  type varchar(32) not null,
+  -- specific model, optional
+  model varchar(32) not null,
+
+  unique index typemodel_index (type, model)
+);
+
+CREATE TABLE device_logs (
+    id bigint not null auto_increment,
+    -- foreign key for the device
+    device_id integer not null,
+    ts timestamp not null,
+    -- short string giving the origin of the message (syslog, api, etc.)
+    source varchar(32) not null,
+    -- the message itself
+    message text not null,
+    -- indices
+    index device_id_idx (device_id),
+    index ts_idx (ts),
+    primary key pk (id, ts)
+);
+CALL init_log_partitions('device_logs', 14, 1);
+
+CREATE TABLE request_logs (
+    id bigint not null auto_increment,
+    -- request this log is for
+    request_id bigint not null,
+    ts timestamp not null,
+    -- short string giving the origin of the message (syslog, api, etc.)
+    source varchar(32) not null,
+    -- the message itself
+    message text not null,
+    -- indices
+    index request_id_idx (request_id),
+    index ts_idx (ts),
+    primary key pk (id, ts)
+);
+CALL init_log_partitions('request_logs', 14, 1);
+
 CREATE TABLE devices (
   id integer UNSIGNED not null primary key auto_increment,
   -- short name (no dots)
@@ -145,12 +193,14 @@ CREATE TABLE devices (
   comments text,
   -- fields for filtering devices when requesting
   environment varchar(32) not null default 'none',
+  -- hardware description
+  hardware_type_id integer unsigned,
+  foreign key (hardware_type_id) references hardware_types(id) on delete restrict,
 
   unique index name_idx (name),
   index state_timeout_idx (state_timeout)
 );
 
-DROP TABLE IF EXISTS requests;
 CREATE TABLE requests (
   id bigint unsigned not null primary key auto_increment,
   -- fqdn of imaging server
@@ -169,50 +219,15 @@ CREATE TABLE requests (
   state_counters text not null,
   state_timeout datetime,
   -- constraining fields for the request
-  environment varchar(32) not null default 'any',
+  environment varchar(32) not null default 'any'
 );
 
-DROP TABLE IF EXISTS device_requests;
 CREATE TABLE device_requests (
   request_id bigint not null references requests.id on delete restrict,
   device_id integer not null references devices.id on delete restrict,
   unique index request_id_idx (request_id),
   unique index device_id_idx (device_id)
 );
-
-DROP TABLE IF EXISTS device_logs;
-CREATE TABLE device_logs (
-    id bigint not null auto_increment,
-    -- foreign key for the device
-    device_id integer not null,
-    ts timestamp not null,
-    -- short string giving the origin of the message (syslog, api, etc.)
-    source varchar(32) not null,
-    -- the message itself
-    message text not null,
-    -- indices
-    index device_id_idx (device_id),
-    index ts_idx (ts),
-    primary key pk (id, ts)
-);
-CALL init_log_partitions('device_logs', 14, 1);
-
-DROP TABLE IF EXISTS request_logs;
-CREATE TABLE request_logs (
-    id bigint not null auto_increment,
-    -- request this log is for
-    request_id bigint not null,
-    ts timestamp not null,
-    -- short string giving the origin of the message (syslog, api, etc.)
-    source varchar(32) not null,
-    -- the message itself
-    message text not null,
-    -- indices
-    index request_id_idx (request_id),
-    index ts_idx (ts),
-    primary key pk (id, ts)
-);
-CALL init_log_partitions('request_logs', 14, 1);
 
 
 --
