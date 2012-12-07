@@ -5,7 +5,7 @@
 import datetime
 from mozpool import config, statemachine, statedriver
 from mozpool.bmm import api as bmm_api
-from mozpool.db import data
+from mozpool.db import data, logs
 import mozpool.lifeguard
 
 
@@ -40,6 +40,12 @@ class DeviceStateMachine(statemachine.StateMachine):
 ####
 # Driver
 
+class DeviceLogDBHandler(statedriver.DBHandler):
+
+    object_name = 'device'
+    log_object = logs.device_logs
+
+
 class LifeguardDriver(statedriver.StateDriver):
     """
     A driver for lifeguard.  This handles timeouts, as well as handling any
@@ -51,6 +57,7 @@ class LifeguardDriver(statedriver.StateDriver):
     state_machine_cls = DeviceStateMachine
     logger_name = 'device'
     thread_name = 'LifeguardDriver'
+    log_db_handler = DeviceLogDBHandler
 
     def __init__(self, poll_frequency=statedriver.POLL_FREQUENCY):
         statedriver.StateDriver.__init__(self, poll_frequency)

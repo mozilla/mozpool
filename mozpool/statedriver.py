@@ -6,7 +6,6 @@ import abc
 import time
 import threading
 import logging
-from db import logs
 
 ####
 # Driver
@@ -20,9 +19,11 @@ class StateDriver(threading.Thread):
     """
     __metaclass__ = abc.ABCMeta
 
+    # override all these
     state_machine_cls = None
     logger_name = 'state'
     thread_name = 'StateDriver'
+    log_db_handler = None
 
     def __init__(self, poll_frequency=POLL_FREQUENCY):
         threading.Thread.__init__(self, name=self.thread_name)
@@ -30,7 +31,7 @@ class StateDriver(threading.Thread):
         self._stop = False
         self.poll_frequency = poll_frequency
         self.logger = logging.getLogger(self.logger_name)
-        self.log_handler = DBHandler()
+        self.log_handler = self.log_db_handler()
         self.logger.addHandler(self.log_handler)
 
     def stop(self):
@@ -124,12 +125,14 @@ class StateDriver(threading.Thread):
 
 class DBHandler(logging.Handler):
 
+    object_name = ''
+    log_object = None
+
     def emit(self, record):
-        # get the device name
         logger = record.name.split('.')
-        if len(logger) != 2 or logger[0] != 'device':
+        if len(logger) != 2 or logger[0] != self.object_name:
             return
-        device_name = logger[1]
+        name = logger[1]
 
         msg = self.format(record)
-        logs.device_logs.add(device_name, msg, source='statemachine')
+        self.log_object.add(name, msg, source='statemachine')

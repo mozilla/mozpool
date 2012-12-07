@@ -11,7 +11,6 @@ import urllib
 from mozpool import config, statemachine, statedriver
 from mozpool.db import data, logs
 
-
 ####
 # State machine
 
@@ -46,6 +45,12 @@ class RequestStateMachine(statemachine.StateMachine):
 ####
 # Driver
 
+class RequestLogDBHandler(statedriver.DBHandler):
+
+    object_name = 'request'
+    log_object = logs.request_logs
+
+
 class MozpoolDriver(statedriver.StateDriver):
     """
     The server code sets up an instance of this object as
@@ -55,6 +60,7 @@ class MozpoolDriver(statedriver.StateDriver):
     state_machine_cls = RequestStateMachine
     logger_name = 'request'
     thread_name = 'MozpoolDriver'
+    log_db_handler = RequestLogDBHandler
 
     def __init__(self, poll_frequency=statedriver.POLL_FREQUENCY):
         statedriver.StateDriver.__init__(self, poll_frequency)
@@ -75,14 +81,14 @@ class MozpoolDriver(statedriver.StateDriver):
 class Closable(object):
 
     def on_close(self, args):
-        logs.request_logs.add(self.machine.request_id, "request closed")
+        self.logger.info('Request closed.')
         self.machine.goto_state(closing)
 
 
 class Expirable(object):
 
     def on_expire(self, args):
-        logs.request_logs.add(self.machine.request_id, "request expired")
+        self.logger.info('Request expired.')
         self.machine.goto_state(expired)
 
 
@@ -107,10 +113,8 @@ class ClearDeviceRequests(object):
         else:
             count = self.machine.increment_counter(self.state_name)
             if count < self.PERMANENT_FAILURE_COUNT:
-                logs.request_logs.add(
-                    self.machine.request_id,
-                    "too many failed attempts; just clearing request "
-                    "and giving up")
+                self.logger.warn('Too many failed attempts to free device; '
+                                 'just clearing request and giving up.')
                 self.machine.goto_state(closed)
 
     def on_timeout(self):
@@ -127,10 +131,8 @@ class ClearDeviceRequests(object):
                 requests.post(device_url)
             except (requests.ConnectionError, requests.Timeout,
                     requests.HTTPError):
-                logs.request_logs.add(
-                    self.machine.request_id,
-                    "could not contact lifeguard server at %s to free device" %
-                    device_url)
+                self.logger.warn('Could not contact lifeguard server at %s to '
+                                 'free device.' % device_url)
                 return False
         return True
 
@@ -167,43 +169,45 @@ class finding_device(Closable, Expirable, statemachine.State):
 
     def find_device(self):
         # FIXME: refactor.
+        self.logger.info('Finding device.')
         device_name = None
         count = self.machine.increment_counter(self.state_name)
         request = data.dump_requests(self.machine.request_id)[0]
+        env = request['environment']
         if request['requested_device'] == 'any':
+            self.logger.info('Looking for any free device in environment %s.'
+                             % env)
             free_devices = data.get_free_devices()
             random.shuffle(free_devices)
         else:
             free_devices = [request['requested_device']]
         for device_name in free_devices:
             # check against environment
-            env = request['environment']
             if env != 'any' and data.device_environment(device_name) != env:
-                self.logger.info('%s does not match env %s' % (device_name, env))
+                self.logger.info('%s does not match env %s.' % (device_name,
+                                                               env))
                 continue
             break
         else:
-            self.logger.info('no free devices matching requirements')
+            self.logger.info('No free devices matching requirements.')
             return
 
-        self.logger.info('assigning device %s' % (device_name,))
+        self.logger.info('Assigning device %s.' % device_name)
         if device_name and data.reserve_device(self.machine.request_id,
                                                device_name):
-            self.logger.info('request succeeded')
+            self.logger.info('Request succeeded.')
             self.machine.goto_state(contacting_lifeguard)
         else:
-            self.logger.warn('request failed!')
+            self.logger.warn('Request failed!')
             if request['requested_device'] == 'any':
                 if count >= self.MAX_ANY_REQUESTS:
-                    logs.request_logs.add(
-                        self.machine.request_id,
-                        'hit maximum number of attempts; giving up')
+                    self.logger.warn('Hit maximum number of attempts to find '
+                                     'a free device; giving up.')
                     self.machine.goto_state(device_not_found)
             else:
                 if count >= self.MAX_SPECIFIC_REQUESTS:
-                    logs.request_logs.add(
-                        self.machine.request_id,
-                        'requested device %s is busy' % device_name)
+                    self.logger.warn('Requested device %s is busy.' %
+                                     device_name)
                     self.machine.goto_state(device_busy)
 
 
@@ -219,10 +223,9 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
         device_name = request_config['assigned_device']
         device_state = data.device_status(device_name)['state']
         if device_state != 'free':
-            logs.request_logs.add(
-                self.machine.request_id,
-                'assigned device %s is in unexpected state %s when about '
-                'to contact lifeguard.' % (device_name, device_state))
+            self.logger.error('Assigned device %s is in unexpected state %s '
+                              'when about to contact lifeguard.' %
+                              (device_name, device_state))
             self.machine.goto_state(device_busy)
             return
 
@@ -263,9 +266,8 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
         try:
             urllib.urlopen(device_url, json.dumps(device_request_data))
         except IOError:
-            logs.request_logs.add(self.machine.request_id,
-                                  "could not contact lifeguard server at %s" %
-                                  device_url)
+            self.logger.warn('Could not contact lifeguard server at %s' %
+                             device_url)
             return False
         return True
 
@@ -298,7 +300,7 @@ class ready(Closable, Expirable, statemachine.State):
 
 @RequestStateMachine.state_class
 class closing(ClearDeviceRequests, statemachine.State):
-    "Device has been prepared and is ready for use."
+    "Request has received close event."
 
 
 @RequestStateMachine.state_class
