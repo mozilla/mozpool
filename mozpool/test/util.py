@@ -8,7 +8,7 @@ manual testing.
 
 import datetime
 import os
-from sqlalchemy.sql import select
+from sqlalchemy.sql import and_, select
 from mozpool.db import model
 from mozpool.db import data, sql
 
@@ -72,6 +72,31 @@ def add_pxe_config(name, description="Boot image",
                            contents=contents,
                            id=id,
                            active=active)
+
+def add_image(name, boot_config_keys='[]', can_reuse=False):
+    sql.get_conn().execute(model.images.insert(),
+                           name=name,
+                           boot_config_keys=boot_config_keys,
+                           can_reuse=can_reuse)
+
+def add_image_pxe_config(image_name, pxe_config_name, hardware_type,
+                         hardware_model):
+    conn = sql.get_conn()
+    image_id = conn.execute(select(
+            [model.images.c.id], model.images.c.name==image_name)).fetchone()[0]
+    pxe_config_id = conn.execute(select(
+            [model.pxe_configs.c.id],
+            model.pxe_configs.c.name==pxe_config_name)).fetchone()[0]
+    hardware_type_id = conn.execute(select(
+            [model.hardware_types.c.id],
+            and_(model.hardware_types.c.type==hardware_type,
+                 model.hardware_types.c.model==hardware_model))).fetchone()[0]
+    if image_id is None or pxe_config_id is None or hardware_type_id is None:
+        raise data.NotFound
+    conn.execute(model.image_pxe_configs.insert(),
+                 image_id=image_id,
+                 pxe_config_id=pxe_config_id,
+                 hardware_type_id=hardware_type_id)
 
 def add_request(server, assignee="slave", state="new", expires=None,
                 device='any', boot_config='{}'):

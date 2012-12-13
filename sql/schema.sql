@@ -96,7 +96,9 @@ DROP TABLE IF EXISTS device_requests;
 DROP TABLE IF EXISTS devices;
 DROP TABLE IF EXISTS requests;
 DROP TABLE IF EXISTS imaging_servers;
+DROP TABLE IF EXISTS image_pxe_configs;
 DROP TABLE IF EXISTS pxe_configs;
+DROP TABLE IF EXISTS images;
 DROP TABLE IF EXISTS hardware_types;
 DROP TABLE IF EXISTS device_logs;
 DROP TABLE IF EXISTS request_logs;
@@ -123,6 +125,18 @@ CREATE TABLE pxe_configs (
   unique index name_idx (name)
 );
 
+CREATE TABLE images (
+  id integer unsigned not null primary key auto_increment,
+  -- short identifier
+  name varchar(32) not null,
+  -- required boot_config keys (JSON list)
+  boot_config_keys text not null,
+  -- true (1) if we can reuse an existing device with this image
+  can_reuse INTEGER not null,
+
+  unique index name_idx (name)
+);
+
 CREATE TABLE hardware_types (
   id integer unsigned not null primary key auto_increment,
   -- type of hardware, e.g. panda, tegra, phone, ...
@@ -131,6 +145,17 @@ CREATE TABLE hardware_types (
   model varchar(32) not null,
 
   unique index typemodel_index (type, model)
+);
+
+CREATE TABLE image_pxe_configs (
+  image_id integer unsigned not null,
+  foreign key (image_id) references images(id) on delete restrict,
+  hardware_type_id integer unsigned not null,
+  foreign key (hardware_type_id) references hardware_types(id) on delete restrict,
+  pxe_config_id integer unsigned not null,
+  foreign key (pxe_config_id) references pxe_configs(id) on delete restrict,
+
+  unique index imagehardware_index (image_id, hardware_type_id)
 );
 
 CREATE TABLE device_logs (

@@ -32,7 +32,7 @@ from mozpool.bmm import ping
 from mozpool.bmm import scripts
 from mozpool.lifeguard import inventorysync
 from mozpool.test.util import (add_server, add_hardware_type, add_device,
-    add_pxe_config, add_request, setup_db)
+    add_pxe_config, add_image, add_image_pxe_config, add_request, setup_db)
 from mozpool.test import fakerelay
 import mozpool.bmm.api
 import mozpool.lifeguard
@@ -257,11 +257,14 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
         self.assertEqual(200, r.status)
         self.assertEquals(boot_config, json.loads(r.body))
 
-class TestRequests(ConfigMixin, unittest.TestCase): 
+class TestRequests(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestRequests, self).setUp()
         config.set('mozpool', 'b2g_pxe_config', 'b2gimage1')
         add_pxe_config('b2gimage1')
+        add_image('b2g', '["b2gbase"]')
+        add_hardware_type('model', 'ES Rev B2')
+        add_image_pxe_config('b2g', 'b2gimage1', 'model', 'ES Rev B2')
         add_server("server1")
         add_server("server2")
         add_device("device1", server="server1", state="free")
@@ -269,7 +272,7 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         add_device("device3", server="server1", state="ready")
         add_request("server2", device="device3", state="ready")
         mozpool.mozpool.driver = requestmachine.MozpoolDriver()
-   
+
     def testRequestDevice(self):
         # asserts related to IDs are mostly to identify them for debugging
 
@@ -361,7 +364,7 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         body = json.loads(r.body)
         self.assertEqual(body["request"]["id"], 6)
         self.assertEqual(body["request"]["assigned_device"], "device2")
-        
+
         # test busy device
         add_device("device4", server="server1", state="pxe_booting")
         r = self.app.post("/api/device/any/request/",

@@ -66,6 +66,29 @@ def list_devices(detail=False):
         res = conn.execute(select([model.devices.c.name]))
         return {'devices': [row[0].encode('utf-8') for row in res]}
 
+def dump_images(*image_names):
+    conn = sql.get_conn()
+    stmt = sqlalchemy.select([model.images])
+    if image_names:
+        id_exprs = []
+        for i in image_names:
+            id_exprs.append('images.name=="%s"' % i)
+        if len(id_exprs) == 1:
+            id_exprs = id_exprs[0]
+        else:
+            id_exprs = or_(*id_exprs)
+        stmt = stmt.where(id_exprs)
+    res = conn.execute(stmt)
+    images = []
+    for row in res:
+        img = dict(row)
+        if img['boot_config_keys']:
+            img['boot_config_keys'] = json.loads(img['boot_config_keys'])
+        else:
+            img['boot_config_keys'] = []
+        images.append(img)
+    return images
+
 def dump_devices(*device_names):
     """
     Dump device data.  This returns a list of dictionaries with keys id, name,

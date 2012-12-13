@@ -68,7 +68,15 @@ hardware_types = sa.Table('hardware_types', metadata,
               nullable=False),
     sa.Column('type', sa.String(32), nullable=False),
     sa.Column('model', sa.String(32), nullable=False),
-    sa.UniqueConstraint('type', 'model')
+    sa.UniqueConstraint('type', 'model'),
+)
+
+images = sa.Table('images', metadata,
+    sa.Column('id', sa.Integer(unsigned=True), primary_key=True,
+              nullable=False),
+    sa.Column('name', sa.String(32), unique=True, nullable=False),
+    sa.Column('boot_config_keys', sa.Text),
+    sa.Column('can_reuse', sa.Boolean),
 )
 
 pxe_configs = sa.Table('pxe_configs', metadata,
@@ -77,6 +85,19 @@ pxe_configs = sa.Table('pxe_configs', metadata,
     sa.Column('description', sa.Text, nullable=False),
     sa.Column('contents', sa.Text, nullable=False),
     sa.Column('active', sa.Boolean, nullable=False),
+)
+
+image_pxe_configs = sa.Table('image_pxe_configs', metadata,
+    sa.Column('image_id', sa.Integer(unsigned=True),
+        sa.ForeignKey('images.id', ondelete='RESTRICT'),
+        unique=True, nullable=False),
+    sa.Column('hardware_type_id', sa.Integer(unsigned=True),
+        sa.ForeignKey('hardware_types.id', ondelete='RESTRICT'),
+        unique=True, nullable=False),
+    sa.Column('pxe_config_id', sa.Integer(unsigned=True),
+        sa.ForeignKey('pxe_configs.id', ondelete='RESTRICT'),
+        unique=True, nullable=False),
+    sa.UniqueConstraint('image_id', 'hardware_type_id'),
 )
 
 device_logs = sa.Table('device_logs', metadata,

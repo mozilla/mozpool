@@ -85,3 +85,15 @@ conn.execute(model.pxe_configs.insert(),
         description='test img',
         contents='some config',
         active=True)
+pxe_config_id = r.inserted_primary_key[0]
+
+conn.execute(model.images.insert(),
+             name='b2g',
+             boot_config_keys='["b2gbase"]',
+             can_reuse=False)
+image_id = r.inserted_primary_key[0]
+
+conn.execute(model.image_pxe_configs.insert(),
+             image_id=image_id,
+             hardware_type_id=hardware_type_id,
+             pxe_config_id=pxe_config_id)
