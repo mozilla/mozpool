@@ -434,7 +434,8 @@ def get_free_devices():
             ))
     return [row[0] for row in res]
 
-def create_request(requested_device, environment, assignee, duration, boot_config):
+def create_request(requested_device, environment, assignee, duration, image_id,
+                   boot_config):
     conn = sql.get_conn()
     server_id = conn.execute(select(
             [model.imaging_servers.c.id],
@@ -446,6 +447,7 @@ def create_request(requested_device, environment, assignee, duration, boot_confi
                    'assignee': assignee,
                    'expires': datetime.datetime.utcnow() +
                               datetime.timedelta(seconds=duration),
+                   'image_id': image_id,
                    'boot_config': json.dumps(boot_config),
                    'state': 'new',
                    'state_counters': '{}'}

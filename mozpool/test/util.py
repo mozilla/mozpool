@@ -99,10 +99,14 @@ def add_image_pxe_config(image_name, pxe_config_name, hardware_type,
                  hardware_type_id=hardware_type_id)
 
 def add_request(server, assignee="slave", state="new", expires=None,
-                device='any', boot_config='{}'):
+                device='any', image='b2g', boot_config='{}'):
     if not expires:
         expires = datetime.datetime.now() + datetime.timedelta(hours=1)
     conn = sql.get_conn()
+    image_id = conn.execute(select([model.images.c.id],
+                                   model.images.c.name==image)).fetchone()[0]
+    if image_id is None:
+        raise data.NotFound
     server_id = conn.execute(select([model.imaging_servers.c.id],
                                     model.imaging_servers.c.fqdn==server)).fetchone()[0]
     if server_id is None:
@@ -112,6 +116,7 @@ def add_request(server, assignee="slave", state="new", expires=None,
                        requested_device=device,
                        assignee=assignee,
                        expires=expires,
+                       image_id=image_id,
                        boot_config=boot_config,
                        state=state,
                        state_counters='{}')

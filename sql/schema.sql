@@ -152,7 +152,7 @@ CREATE TABLE image_pxe_configs (
   foreign key (image_id) references images(id) on delete restrict,
   hardware_type_id integer unsigned not null,
   foreign key (hardware_type_id) references hardware_types(id) on delete restrict,
-  pxe_config_id integer unsigned not null,
+  pxe_config_id integer unsigned,
   foreign key (pxe_config_id) references pxe_configs(id) on delete restrict,
 
   unique index imagehardware_index (image_id, hardware_type_id)

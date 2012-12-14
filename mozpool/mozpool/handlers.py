@@ -74,7 +74,7 @@ class device_request:
                 raise web.badrequest()
 
         request_id = data.create_request(device_name, environment, assignee,
-                                         duration, boot_config)
+                                         duration, images[0]['id'], boot_config)
         mozpool.mozpool.driver.handle_event(request_id, 'find_device', None)
         response_data = {'request': data.request_config(request_id)}
         if data.request_status(request_id)['state'] == 'closed':

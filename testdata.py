@@ -50,6 +50,24 @@ r = conn.execute(model.hardware_types.insert(),
                  type='panda', model='ES Rev B2')
 hardware_type_id = r.inserted_primary_key[0]
 
+conn.execute(model.pxe_configs.insert(),
+        name='image1',
+        description='test img',
+        contents='some config',
+        active=True)
+pxe_config_id = r.inserted_primary_key[0]
+
+conn.execute(model.images.insert(),
+             name='b2g',
+             boot_config_keys='["b2gbase"]',
+             can_reuse=False)
+image_id = r.inserted_primary_key[0]
+
+conn.execute(model.image_pxe_configs.insert(),
+             image_id=image_id,
+             hardware_type_id=hardware_type_id,
+             pxe_config_id=pxe_config_id)
+
 device_ids = []
 
 for device_id in range(0, options.devices):
@@ -77,23 +95,7 @@ for request_id in range(1, options.requests+1):
                  state='new',
                  state_counters='{}',
                  imaging_server_id=img_svr_ids[0],
+                 image_id=image_id,
+                 boot_config='{}',
                  expires=datetime.datetime.now() +
                          datetime.timedelta(seconds=12*60*60))
-
-conn.execute(model.pxe_configs.insert(),
-        name='image1',
-        description='test img',
-        contents='some config',
-        active=True)
-pxe_config_id = r.inserted_primary_key[0]
-
-conn.execute(model.images.insert(),
-             name='b2g',
-             boot_config_keys='["b2gbase"]',
-             can_reuse=False)
-image_id = r.inserted_primary_key[0]
-
-conn.execute(model.image_pxe_configs.insert(),
-             image_id=image_id,
-             hardware_type_id=hardware_type_id,
-             pxe_config_id=pxe_config_id)
