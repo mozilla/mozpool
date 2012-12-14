@@ -237,6 +237,9 @@ CREATE TABLE requests (
   assignee varchar(256) not null,
   -- time (UTC) at which the request will expire (if not renewed)
   expires datetime not null,
+  -- image requested
+  image_id integer unsigned not null,
+  foreign key (image_id) references images(id) on delete restrict,
   -- config to pass to device once assigned (JSON blob)
   boot_config text,
   -- state machine variables
