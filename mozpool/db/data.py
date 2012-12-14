@@ -66,18 +66,26 @@ def list_devices(detail=False):
         res = conn.execute(select([model.devices.c.name]))
         return {'devices': [row[0].encode('utf-8') for row in res]}
 
+def wheres(stmt, args, col):
+    if not args:
+        return stmt
+    def argval(a):
+        if isinstance(a, str) or isinstance(a, unicode):
+            return '"%s"' % a
+        if isinstance(a, int):
+            return '%d' % a
+        raise ValueError
+    exprs = ['%s=%s' % (col, argval(a)) for a in args]
+    if len(exprs) == 1:
+        exprs = exprs[0]
+    else:
+        exprs = or_(*exprs)
+    return stmt.where(exprs)
+
 def dump_images(*image_names):
     conn = sql.get_conn()
     stmt = sqlalchemy.select([model.images])
-    if image_names:
-        id_exprs = []
-        for i in image_names:
-            id_exprs.append('images.name="%s"' % i)
-        if len(id_exprs) == 1:
-            id_exprs = id_exprs[0]
-        else:
-            id_exprs = or_(*id_exprs)
-        stmt = stmt.where(id_exprs)
+    stmt = wheres(stmt, image_names, 'images.name')
     res = conn.execute(stmt)
     images = []
     for row in res:
@@ -104,15 +112,7 @@ def dump_devices(*device_names):
          devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
          devices.c.relay_info],
         from_obj=[devices.join(img_svrs)])
-    if device_names:
-        id_exprs = []
-        for i in device_names:
-            id_exprs.append('devices.name="%s"' % i)
-        if len(id_exprs) == 1:
-            id_exprs = id_exprs[0]
-        else:
-            id_exprs = or_(*id_exprs)
-        stmt = stmt.where(id_exprs)
+    stmt = wheres(stmt, device_names, 'devices.name')
     res = conn.execute(stmt)
     return [dict(row) for row in res]
 
@@ -549,15 +549,7 @@ def dump_requests(*request_ids, **kwargs):
          requests.c.expires, requests.c.requested_device,
          requests.c.environment],
         from_obj=[requests.join(model.imaging_servers)])
-    if request_ids:
-        id_exprs = []
-        for i in request_ids:
-            id_exprs.append('requests.id=%d' % i)
-        if len(id_exprs) == 1:
-            id_exprs = id_exprs[0]
-        else:
-            id_exprs = or_(*id_exprs)
-        stmt = stmt.where(id_exprs)
+    stmt = wheres(stmt, request_ids, 'requests.id')
     if not kwargs.get('include_closed', False):
         stmt = stmt.where(requests.c.state!='closed')
     res = conn.execute(stmt)
