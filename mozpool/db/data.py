@@ -72,7 +72,7 @@ def dump_images(*image_names):
     if image_names:
         id_exprs = []
         for i in image_names:
-            id_exprs.append('images.name=="%s"' % i)
+            id_exprs.append('images.name="%s"' % i)
         if len(id_exprs) == 1:
             id_exprs = id_exprs[0]
         else:
@@ -107,7 +107,7 @@ def dump_devices(*device_names):
     if device_names:
         id_exprs = []
         for i in device_names:
-            id_exprs.append('devices.name=="%s"' % i)
+            id_exprs.append('devices.name="%s"' % i)
         if len(id_exprs) == 1:
             id_exprs = id_exprs[0]
         else:
