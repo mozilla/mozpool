@@ -31,7 +31,3 @@ tftp_root =
 # The path where boot images are stored.
 image_store =
 
-[mozpool]
-# name of pxe_config to use for this imaging server for mozpool requests to
-# image devices with b2g builds
-b2g_pxe_config =

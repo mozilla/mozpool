@@ -103,7 +103,8 @@ class TestData(ConfigMixin, unittest.TestCase):
     def testDumpDevices(self):
         self.assertEquals(data.dump_devices(), [
             dict(id=1, name='device1', fqdn='device1', inventory_id=1, mac_address='000000000000',
-                imaging_server='server1', relay_info='relay-1:bank1:relay1'),
+                imaging_server='server1', relay_info='relay-1:bank1:relay1',
+                 hardware_type='panda', hardware_model='ES Rev B2'),
             ])
 
     def testInsertBoard(self):
@@ -260,7 +261,6 @@ class TestBoardConfig(ConfigMixin, unittest.TestCase):
 class TestRequests(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestRequests, self).setUp()
-        config.set('mozpool', 'b2g_pxe_config', 'b2gimage1')
         add_pxe_config('b2gimage1')
         add_image('b2g', '["b2gbase"]')
         add_hardware_type('model', 'ES Rev B2')
