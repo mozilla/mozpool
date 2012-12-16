@@ -20,12 +20,6 @@ devices.
   The objects have keys id, name, fqdn, inventory_id, mac_address,
   imaging_server, relay_info, comments, environment, and last_pxe_config.
 
-/api/device/{id}/status/
-* GET returns a JSON response body whose "status" key contains
-  a short string describing the last-known status of the device,
-  and whose "log" key contains an array of recent log entries
-  for the device.
-
 /api/device/{id}/request/
 * POST requests the given device.  {id} may be "any" to let MozPool choose an
   unassigned device.  The body must be a JSON object with at least the keys
@@ -128,6 +122,17 @@ a MozPool server or the device itself.
   The POST body is as described for `/api/device/{id}/power-cycle/`.
 
   200 OK is returned on success; on failure, 409 Conflict.
+
+/api/device/{id}/status/
+* GET returns a JSON response body whose "state" key contains
+  a short string describing the current state of the device, and whose "log"
+  key contains an array of recent log entries for the device.
+
+/api/device/{id}/state/
+* GET returns a JSON response similar to `/api/device/{id}/status/`, but
+  without the `logs` key.  This value may be slightly (on the order of
+  seconds) out of date due to caching.  It is intended for use by monitoring
+  tools like Nagios.
 
 = Black Mobile Magic =
 

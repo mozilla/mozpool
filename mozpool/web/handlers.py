@@ -4,6 +4,8 @@
 
 """Functions common to all handlers."""
 
+import time
+import threading
 import web.webapi
 from mozpool import config
 from mozpool.db import data
@@ -32,3 +34,36 @@ def deviceredirect(function):
         return function(self, id, *args)
     return wrapped
 
+class InMemCache:
+    """
+    Mixin for handler classes that want an in-memory cache for their data.
+    This is a simple one-variable cache.
+
+    Set CACHE_TTL as a class-level variable, and implement cache_fetch.
+    This class provides cache_get.
+
+    The class variable cache_expires can be used to get the expiration time for HTTP headers, etc.
+    """
+
+    CACHE_TTL = 60
+
+    class __metaclass__(type):
+        def __new__(meta, classname, bases, classDict):
+            cls = type.__new__(meta, classname, bases, classDict)
+            cls.cache_data = None
+            cls.cache_expires = 0
+            cls.cache_lock = threading.Lock()
+            return cls
+
+    def cache_fetch(self):
+        print "FETCH"
+        raise NotImplementedError
+
+    def cache_get(self):
+        cls = self.__class__
+        with cls.cache_lock:
+            if cls.cache_expires > time.time():
+                return cls.cache_data
+            cls.cache_data = self.cache_fetch()
+            cls.cache_expires = time.time() + cls.CACHE_TTL 
+            return cls.cache_data

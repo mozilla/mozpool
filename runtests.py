@@ -106,7 +106,11 @@ class TestData(ConfigMixin, unittest.TestCase):
                 imaging_server='server1', relay_info='relay-1:bank1:relay1'),
             ])
 
-    def testInsertBoard(self):
+    def testAllDeviceStates(self):
+        add_device('device2', server='server1', state='foobared')
+        self.assertEquals(data.all_device_states(), { 'device1' : 'offline', 'device2' : 'foobared' })
+
+    def testInsertDevice(self):
         data.insert_device(dict(
                 name='device2', fqdn='device2.fqdn', inventory_id=23,
                 mac_address='aabbccddeeff', imaging_server='server2',
@@ -142,7 +146,7 @@ class TestData(ConfigMixin, unittest.TestCase):
              'hardware_type_id': 1},
             ]))
 
-    def testDeleteBoard(self):
+    def testDeleteDevice(self):
         conn = sql.get_conn()
         now = datetime.datetime.now()
         add_device("device2", server="server1", relayinfo="relay-2:bank1:relay1")
@@ -158,7 +162,7 @@ class TestData(ConfigMixin, unittest.TestCase):
         res = conn.execute(model.device_logs.select())
         self.assertEquals(res.fetchall(), [])
 
-    def testUpdateBoard(self):
+    def testUpdateDevice(self):
         conn = sql.get_conn()
         data.update_device(1, dict(fqdn='device1.fqdn', imaging_server='server9', mac_address='aabbccddeeff'))
         res = conn.execute(model.devices.select())
@@ -184,9 +188,9 @@ class TestData(ConfigMixin, unittest.TestCase):
         self.assertEqual(data.device_config('withpxe'), {'boot_config': '', 'pxe_config': 'img1'})
 
 
-class TestBoardList(ConfigMixin, unittest.TestCase):
+class TestDeviceList(ConfigMixin, unittest.TestCase):
     def setUp(self):
-        super(TestBoardList, self).setUp()
+        super(TestDeviceList, self).setUp()
         add_server("server1")
         add_device("device1", server="server1")
         add_device("device2", server="server1")
@@ -194,7 +198,7 @@ class TestBoardList(ConfigMixin, unittest.TestCase):
         add_device("device3", server="server2")
         add_device("device4", server="server2")
 
-    def testBoardList(self):
+    def testDeviceList(self):
         """
         /device/list/ should list all devices for all servers.
         """
@@ -216,18 +220,32 @@ class TestBoardList(ConfigMixin, unittest.TestCase):
         self.assertTrue("device3" in body["devices"])
         self.assertTrue("device4" in body["devices"])
 
-class TestBoardStatus(ConfigMixin, unittest.TestCase):
+class TestDeviceStatus(ConfigMixin, unittest.TestCase):
     def setUp(self):
-        super(TestBoardStatus, self).setUp()
+        super(TestDeviceStatus, self).setUp()
         add_server("server1")
         add_device("device1", server="server1", state="running")
         add_device("device2", server="server1", state="freaking_out")
         add_server("server2")
         add_device("device3", server="server2", state="running")
 
-    def testBoardStatus(self):
+    def testDeviceState(self):
         """
-        /device/status/ should work for any device on any server.
+        /device/{id}/state/ should return the state.
+        """
+        r = self.app.get("/api/device/device1/state/")
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEquals({'state': 'running'}, body)
+
+        r = self.app.get("/api/device/device2/state/")
+        self.assertEqual(200, r.status)
+        body = json.loads(r.body)
+        self.assertEquals({'state': 'freaking_out'}, body)
+
+    def testDeviceStatus(self):
+        """
+        /device/{id}/status/ should work for any device on any server.
         """
         r = self.app.get("/api/device/device1/status/")
         self.assertEqual(200, r.status)
@@ -244,13 +262,13 @@ class TestBoardStatus(ConfigMixin, unittest.TestCase):
         body = json.loads(r.body)
         self.assertEquals("running", body["state"])
 
-class TestBoardConfig(ConfigMixin, unittest.TestCase):
+class TestDeviceConfig(ConfigMixin, unittest.TestCase):
     def setUp(self):
-        super(TestBoardConfig, self).setUp()
+        super(TestDeviceConfig, self).setUp()
         add_server("server1")
         add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%')
 
-    def testBoardConfig(self):
+    def testDeviceConfig(self):
         boot_config={'b2gbase':'BBB'}
         add_device("device1", server="server1", config=json.dumps(boot_config))
         r = self.app.get("/api/device/device1/bootconfig/")
@@ -456,20 +474,20 @@ class TestDeviceStateChange(ConfigMixin, unittest.TestCase):
                 params='{}', expect_errors=True)
         self.assertEqual(409, r.status)
 
-class TestBoardRedirects(ConfigMixin, unittest.TestCase):
+class TestDeviceRedirects(ConfigMixin, unittest.TestCase):
     """
     Lifeguard commands should 302 redirect to the correct server if the current
     server isn't the server that controls the device in question.
     """
     def setUp(self):
-        super(TestBoardRedirects, self).setUp()
+        super(TestDeviceRedirects, self).setUp()
         add_server("server1")
         add_server("server2")
         add_device("device1", server="server1")
         add_device("device2", server="server2")
         add_pxe_config("image1")
 
-    def testRedirectBoard(self):
+    def testRedirectDevice(self):
         r = self.app.post("/api/device/device2/event/foo/")
         self.assertEqual(302, r.status)
         self.assertEqual("http://server2/api/device/device2/event/foo/",
