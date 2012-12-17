@@ -131,7 +131,7 @@ CREATE TABLE images (
   name varchar(32) not null,
   -- required boot_config keys (JSON list)
   boot_config_keys text not null,
-  -- true (1) if we can reuse an existing device with this image
+  -- true (1) if we can reuse an existing device with this image and boot_config
   can_reuse INTEGER not null,
 
   unique index name_idx (name)
@@ -155,7 +155,8 @@ CREATE TABLE image_pxe_configs (
   pxe_config_id integer unsigned,
   foreign key (pxe_config_id) references pxe_configs(id) on delete restrict,
 
-  unique index imagehardware_index (image_id, hardware_type_id)
+  unique index imagehardware_index (image_id, hardware_type_id),
+  primary key pk (image_id, hardware_type_id)
 );
 
 CREATE TABLE device_logs (
@@ -209,10 +210,10 @@ CREATE TABLE devices (
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
   -- path to the device's power relay; format TBD; NULL=no control
   relay_info text,
-  -- last PXE config set up for this device
-  last_pxe_config_id integer unsigned,
-  foreign key (last_pxe_config_id) references pxe_configs(id) on delete restrict,
-  -- config the device will use on its next boot (JSON blob)
+  -- last image installed on this device
+  last_image_id integer unsigned,
+  foreign key (last_image_id) references images(id) on delete restrict,
+  -- config the device will use (and then clear) on its next boot (JSON blob)
   boot_config text,
   -- free-form comments about the device (for BMM + Lifeguard)
   comments text,

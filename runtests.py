@@ -89,22 +89,24 @@ class TestData(ConfigMixin, unittest.TestCase):
         self.assertEquals(data.list_devices(), { 'devices' : [ 'device1' ] })
 
     def testListDevicesDetails(self):
-        add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%', id=23)
-        add_device('device2', last_pxe_config_id=23, server='server1')
+        add_image('img1', id=23)
+        add_device('device2', last_image_id=23, server='server1')
         self.assertEquals(data.list_devices(detail=True), {'devices': [
-            udict(id=1, name='device1', fqdn='device1', inventory_id=1, mac_address='000000000000',
-                imaging_server='server1', relay_info='relay-1:bank1:relay1',
-                state='offline', comments=None, last_pxe_config=None, environment=None),
-            udict(id=2, name='device2', fqdn='device2', inventory_id=2, mac_address='000000000000',
-                imaging_server='server1', relay_info='',
-                state='offline', comments=None, last_pxe_config='img1', environment=None),
+            udict(id=1, name='device1', fqdn='device1', inventory_id=1,
+                  mac_address='000000000000', imaging_server='server1',
+                  relay_info='relay-1:bank1:relay1', state='offline',
+                  comments=None, last_image=None, boot_config=u'{}',
+                  environment=None),
+            udict(id=2, name='device2', fqdn='device2', inventory_id=2,
+                  mac_address='000000000000', imaging_server='server1',
+                  relay_info='', state='offline', comments=None,
+                  last_image='img1', boot_config=u'{}', environment=None),
             ]})
 
     def testDumpDevices(self):
         self.assertEquals(data.dump_devices(), [
             dict(id=1, name='device1', fqdn='device1', inventory_id=1, mac_address='000000000000',
-                imaging_server='server1', relay_info='relay-1:bank1:relay1',
-                 hardware_type='panda', hardware_model='ES Rev B2'),
+                imaging_server='server1', relay_info='relay-1:bank1:relay1'),
             ])
 
     def testInsertBoard(self):
@@ -125,22 +127,22 @@ class TestData(ConfigMixin, unittest.TestCase):
         sorted([
             {u'state': u'new', u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device2',
-             u'fqdn': u'device2.fqdn', u'inventory_id': 23, u'imaging_server_id': 2,
-             u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 2,
-             u'last_pxe_config_id': None, 'comments': None, 'environment': None,
-             'hardware_type_id': 1},
+             u'fqdn': u'device2.fqdn', u'inventory_id': 23,
+             u'imaging_server_id': 2, u'boot_config': None,
+             u'mac_address': u'aabbccddeeff', u'id': 2, u'last_image_id': None,
+             u'comments': None, u'environment': None, u'hardware_type_id': 1},
             {u'state': u'new',u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
-             u'fqdn': u'device3.fqdn', u'inventory_id': 24, u'imaging_server_id': 1,
-             u'boot_config': None, u'mac_address': u'aabbccddeeff', u'id': 3,
-             u'last_pxe_config_id': None, 'comments': None, 'environment': None,
-             'hardware_type_id': 1},
+             u'fqdn': u'device3.fqdn', u'inventory_id': 24,
+             u'imaging_server_id': 1, u'boot_config': None,
+             u'mac_address': u'aabbccddeeff', u'id': 3, u'last_image_id': None,
+             u'comments': None, u'environment': None, u'hardware_type_id': 1},
             {u'state': u'offline',u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1', u'inventory_id': 1, u'imaging_server_id': 1,
              u'boot_config': u'{}', u'mac_address': u'000000000000', u'id': 1,
-             u'last_pxe_config_id': None, 'comments': None, 'environment': None,
-             'hardware_type_id': 1},
+             u'last_image_id': None, u'comments': None, u'environment': None,
+             u'hardware_type_id': 1},
             ]))
 
     def testDeleteBoard(self):
@@ -168,21 +170,23 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
              u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1,
-             u'last_pxe_config_id': None, u'comments': None, 'environment': None,
-             'hardware_type_id': 1},
+             u'last_image_id': None, u'comments': None, u'environment': None,
+             u'hardware_type_id': 1},
         ])
 
     def testDeviceConfigEmpty(self):
         self.assertEqual(data.device_config('foo'), {})
 
-    def testDeviceConfigNoPxe(self):
+    def testDeviceConfigNoImage(self):
         add_device("withconfig", server="server1", config='abcd')
-        self.assertEqual(data.device_config('withconfig'), {'boot_config': 'abcd', 'pxe_config': None})
+        self.assertEqual(data.device_config('withconfig'),
+                         {'boot_config': 'abcd', 'image': None})
 
-    def testDeviceConfigPxe(self):
-        add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%', id=23)
-        add_device("withpxe", config='', server="server1", last_pxe_config_id=23)
-        self.assertEqual(data.device_config('withpxe'), {'boot_config': '', 'pxe_config': 'img1'})
+    def testDeviceConfigImage(self):
+        add_image('img1', id=23)
+        add_device("withimg", config='', server="server1", last_image_id=23)
+        self.assertEqual(data.device_config('withimg'),
+                         {'boot_config': '', 'image': 'img1'})
 
 
 class TestBoardList(ConfigMixin, unittest.TestCase):

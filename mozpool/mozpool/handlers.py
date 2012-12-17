@@ -22,6 +22,8 @@ urls = (
     "/request/([^/]+)/log/?", "request_log",
     "/request/([^/]+)/renew/?", "request_renew",
     "/request/([^/]+)/return/?", "request_return",
+
+    "/image/list/?", "image_list",
 )
 
 class ConflictJSON(web.HTTPError):
@@ -137,3 +139,8 @@ class request_return:
     def POST(self, request_id):
         mozpool.mozpool.driver.handle_event(request_id, 'close', None)
         raise mozpool_handlers.nocontent()
+
+class image_list:
+    @templeton.handlers.json_response
+    def GET(self):
+        return {'images': data.dump_images()}

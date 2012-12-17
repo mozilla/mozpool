@@ -28,9 +28,6 @@ def set_pxe(device_name, pxe_config_name, boot_config):
     image_details = data.pxe_config_details(pxe_config_name)['details']
     pxe_config_contents = image_details['contents']
 
-    # Set the config in the database before writing to disk.
-    data.set_device_config(device_name, pxe_config_name, boot_config)
-
     # Write out the config file
     device_config_path = _get_device_config_path(device_name)
     device_config_dir = os.path.dirname(device_config_path)

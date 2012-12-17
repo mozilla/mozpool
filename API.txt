@@ -35,12 +35,14 @@ devices.
   renewed; see below).
 
   "image" specifies low-level configuration that should be done on the device
-  by mozpool.  Some image types will require additional parameters.  Currently
-  the only supported value is "b2g", for which a "b2gbase" key must also be
-  present.  The value of "b2gbase" must be a URL to a b2g build directory
-  containing boot, system, and userdata tarballs.  If supplied, the
-  "environment" key limits the available devices to those in the given
-  environment; the default is 'any', which can also be supplied explicitly.
+  by mozpool.  The supported images can be obtained with the /image/list/ API
+  call, as documented below in the "Information" section.  Some image types
+  will require additional parameters.  Currently the only supported value is
+  "b2g", for which a "b2gbase" key must also be present.  The value of
+  "b2gbase" must be a URL to a b2g build directory containing boot, system,
+  and userdata tarballs.  If supplied, the "environment" key limits
+  the available devices to those in the given environment; the default is
+  'any', which can also be supplied explicitly.
 
   If successful, returns 200 OK with a JSON object with the key "request".
   The value of "request" is an object detailing the request, with the keys
@@ -184,6 +186,9 @@ results, since lifeguard expects to be controlling the devices.
 /api/environment/list/
 * GET to get a list of all environments containing one or more devices.
   Returns an object with an 'environments' key.
+
+/api/image/list/
+* GET to get a list of all acceptable image names.
 
 == PXE Configs ==
 

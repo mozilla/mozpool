@@ -250,10 +250,9 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
 
         # We need to pass boot_config as a JSON string, but verify that it's
         # a non-null object.
-        event = 'please_pxe_boot'
+        event = 'please_image'
         device_request_data['boot_config'] = request_config['boot_config']
-        device_request_data['pxe_config'] = data.get_pxe_config_for_device_image(
-            assigned_device_name, request_config['image_id'])
+        device_request_data['image'] = request_config['image']
         device_url = 'http://%s/api/device/%s/event/%s/' % (
             data.get_server_for_device(assigned_device_name),
             assigned_device_name, event)

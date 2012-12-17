@@ -5,7 +5,7 @@
 import datetime
 import json
 import sqlalchemy
-from sqlalchemy.sql import exists, and_, not_, or_, select
+from sqlalchemy.sql import exists, and_, not_, select
 from itertools import izip_longest
 from mozpool.db import logs, model, sql
 from mozpool import config
@@ -46,46 +46,31 @@ def list_devices(detail=False):
 
     If `detail` is True, then each device is represented by a dictionary
     with keys id, name, fqdn, inventory_id, mac_address, imaging_server,
-    relay_info, state, last_pxe_config, environment, and comments.
+    relay_info, state, last_image, boot_config, environment, and comments.
     """
     conn = sql.get_conn()
     if detail:
         devices = model.devices
         img_svrs = model.imaging_servers
-        pxe_configs = model.pxe_configs
+        images = model.images
         stmt = sqlalchemy.select(
             [devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id,
             devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
             devices.c.relay_info, devices.c.state, devices.c.comments,
-            pxe_configs.c.name.label('last_pxe_config'),
+            images.c.name.label('last_image'), devices.c.boot_config,
             devices.c.environment],
-            from_obj=[devices.join(img_svrs).outerjoin(pxe_configs)])
+            from_obj=[devices.join(img_svrs).outerjoin(images)])
         res = conn.execute(stmt)
         return {'devices': [dict(row) for row in res]}
     else:
         res = conn.execute(select([model.devices.c.name]))
         return {'devices': [row[0].encode('utf-8') for row in res]}
 
-def wheres(stmt, args, col):
-    if not args:
-        return stmt
-    def argval(a):
-        if isinstance(a, str) or isinstance(a, unicode):
-            return '"%s"' % a
-        if isinstance(a, int):
-            return '%d' % a
-        raise ValueError
-    exprs = ['%s=%s' % (col, argval(a)) for a in args]
-    if len(exprs) == 1:
-        exprs = exprs[0]
-    else:
-        exprs = or_(*exprs)
-    return stmt.where(exprs)
-
-def dump_images(*image_names):
+def dump_images(image_name=None):
     conn = sql.get_conn()
     stmt = sqlalchemy.select([model.images])
-    stmt = wheres(stmt, image_names, 'images.name')
+    if image_name:
+        stmt = stmt.where(model.images.c.name==image_name)
     res = conn.execute(stmt)
     images = []
     for row in res:
@@ -97,7 +82,7 @@ def dump_images(*image_names):
         images.append(img)
     return images
 
-def dump_devices(*device_names):
+def dump_devices(device_name=None):
     """
     Dump device data.  This returns a list of dictionaries with keys id, name,
     fqdn, invenetory_id, mac_address, imaging_server, relay_info, and state.
@@ -107,14 +92,13 @@ def dump_devices(*device_names):
     conn = sql.get_conn()
     devices = model.devices
     img_svrs = model.imaging_servers
-    hw_types = model.hardware_types
     stmt = sqlalchemy.select(
         [devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id,
          devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
-         devices.c.relay_info, hw_types.c.type.label('hardware_type'),
-         hw_types.c.model.label('hardware_model')],
-        from_obj=[devices.join(img_svrs).join(hw_types)])
-    stmt = wheres(stmt, device_names, 'devices.name')
+         devices.c.relay_info],
+        from_obj=[devices.join(img_svrs)])
+    if device_name:
+        stmt = stmt.where(devices.c.name==device_name)
     res = conn.execute(stmt)
     return [dict(row) for row in res]
 
@@ -197,24 +181,25 @@ def get_server_for_device(device):
         raise NotFound
     return row[0].encode('utf-8')
 
-def get_pxe_config_for_device_image(device, image_id):
+def get_pxe_config_for_device(device):
     """
     get hardware type for device and use with image to get pxe config name
     """
     res = sql.get_conn().execute(select(
-            [model.devices.c.hardware_type_id]).where(
+            [model.devices.c.hardware_type_id,
+             model.devices.c.last_image_id]).where(
             model.devices.c.name==device))
     row = res.fetchone()
     if row is None:
         raise NotFound
     hw_type_id = row[0]
+    img_id = row[1]
     res = sql.get_conn().execute(select(
             [model.pxe_configs.c.name],
             from_obj=[model.image_pxe_configs.join(
-                    model.pxe_configs).join(
-                    model.hardware_types)]).where(and_(
+                    model.pxe_configs)]).where(and_(
                 model.image_pxe_configs.c.hardware_type_id==hw_type_id,
-                model.image_pxe_configs.c.image_id==image_id)))
+                model.image_pxe_configs.c.image_id==img_id)))
     row = res.fetchone()
     if row is None:
         raise NotFound
@@ -304,32 +289,32 @@ def device_status(device):
 
 def device_config(device):
     """
-    Get the boot config and last pxe_config for this device.
+    Get the boot config and last image for this device.
     """
     res = sql.get_conn().execute(select(
-        [model.devices.c.boot_config, model.pxe_configs.c.name],
-        from_obj=model.devices.outerjoin(model.pxe_configs,
-                model.devices.c.last_pxe_config_id==model.pxe_configs.c.id),
+        [model.devices.c.boot_config, model.images.c.name],
+        from_obj=model.devices.outerjoin(model.images,
+                model.devices.c.last_image_id==model.images.c.id),
         whereclause=(model.devices.c.name==device)))
     row = res.fetchone()
     if row:
-        return {'boot_config': row['boot_config'], 'pxe_config': row['name']}
+        return {'boot_config': row['boot_config'], 'image': row['name']}
     else:
         return {}
 
-def set_device_config(device, pxe_config_name, boot_config):
+def set_device_config(device, image_name, boot_config):
     """
     Set the config parameters for the /boot/ API for device.
     """
     assert isinstance(boot_config, (str, unicode))
     conn = sql.get_conn()
-    res = conn.execute(select([model.pxe_configs.c.id]).
-            where(model.pxe_configs.c.name==pxe_config_name))
-    pxe_config_id = res.fetchall()[0][0]
+    res = conn.execute(select([model.images.c.id]).
+            where(model.images.c.name==image_name))
+    image_id = res.fetchall()[0][0]
     conn.execute(model.devices.update().
                  where(model.devices.c.name==device).
-                 values(last_pxe_config_id=pxe_config_id,
-                         boot_config=boot_config))
+                 values(last_image_id=image_id,
+                        boot_config=boot_config))
     return config
 
 def set_device_comments(device_name, comments):
@@ -544,9 +529,10 @@ def request_config(request_id):
     res = conn.execute(select([model.requests.c.requested_device,
                                model.requests.c.assignee,
                                model.requests.c.expires,
-                               model.requests.c.image_id,
+                               model.images.c.name.label('image'),
                                model.requests.c.boot_config],
-                              model.requests.c.id==request_id))
+                              model.requests.c.id==request_id,
+                              from_obj=[model.requests.join(model.images)]))
     row = res.fetchone()
     if row is None:
         raise NotFound
@@ -555,7 +541,7 @@ def request_config(request_id):
               'requested_device': row[0].encode('utf-8'),
               'assignee': row[1].encode('utf-8'),
               'expires': row[2].isoformat(),
-              'image_id': row[3],
+              'image': row[3].encode('utf-8'),
               'boot_config': row[4].encode('utf-8'),
               'assigned_device': '',
               'url': 'http://%s/api/request/%d/' %
@@ -566,7 +552,7 @@ def request_config(request_id):
         request['assigned_device'] = assigned_device
     return request
 
-def dump_requests(*request_ids, **kwargs):
+def dump_requests(request_id=None, include_closed=False):
     conn = sql.get_conn()
     requests = model.requests
     stmt = sqlalchemy.select(
@@ -576,8 +562,9 @@ def dump_requests(*request_ids, **kwargs):
          requests.c.expires, requests.c.requested_device,
          requests.c.environment],
         from_obj=[requests.join(model.imaging_servers)])
-    stmt = wheres(stmt, request_ids, 'requests.id')
-    if not kwargs.get('include_closed', False):
+    if request_id:
+        stmt = stmt.where(requests.c.id==request_id)
+    if not include_closed:
         stmt = stmt.where(requests.c.state!='closed')
     res = conn.execute(stmt)
     requests = [dict(row) for row in res]
