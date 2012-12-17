@@ -212,16 +212,16 @@ var LifeguardPleaseView = Backbone.View.extend({
 
         view = new HelpView({help_text:
             'This advanced tool requests "managed" operations from lifeguard.  ' +
-            'Power-cycling requires no arguments (PXE config and boot config are ignored).  ' +
-            'PXE-booting requires a PXE config, and depending on the PXE config may also require a boot config ' +
+            'Power-cycling requires no arguments (image and boot config are ignored).  ' +
+            'Imaging requires an image name, and depending on the image may also require a boot config ' +
             '(e.g., B2G requires a boot config with a "b2gbase" key).'});
         this.$el.append(view.render().$el);
 
         this.$el.append(new PleaseVerbView().render().$el);
 
-        this.$el.append(' with PXE config ')
+        this.$el.append(' with image ');
 
-        view = new PxeConfigSelectView({});
+        view = new ImageSelectView({});
         this.$el.append(view.render().$el);
 
         view = new NewJobButtonView({
@@ -229,7 +229,7 @@ var LifeguardPleaseView = Backbone.View.extend({
             collection: window.devices,
             disabledUnless: [ 'please_verb', 'selected' ],
             jobType: 'lifeguard-please',
-            addJobArgs: ['please_verb', 'pxe_config', 'boot_config_raw' ],
+            addJobArgs: [ 'please_verb', 'image', 'boot_config_raw' ],
             submitComments: true});
         this.$el.append(view.render().$el);
 
