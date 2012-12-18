@@ -3,7 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import json
-import logging
 import templeton
 import web
 
@@ -22,6 +21,8 @@ urls = (
     "/request/([^/]+)/log/?", "request_log",
     "/request/([^/]+)/renew/?", "request_renew",
     "/request/([^/]+)/return/?", "request_return",
+
+    "/image/list/?", "image_list",
 )
 
 class ConflictJSON(web.HTTPError):
@@ -56,22 +57,24 @@ class device_request:
         try:
             assignee = body['assignee']
             duration = int(body['duration'])
-            image = body['image']
+            image_name = body['image']
             environment = body.get('environment', 'any')
         except (KeyError, ValueError):
             raise web.badrequest()
 
-        # only b2g support atm
-        if image != 'b2g':
+        images = data.dump_images(image_name)
+        if not images:
             raise web.badrequest()
 
-        try:
-            boot_config = {'b2gbase': body['b2gbase']}
-        except KeyError:
-            raise web.badrequest()
+        boot_config = {}
+        for k in images[0]['boot_config_keys']:
+            try:
+                boot_config[k] = body[k]
+            except KeyError:
+                raise web.badrequest()
 
-        request_id = data.create_request(device_name, environment, assignee, duration,
-                                         boot_config)
+        request_id = data.create_request(device_name, environment, assignee,
+                                         duration, images[0]['id'], boot_config)
         mozpool.mozpool.driver.handle_event(request_id, 'find_device', None)
         response_data = {'request': data.request_config(request_id)}
         if data.request_status(request_id)['state'] == 'closed':
@@ -130,3 +133,8 @@ class request_return:
     def POST(self, request_id):
         mozpool.mozpool.driver.handle_event(request_id, 'close', None)
         raise mozpool_handlers.nocontent()
+
+class image_list:
+    @templeton.handlers.json_response
+    def GET(self):
+        return {'images': data.dump_images()}

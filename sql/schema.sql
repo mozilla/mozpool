@@ -96,7 +96,9 @@ DROP TABLE IF EXISTS device_requests;
 DROP TABLE IF EXISTS devices;
 DROP TABLE IF EXISTS requests;
 DROP TABLE IF EXISTS imaging_servers;
+DROP TABLE IF EXISTS image_pxe_configs;
 DROP TABLE IF EXISTS pxe_configs;
+DROP TABLE IF EXISTS images;
 DROP TABLE IF EXISTS hardware_types;
 DROP TABLE IF EXISTS device_logs;
 DROP TABLE IF EXISTS request_logs;
@@ -123,6 +125,18 @@ CREATE TABLE pxe_configs (
   unique index name_idx (name)
 );
 
+CREATE TABLE images (
+  id integer unsigned not null primary key auto_increment,
+  -- short identifier
+  name varchar(32) not null,
+  -- required boot_config keys (JSON list)
+  boot_config_keys text not null,
+  -- true (1) if we can reuse an existing device with this image and boot_config
+  can_reuse INTEGER not null,
+
+  unique index name_idx (name)
+);
+
 CREATE TABLE hardware_types (
   id integer unsigned not null primary key auto_increment,
   -- type of hardware, e.g. panda, tegra, phone, ...
@@ -131,6 +145,18 @@ CREATE TABLE hardware_types (
   model varchar(32) not null,
 
   unique index typemodel_index (type, model)
+);
+
+CREATE TABLE image_pxe_configs (
+  image_id integer unsigned not null,
+  foreign key (image_id) references images(id) on delete restrict,
+  hardware_type_id integer unsigned not null,
+  foreign key (hardware_type_id) references hardware_types(id) on delete restrict,
+  pxe_config_id integer unsigned,
+  foreign key (pxe_config_id) references pxe_configs(id) on delete restrict,
+
+  unique index imagehardware_index (image_id, hardware_type_id),
+  primary key pk (image_id, hardware_type_id)
 );
 
 CREATE TABLE device_logs (
@@ -184,10 +210,10 @@ CREATE TABLE devices (
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
   -- path to the device's power relay; format TBD; NULL=no control
   relay_info text,
-  -- last PXE config set up for this device
-  last_pxe_config_id integer unsigned,
-  foreign key (last_pxe_config_id) references pxe_configs(id) on delete restrict,
-  -- config the device will use on its next boot (JSON blob)
+  -- last image installed on this device
+  last_image_id integer unsigned,
+  foreign key (last_image_id) references images(id) on delete restrict,
+  -- config the device will use (and then clear) on its next boot (JSON blob)
   boot_config text,
   -- free-form comments about the device (for BMM + Lifeguard)
   comments text,
@@ -212,6 +238,9 @@ CREATE TABLE requests (
   assignee varchar(256) not null,
   -- time (UTC) at which the request will expire (if not renewed)
   expires datetime not null,
+  -- image requested
+  image_id integer unsigned not null,
+  foreign key (image_id) references images(id) on delete restrict,
   -- config to pass to device once assigned (JSON blob)
   boot_config text,
   -- state machine variables

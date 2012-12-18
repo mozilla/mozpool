@@ -215,6 +215,11 @@ var SelectView = Backbone.View.extend({
     }
 });
 
+var ImageSelectView = SelectView.extend({
+    collectionName: 'images',
+    controlStateAttr: 'image'
+});
+
 var PxeConfigSelectView = SelectView.extend({
     collectionName: 'pxe_configs',
     controlStateAttr: 'pxe_config'

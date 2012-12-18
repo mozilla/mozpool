@@ -103,8 +103,8 @@ $.extend(JobRunner.prototype, {
         var url = '//' + this.running.get('device').get('imaging_server') + '/api/device/'
             + this.running.get('device_name') + '/event/' + job_args['please_verb'] + '/';
         var post_params = {};
-        if (job_args['pxe_config']) {
-            post_params['pxe_config'] = job_args['pxe_config'];
+        if (job_args['image']) {
+            post_params['image'] = job_args['image'];
             if (typeof job_args['boot_config_raw'] !== 'undefined') {
                 post_params['boot_config'] = job_args['boot_config_raw'];
             } else {

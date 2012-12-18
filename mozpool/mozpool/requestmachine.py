@@ -243,23 +243,19 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
     def contact_lifeguard(self):
         device_request_data = {}
         request_config = data.request_config(self.machine.request_id)
+        assigned_device_name = request_config['assigned_device']
 
-        # Determine if we are imaging or just rebooting.
+        # Use the device's hardware type and requested image to find the
+        # pxe config, if any
+
         # We need to pass boot_config as a JSON string, but verify that it's
         # a non-null object.
-        if json.loads(request_config['boot_config']):
-            event = 'please_pxe_boot'
-            device_request_data['boot_config'] = request_config['boot_config']
-            # FIXME: differentiate between b2g builds and other (future) image
-            # types.
-            device_request_data['pxe_config'] = config.get('mozpool',
-                                                           'b2g_pxe_config')
-        else:
-            event = 'please_power_cycle'
-
+        event = 'please_image'
+        device_request_data['boot_config'] = request_config['boot_config']
+        device_request_data['image'] = request_config['image']
         device_url = 'http://%s/api/device/%s/event/%s/' % (
-            data.get_server_for_device(request_config['assigned_device']),
-            request_config['assigned_device'], event)
+            data.get_server_for_device(assigned_device_name),
+            assigned_device_name, event)
 
         # FIXME: make this asynchronous so slow/missing servers don't halt
         # the state machine.

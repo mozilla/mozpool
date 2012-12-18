@@ -8,7 +8,7 @@ manual testing.
 
 import datetime
 import os
-from sqlalchemy.sql import select
+from sqlalchemy.sql import and_, select
 from mozpool.db import model
 from mozpool.db import data, sql
 
@@ -43,7 +43,7 @@ def add_hardware_type(hw_type, hw_model):
 def add_device(device, server="server", state="offline",
               mac_address="000000000000",
               log=[], config='{}', relayinfo="",
-              last_pxe_config_id=None, hardware_type_id=1):
+              last_image_id=None, hardware_type_id=1):
     global inventory_id
     conn = sql.get_conn()
     id = conn.execute(select([model.imaging_servers.c.id],
@@ -60,7 +60,7 @@ def add_device(device, server="server", state="offline",
                  imaging_server_id=id,
                  relay_info=relayinfo,
                  boot_config=config,
-                 last_pxe_config_id=last_pxe_config_id,
+                 last_image_id=last_image_id,
                  hardware_type_id=hardware_type_id)
     inventory_id += 1
 
@@ -73,11 +73,41 @@ def add_pxe_config(name, description="Boot image",
                            id=id,
                            active=active)
 
+def add_image(name, boot_config_keys='[]', can_reuse=False, id=None):
+    sql.get_conn().execute(model.images.insert(),
+                           id=id,
+                           name=name,
+                           boot_config_keys=boot_config_keys,
+                           can_reuse=can_reuse)
+
+def add_image_pxe_config(image_name, pxe_config_name, hardware_type,
+                         hardware_model):
+    conn = sql.get_conn()
+    image_id = conn.execute(select(
+            [model.images.c.id], model.images.c.name==image_name)).fetchone()[0]
+    pxe_config_id = conn.execute(select(
+            [model.pxe_configs.c.id],
+            model.pxe_configs.c.name==pxe_config_name)).fetchone()[0]
+    hardware_type_id = conn.execute(select(
+            [model.hardware_types.c.id],
+            and_(model.hardware_types.c.type==hardware_type,
+                 model.hardware_types.c.model==hardware_model))).fetchone()[0]
+    if image_id is None or pxe_config_id is None or hardware_type_id is None:
+        raise data.NotFound
+    conn.execute(model.image_pxe_configs.insert(),
+                 image_id=image_id,
+                 pxe_config_id=pxe_config_id,
+                 hardware_type_id=hardware_type_id)
+
 def add_request(server, assignee="slave", state="new", expires=None,
-                device='any', boot_config='{}'):
+                device='any', image='b2g', boot_config='{}'):
     if not expires:
         expires = datetime.datetime.now() + datetime.timedelta(hours=1)
     conn = sql.get_conn()
+    image_id = conn.execute(select([model.images.c.id],
+                                   model.images.c.name==image)).fetchone()[0]
+    if image_id is None:
+        raise data.NotFound
     server_id = conn.execute(select([model.imaging_servers.c.id],
                                     model.imaging_servers.c.fqdn==server)).fetchone()[0]
     if server_id is None:
@@ -87,6 +117,7 @@ def add_request(server, assignee="slave", state="new", expires=None,
                        requested_device=device,
                        assignee=assignee,
                        expires=expires,
+                       image_id=image_id,
                        boot_config=boot_config,
                        state=state,
                        state_counters='{}')

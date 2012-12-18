@@ -178,6 +178,16 @@ var PxeConfigs = UpdateableCollection.extend({
     namesOnly: true
 });
 
+var Image = Backbone.Model.extend({
+});
+
+var Images = UpdateableCollection.extend({
+    url: '/api/image/list/',
+    model: Image,
+    responseAttr: 'images',
+    namesOnly: false
+});
+
 var LogLine = Backbone.Model.extend({
 });
 
@@ -236,7 +246,7 @@ var PleaseVerbs = Backbone.Collection.extend({
 
     initialize: function(args) {
         // fill with static values
-        _.each([ 'please_pxe_boot', 'please_power_cycle' ], function(s) {
+        _.each([ 'please_image', 'please_power_cycle' ], function(s) {
             this.push({name: s, id: s});
         }, this);
     }

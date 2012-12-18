@@ -245,11 +245,23 @@ var LifeguardTableView = DeviceTableView.extend({
             sClass: 'rowcheckbox', renderFn: "renderSelected" },
         { id: "name", title: "Name" },
         { id: "state", title: "State" },
-        { id: "last_pxe_config", title: "PXE Cfg" },
+        { id: "last_image", title: "Image" , renderFn: "renderImage"},
         { id: "comments", title: "Comments" },
         { id: "links", title: "Links",
             renderFn: "renderLinks" },
     ],
+
+    renderImage: function(model) {
+        var image = model.get('last_image');
+        var bootConfig = model.get('boot_config');
+        if (bootConfig) {
+            bootConfig = JSON.parse(bootConfig);
+        }
+        if (bootConfig) {
+            image += '&dagger;';
+        }
+        return image;
+    }
 });
 
 var BMMTableView = DeviceTableView.extend({

@@ -93,11 +93,14 @@ class AcceptPleaseRequests(object):
         self.machine.goto_state(pc_power_cycling)
 
 
-    def on_please_pxe_boot(self, args):
-        self.logger.info('writing pxe_config %s, boot config %s to db' % (args['pxe_config'], args['boot_config']))
+    def on_please_image(self, args):
+        self.logger.info('writing image %s, boot config %s to db' %
+                         (args['image'], args['boot_config']))
         data.set_device_config(self.machine.device_name,
-                args['pxe_config'],
-                args['boot_config'])
+                               args['image'],
+                               args['boot_config'])
+        # FIXME: We'll decide here how we go about imaging; for now, it's always
+        # PXE booting.
         self.machine.goto_state(start_pxe_boot)
 
 
@@ -292,9 +295,9 @@ class pxe_power_cycling(PowerCycleMixin, statemachine.State):
     def setup_pxe(self):
         # set the pxe config based on what's in the DB
         cfg = data.device_config(self.machine.device_name)
-        bmm_api.set_pxe(self.machine.device_name,
-                cfg['pxe_config'],
-                cfg['boot_config'])
+        pxe_config = data.get_pxe_config_for_device(self.machine.device_name)
+        bmm_api.set_pxe(self.machine.device_name, pxe_config,
+                        cfg['boot_config'])
 
 
 @DeviceStateMachine.state_class
