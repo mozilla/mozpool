@@ -59,7 +59,7 @@ class device_status:
 class device_state(InMemCache):
     CACHE_TTL = 5
 
-    def cache_fetch(self):
+    def update_cache(self):
         return data.all_device_states()
 
     @templeton.handlers.json_response
