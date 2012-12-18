@@ -14,7 +14,6 @@ from mozpool.web import handlers as mozpool_handlers
 
 urls = (
     "/device/list/?", "device_list",
-    "/device/([^/]+)/status/?", "device_status",
     "/device/([^/]+)/request/?", "device_request",
 
     "/request/list/?", "request_list",
@@ -84,11 +83,6 @@ class device_list:
     def GET(self):
         args, _ = templeton.handlers.get_request_parms()
         return data.list_devices(detail='details' in args)
-
-class device_status:
-    @templeton.handlers.json_response
-    def GET(self, id):
-        return data.device_status(id)
 
 class request_list:
     @templeton.handlers.json_response

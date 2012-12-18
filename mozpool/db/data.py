@@ -66,6 +66,15 @@ def list_devices(detail=False):
         res = conn.execute(select([model.devices.c.name]))
         return {'devices': [row[0].encode('utf-8') for row in res]}
 
+def all_device_states():
+    """
+    Get the state of all devices.  Returns a dictionary with device names as
+    keys and device states as values.
+    """
+    conn = sql.get_conn()
+    res = conn.execute(select([model.devices.c.name, model.devices.c.state]))
+    return { r.name : r.state for r in res.fetchall() }
+
 def dump_devices(*device_names):
     """
     Dump device data.  This returns a list of dictionaries with keys id, name,
