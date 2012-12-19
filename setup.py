@@ -18,6 +18,7 @@ setup(name='mozpool',
           'requests >= 1.0.0',
           'distribute',
           'argparse',
+          'mozdevice',
           'templeton >= 0.6.2',
       ],
       entry_points={

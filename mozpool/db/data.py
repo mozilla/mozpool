@@ -5,7 +5,7 @@
 import datetime
 import json
 import sqlalchemy
-from sqlalchemy.sql import exists, and_, not_, select
+from sqlalchemy.sql import and_, select
 from itertools import izip_longest
 from mozpool.db import logs, model, sql
 from mozpool import config
@@ -198,11 +198,13 @@ def get_server_for_device(device):
         raise NotFound
     return row[0].encode('utf-8')
 
-def get_pxe_config_for_device(device):
+def get_pxe_config_for_device(device, image=None):
     """
-    get hardware type for device and use with image to get pxe config name
+    Get hardware type for device and use with image to get pxe config name.
+    If image is not given, use the device's last image.
     """
-    res = sql.get_conn().execute(select(
+    conn = sql.get_conn()
+    res = conn.execute(select(
             [model.devices.c.hardware_type_id,
              model.devices.c.last_image_id]).where(
             model.devices.c.name==device))
@@ -210,7 +212,15 @@ def get_pxe_config_for_device(device):
     if row is None:
         raise NotFound
     hw_type_id = row[0]
-    img_id = row[1]
+    if not image:
+        img_id = row[1]
+    else:
+        res = conn.execute(select([model.images.c.id]).where(
+                model.images.c.name==image))
+        row = res.fetchone()
+        if row is None:
+            raise NotFound
+        img_id = row[0]
     res = sql.get_conn().execute(select(
             [model.pxe_configs.c.name],
             from_obj=[model.image_pxe_configs.join(
@@ -334,6 +344,19 @@ def set_device_config(device, image_name, boot_config):
                         boot_config=boot_config))
     return config
 
+def device_hardware_type(device):
+    """
+    Get the hardware type and model for this device.
+    """
+    res = sql.get_conn().execute(select([model.hardware_types.c.type,
+                                         model.hardware_types.c.model],
+            from_obj=model.devices.join(model.hardware_types),
+            whereclause=(model.devices.c.name==device)))
+    row = res.fetchone()
+    if row:
+        return {'type': row['type'], 'model': row['model']}
+    return {}
+
 def set_device_comments(device_name, comments):
     conn = sql.get_conn()
     conn.execute(model.devices.update().
@@ -358,6 +381,8 @@ def device_relay_info(device):
     row = res.fetchone()
     if not row:
         raise NotFound
+    if not row[0]:
+        return None
     hostname, bank, relay = row[0].rsplit(":", 2)
     assert bank.startswith("bank") and relay.startswith("relay")
     return hostname, int(bank[4:]), int(relay[5:])
@@ -396,6 +421,25 @@ def device_environment(device):
                                         model.devices.c.name==device))
     row = res.fetchone()
     return row['environment']
+
+def device_has_sut_agent(device):
+    """
+    Determine, from the last known image on the device, if it has a SUT agent.
+    """
+    res = sql.get_conn().execute(select([model.images.c.has_sut_agent],
+                                        from_obj=[model.devices.outerjoin(model.images, model.devices.c.last_image_id==model.images.c.id)]).where(model.devices.c.name==device))
+    row = res.fetchone()
+    if not row:
+        raise NotFound
+    return row[0]
+
+def image_is_reusable(image):
+    res = sql.get_conn().execute(select([model.images.c.can_reuse],
+                                        model.images.c.name==image))
+    row = res.fetchone()
+    if not row:
+        raise NotFound
+    return row[0]
 
 def list_pxe_configs(active_only=False):
     conn = sql.get_conn()
@@ -453,13 +497,15 @@ def request_status(request_id):
 def get_free_devices(device_name='any', environment='any'):
     """
     Get devices in the 'free' state matching any other necessary
-    characteristics.  Pass 'any' for a wildcard.
+    characteristics.  Pass 'any' for a wildcard.  It's up to the caller to
+    decide if some of these devices are better than others (e.g. image already
+    installed).
     """
-    # FIXME: prefer devices that already have the requested boot_config
-    # installed.
     conn = sql.get_conn()
-    f = model.devices.outerjoin(model.device_requests)
-    q = select([model.devices.c.name], from_obj=[f])
+    f = model.devices.outerjoin(model.device_requests).outerjoin(
+        model.images, model.devices.c.last_image_id==model.images.c.id)
+    q = select([model.devices.c.name, model.devices.c.boot_config,
+                model.images.c.name.label('image')], from_obj=[f])
     # make sure it's free
     q = q.where(model.devices.c.state=="free")
     # double-check that there's no matching requests row (using an inner
@@ -471,7 +517,8 @@ def get_free_devices(device_name='any', environment='any'):
     if environment != 'any':
         q = q.where(model.devices.c.environment == environment)
     res = conn.execute(q)
-    return [row[0] for row in res]
+    return [{'name': row['name'], 'image': row['image'],
+             'boot_config': row['boot_config']} for row in res]
 
 def create_request(requested_device, environment, assignee, duration, image_id,
                    boot_config):
@@ -558,6 +605,7 @@ def request_config(request_id):
     res = conn.execute(select([model.requests.c.requested_device,
                                model.requests.c.assignee,
                                model.requests.c.expires,
+                               model.requests.c.environment,
                                model.images.c.name.label('image'),
                                model.requests.c.boot_config],
                               model.requests.c.id==request_id,
@@ -567,14 +615,15 @@ def request_config(request_id):
         raise NotFound
 
     request = {'id': request_id,
-              'requested_device': row[0].encode('utf-8'),
-              'assignee': row[1].encode('utf-8'),
-              'expires': row[2].isoformat(),
-              'image': row[3].encode('utf-8'),
-              'boot_config': row[4].encode('utf-8'),
-              'assigned_device': '',
-              'url': 'http://%s/api/request/%d/' %
-                (config.get('server', 'fqdn'), request_id)}
+               'requested_device': row[0].encode('utf-8'),
+               'assignee': row[1].encode('utf-8'),
+               'expires': row[2].isoformat(),
+               'environment': row[3].encode('utf-8'),
+               'image': row[4].encode('utf-8'),
+               'boot_config': row[5].encode('utf-8'),
+               'assigned_device': '',
+               'url': 'http://%s/api/request/%d/' %
+               (config.get('server', 'fqdn'), request_id)}
 
     assigned_device = get_assigned_device(request_id)
     if assigned_device:
@@ -629,3 +678,12 @@ def get_expired_requests(imaging_server_id):
             & (model.requests.c.imaging_server_id == imaging_server_id)))
     expired = [r[0] for r in res.fetchall()]
     return expired
+
+def from_json(s):
+    """
+    Converts JSON string 's' to an object but also handles empty/bad values.
+    """
+    try:
+        return json.loads(s)
+    except ValueError:
+        return {}

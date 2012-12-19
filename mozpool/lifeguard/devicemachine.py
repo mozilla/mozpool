@@ -6,6 +6,7 @@ import datetime
 from mozpool import config, statemachine, statedriver
 from mozpool.bmm import api as bmm_api
 from mozpool.db import data, logs
+from mozpool.sut import api as sut_api
 import mozpool.lifeguard
 
 
@@ -23,10 +24,10 @@ class DeviceStateMachine(statemachine.StateMachine):
         return state
 
     def write_state(self, new_state, timeout_duration):
-        if timeout_duration:
-            state_timeout = datetime.datetime.now() + datetime.timedelta(seconds=timeout_duration)
-        else:
+        if timeout_duration is None:
             state_timeout = None
+        else:
+            state_timeout = datetime.datetime.now() + datetime.timedelta(seconds=timeout_duration)
         data.set_device_state(self.device_name, new_state, state_timeout)
 
     def read_counters(self):
@@ -104,35 +105,83 @@ class AcceptPleaseRequests(AcceptBasicPleaseRequests):
         self.machine.goto_state(pc_power_cycling)
 
     def on_please_image(self, args):
-        self.logger.info('writing image %s, boot config %s to db' %
-                         (args['image'], args['boot_config']))
-        data.set_device_config(self.machine.device_name,
-                               args['image'],
-                               args['boot_config'])
-        # FIXME: We'll decide here how we go about imaging; for now, it's always
-        # PXE booting.
-        self.machine.goto_state(start_pxe_boot)
+        try:
+            data.get_pxe_config_for_device(self.machine.device_name,
+                                           args['image'])
+            self.logger.info('writing image %s, boot config %s to db' %
+                             (args['image'], args['boot_config']))
+            data.set_device_config(self.machine.device_name,
+                                   args['image'],
+                                   args['boot_config'])
+            self.machine.goto_state(start_pxe_boot)
+        except data.NotFound:
+            self.logger.error('cannot image device')
 
 
 class PowerCycleMixin(object):
+    """
+    Mixin for states that power-cycle the board.
+    We first attempt to reboot via SUT agent, if present in the device's image.
+    If there is a relay present, and there is no SUT agent or the SUT agent has
+    failed a few times, fall back to the relay.
+    If no relay, continue SUT attempts.
+    Immediately fail if there is no SUT agent nor relay.
+    """
 
     # to be filled in by subclasses:
     power_cycle_complete_state = None
 
     # wait for 60 seconds for a power cycle to succeed, and do this a bunch of
-    # times; failures here are likely a problem with the network or relay
-    # board, so we want to retry until that's available.  WARNING: this timeout
-    # must be larger than the normal time to cycle a device (3s for relay boards)
-    # times the number of devices per relay or PDU (14 for relay boards).
+    # times.
+
+    # failures when power-cycling via relay are likely a problem with the
+    # network or relay board, so we want to retry until that's available.
+    # WARNING: this timeout must be larger than the normal time to cycle a
+    # device (3s for relay boards) times the number of devices per relay or
+    # PDU (14 for relay boards).
+
+    # reboot attempts via SUT are guaranteed to take less than 60 seconds
+    # through socket timeouts.
 
     TIMEOUT = 60                    # must be greater than 42s; see above
     PERMANENT_FAILURE_COUNT = 200
+    TRY_RELAY_AFTER_SUT_COUNT = 5
 
     def setup_pxe(self):
         # hook for subclasses
         bmm_api.clear_pxe(self.machine.device_name)
 
     def on_entry(self):
+        has_sut_agent = data.device_has_sut_agent(self.machine.device_name)
+        has_relay = data.device_relay_info(self.machine.device_name)
+        if has_sut_agent and (not has_relay or
+                              (self.machine.increment_counter('sut_attempts') <=
+                               self.TRY_RELAY_AFTER_SUT_COUNT)):
+            self.sut_reboot()
+            return
+
+        if has_relay:
+            self.relay_powercycle()
+        else:
+            if has_sut_agent:
+                self.logger.error('cannot power-cycle device: SUT reboot '
+                                  'failed and no relay')
+            else:
+                self.logger.error('cannot power-cycle device: no relay nor '
+                                  'SUT agent')
+            self.machine.goto_state(failed_power_cycling)
+
+    def sut_reboot(self):
+        def reboot_initiated(success):
+            if success:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'power_cycle_ok', {})
+            else:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'power_cycle_failed', {})
+        sut_api.start_reboot(self.machine.device_name, reboot_initiated)
+
+    def relay_powercycle(self):
         # kick off a power cycle on entry
         def powercycle_done(success):
             # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
@@ -142,13 +191,18 @@ class PowerCycleMixin(object):
         bmm_api.start_powercycle(self.machine.device_name, powercycle_done)
 
     def on_timeout(self):
-        if self.machine.increment_counter('power_cycling') > self.PERMANENT_FAILURE_COUNT:
+        self.on_power_cycle_failed({})
+
+    def on_power_cycle_failed(self, args):
+        if (self.machine.increment_counter('power_cycling') >
+            self.PERMANENT_FAILURE_COUNT):
             self.machine.goto_state(failed_power_cycling)
         else:
             self.machine.goto_state(self.state_name)
 
     def on_power_cycle_ok(self, args):
         self.machine.clear_counter('power_cycling')
+        self.machine.clear_counter('sut_attempts')
         self.machine.goto_state(self.power_cycle_complete_state)
 
 
@@ -158,6 +212,8 @@ class PowerCycleMixin(object):
 @DeviceStateMachine.state_class
 class new(AcceptPleaseRequests, statemachine.State):
     "This device is newly installed.  Begin by self-testing."
+
+    TIMEOUT = 0
 
     def on_timeout(self):
         self.machine.goto_state(start_self_test)
@@ -287,7 +343,90 @@ class pc_pinging(statemachine.State):
 
     def on_ping_ok(self, args):
         self.machine.clear_counter('pc_pinging')
+        self.machine.goto_state(sut_verifying)
+
+
+####
+# SUT Verifying
+
+# These states access the device's SUT agent via mozdevice.
+
+@DeviceStateMachine.state_class
+class sut_verifying(statemachine.State):
+    """
+    If the image has a SUT agent, verify that we can establish a connection.
+    If no SUT agent, just proceed to next state.
+    """
+
+    PERMANENT_FAILURE_COUNT = 3
+    TIMEOUT = 45
+
+    def on_entry(self):
+        if not data.device_has_sut_agent(self.machine.device_name):
+            self.on_sut_verify_ok({})
+            return
+        def sut_verified(success):
+            if success:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'sut_verify_ok', {})
+            else:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'sut_verify_failed', {})
+        sut_api.start_sut_verify(self.machine.device_name, sut_verified)
+
+    def on_timeout(self):
+        self.on_sut_verify_failed({})
+
+    def on_sut_verify_failed(self, args):
+        if (self.machine.increment_counter(self.state_name) >
+            self.PERMANENT_FAILURE_COUNT):
+            self.machine.goto_state(failed_sut_verifying)
+        else:
+            self.machine.goto_state(self.state_name)
+
+    def on_sut_verify_ok(self, args):
+        self.machine.clear_counter(self.state_name)
+        self.machine.goto_state(sut_sdcard_verifying)
+
+
+@DeviceStateMachine.state_class
+class sut_sdcard_verifying(statemachine.State):
+    """
+    If the image has a SUT agent, verify that we can write a test file to the
+    device's SD card.
+    If no SUT agent, just proceed to next state.
+    """
+
+    PERMANENT_FAILURE_COUNT = 2
+    TIMEOUT = 210
+
+    def on_entry(self):
+        if not data.device_has_sut_agent(self.machine.device_name):
+            self.on_sut_sdcard_ok({})
+            return
+        def sdcard_verified(success):
+            if success:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'sut_sdcard_ok', {})
+            else:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'sut_sdcard_failed', {})
+        sut_api.start_check_sdcard(self.machine.device_name, sdcard_verified)
+
+    def on_timeout(self):
+        self.on_sut_sdcard_failed({})
+
+    def on_sut_sdcard_failed(self, args):
+        if (self.machine.increment_counter(self.state_name) >
+            self.PERMANENT_FAILURE_COUNT):
+            self.machine.goto_state(failed_sut_sdcard_verifying)
+        else:
+            self.machine.goto_state(self.state_name)
+
+    def on_sut_sdcard_ok(self, args):
+        self.machine.clear_counter(self.state_name)
         self.machine.goto_state(ready)
+
 
 ####
 # PXE Booting
@@ -321,14 +460,22 @@ class start_pxe_boot(statemachine.State):
 @DeviceStateMachine.state_class
 class start_self_test(statemachine.State):
     """
-    A self-test has been requested.  Clear counters, set the device configuration,
-    and get started.
+    A self-test has been requested.  If a self-test PXE config exists for the
+    device, set the device configuration and power cycle into the PXE states.
+    If not, just power cycle; if the image has a SUT agent, it will
+    automatically do some verification after booting.
     """
 
     def on_entry(self):
         self.machine.clear_counter()
-        data.set_device_config(self.machine.device_name, 'self-test', '')
-        self.machine.goto_state(pxe_power_cycling)
+        try:
+            data.get_pxe_config_for_device(self.machine.device_name,
+                                           'self-test')
+        except data.NotFound:
+            self.machine.goto_state(pc_power_cycling)
+        else:
+            data.set_device_config(self.machine.device_name, 'self-test', '')
+            self.machine.goto_state(pxe_power_cycling)
 
 
 @DeviceStateMachine.state_class
@@ -348,7 +495,7 @@ class start_maintenance(statemachine.State):
 class pxe_power_cycling(PowerCycleMixin, statemachine.State):
     """
     A PXE boot has been requested, and the device is being power-cycled.  Once
-    the power cycle is successful, go to state 'pxe_starting'.
+    the power cycle is successful, go to state 'pxe_booting'.
     """
 
     power_cycle_complete_state = 'pxe_booting'
@@ -538,9 +685,8 @@ class android_pinging(statemachine.State):
     def on_ping_ok(self, args):
         self.machine.clear_counter(self.state_name)
         self.machine.clear_counter('ping')
-        self.machine.goto_state(ready)
+        self.machine.goto_state(sut_verifying)
 
-    # TODO: also try a SUT agent connection here (mcote)
 
 ####
 # PXE Booting :: B2G Installation
@@ -649,9 +795,8 @@ class b2g_pinging(statemachine.State):
     def on_ping_ok(self, args):
         self.machine.clear_counter(self.state_name)
         self.machine.clear_counter('ping')
-        self.machine.goto_state(ready)
+        self.machine.goto_state(sut_verifying)
 
-    # TODO: also try a SUT agent connection here (mcote)
 
 ####
 # PXE Booting :: Self-Test
@@ -698,6 +843,10 @@ class failed(AcceptBasicPleaseRequests, statemachine.State):
 
 
 @DeviceStateMachine.state_class
+class failed_imaging(failed):
+    "The imaging process could not be started"
+
+@DeviceStateMachine.state_class
 class failed_power_cycling(failed):
     "The power-cycle operation itself has failed or timed out multiple times"
 
@@ -708,6 +857,14 @@ class failed_pxe_booting(failed):
 @DeviceStateMachine.state_class
 class failed_mobile_init_started(failed):
     "While executing mobile-init, the device repeatedly failed to contact the imaging server from the live image."
+
+@DeviceStateMachine.state_class
+class failed_sut_verifying(failed):
+    "Could not connect to SUT agent."
+
+@DeviceStateMachine.state_class
+class failed_sut_sdcard_verifying(failed):
+    "Failed to verify device's SD card."
 
 @DeviceStateMachine.state_class
 class failed_android_downloading(failed):
