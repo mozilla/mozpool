@@ -442,15 +442,27 @@ def request_status(request_id):
     return object_status(model.requests, model.requests.c.id, request_id,
                          logs.request_logs)
 
-def get_free_devices():
+def get_free_devices(device_name='any', environment='any'):
+    """
+    Get devices in the 'free' state matching any other necessary
+    characteristics.  Pass 'any' for a wildcard.
+    """
     # FIXME: prefer devices that already have the requested boot_config
     # installed.
     conn = sql.get_conn()
-    res = conn.execute(select([model.devices.c.name],
-                              model.devices.c.state=="free").where(
-            not_(exists(select([model.device_requests.c.request_id]).where(
-                        model.device_requests.c.device_id==model.devices.c.id)))
-            ))
+    f = model.devices.outerjoin(model.device_requests)
+    q = select([model.devices.c.name], from_obj=[f])
+    # make sure it's free
+    q = q.where(model.devices.c.state=="free")
+    # double-check that there's no matching requests row (using an inner
+    # join and expecting NULL)
+    q = q.where(model.device_requests.c.request_id == None)
+    # other characteristics
+    if device_name != 'any':
+        q = q.where(model.devices.c.name == device_name)
+    if environment != 'any':
+        q = q.where(model.devices.c.environment == environment)
+    res = conn.execute(q)
     return [row[0] for row in res]
 
 def create_request(requested_device, environment, assignee, duration, image_id,

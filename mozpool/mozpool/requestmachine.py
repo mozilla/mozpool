@@ -168,35 +168,23 @@ class finding_device(Closable, Expirable, statemachine.State):
         self.machine.goto_state(finding_device)
 
     def find_device(self):
-        # FIXME: refactor.
         self.logger.info('Finding device.')
         device_name = None
         count = self.machine.increment_counter(self.state_name)
         request = data.dump_requests(self.machine.request_id)[0]
-        env = request['environment']
-        if request['requested_device'] == 'any':
-            self.logger.info('Looking for any free device in environment %s.'
-                             % env)
-            free_devices = data.get_free_devices()
-            random.shuffle(free_devices)
-        else:
-            free_devices = [request['requested_device']]
-        for device_name in free_devices:
-            # check against environment
-            if env != 'any' and data.device_environment(device_name) != env:
-                self.logger.info('%s does not match env %s.' % (device_name,
-                                                               env))
-                continue
-            break
-        else:
-            self.logger.info('No free devices matching requirements.')
-            return
 
-        self.logger.info('Assigning device %s.' % device_name)
-        if device_name and data.reserve_device(self.machine.request_id,
-                                               device_name):
-            self.logger.info('Request succeeded.')
-            self.machine.goto_state(contacting_lifeguard)
+        free_devices = data.get_free_devices(
+                environment=request['environment'],
+                device_name=request['requested_device'])
+
+        if free_devices:
+            # pick a device at random from the returned list
+            device_name = random.choice(free_devices)
+            self.logger.info('Assigning device %s.' % device_name)
+            if data.reserve_device(self.machine.request_id,
+                                                device_name):
+                self.logger.info('Request succeeded.')
+                self.machine.goto_state(contacting_lifeguard)
         else:
             self.logger.warn('Request failed!')
             if request['requested_device'] == 'any':

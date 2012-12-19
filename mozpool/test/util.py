@@ -43,7 +43,8 @@ def add_hardware_type(hw_type, hw_model):
 def add_device(device, server="server", state="offline",
               mac_address="000000000000",
               log=[], config='{}', relayinfo="",
-              last_image_id=None, hardware_type_id=1):
+              last_image_id=None, hardware_type_id=1,
+              environment=None):
     global inventory_id
     conn = sql.get_conn()
     id = conn.execute(select([model.imaging_servers.c.id],
@@ -61,7 +62,8 @@ def add_device(device, server="server", state="offline",
                  relay_info=relayinfo,
                  boot_config=config,
                  last_image_id=last_image_id,
-                 hardware_type_id=hardware_type_id)
+                 hardware_type_id=hardware_type_id,
+                 environment=environment)
     inventory_id += 1
 
 def add_pxe_config(name, description="Boot image",

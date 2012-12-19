@@ -192,6 +192,31 @@ class TestData(ConfigMixin, unittest.TestCase):
         self.assertEqual(data.device_config('withimg'),
                          {'boot_config': '', 'image': 'img1'})
 
+    def test_get_free_devices(self):
+        # (note, device1 is not free)
+        add_server('server')
+        add_image('img1', id=23)
+        add_device("device2", state='free', environment='foo')
+        add_device("device3", state='free', environment='bar')
+        # device4 has an outstanding request that's still open, even
+        # though its state is free; it should not be returned
+        add_device("device4", state='free', environment='bar')
+        add_request('server', device='device4', image='img1')
+        self.assertEqual(sorted(data.get_free_devices()),
+                         sorted(['device2', 'device3']))
+        self.assertEqual(sorted(data.get_free_devices(environment='foo')),
+                         sorted(['device2']))
+        self.assertEqual(sorted(data.get_free_devices(environment='bar')),
+                         sorted(['device3']))
+        self.assertEqual(sorted(data.get_free_devices(environment='bing')),
+                         sorted([]))
+        self.assertEqual(sorted(data.get_free_devices(
+                         environment='bar', device_name='device2')),
+                         sorted([]))
+        self.assertEqual(sorted(data.get_free_devices(
+                         environment='bar', device_name='device3')),
+                         sorted(['device3']))
+
 
 class TestDeviceList(ConfigMixin, unittest.TestCase):
     def setUp(self):
