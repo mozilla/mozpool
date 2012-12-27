@@ -31,3 +31,8 @@ tftp_root =
 # The path where boot images are stored.
 image_store =
 
+[testing]
+# if true, then any devices with imaging_server equal to server.fqdn and with a
+# relay_info starting with 'localhost' will be emulated locally using fake
+# relays and fake pandas.
+# run_fakes = true

@@ -38,7 +38,12 @@ def reset():
     _config = ConfigParser.ConfigParser()
 
 def get(*args, **kwargs):
-    return _load().get(*args, **kwargs)
+    try:
+        return _load().get(*args, **kwargs)
+    except ConfigParser.NoSectionError:
+        return None
+    except ConfigParser.NoOptionError:
+        return None
 
 def has_option(*args, **kwargs):
     return _load().has_option(*args, **kwargs)

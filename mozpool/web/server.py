@@ -14,6 +14,7 @@ import mozpool.lifeguard
 import mozpool.mozpool
 from mozpool.lifeguard import devicemachine, handlers as lifeguard_handlers
 from mozpool.bmm import handlers as bmm_handlers
+from mozpool import config
 from mozpool.mozpool import requestmachine, handlers as mozpool_handlers
 
 templeton.middleware.patch_middleware()
@@ -40,6 +41,17 @@ def main():
     # Set up logging
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG,
             format="%(name)s %(levelname)s - [%(asctime)s] %(message)s")
+
+    # ignore urllib3 informational logging
+    urllib3_logger = logging.getLogger('requests.packages.urllib3')
+    urllib3_logger.setLevel(logging.CRITICAL)
+
+
+    # if we're running fake boards, start those up
+    if config.get('testing', 'run_fakes'):
+        from mozpool.test import fakedevices
+        rack = fakedevices.Rack()
+        rack.start()
 
     # start up the lifeguard driver
     # TODO: make this configurable, as well as poll freq
