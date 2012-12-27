@@ -22,11 +22,10 @@ that, regardless of network conditions.
 """
 
 from __future__ import with_statement
-import sys
 import time
 import socket
-import asyncore
 import logging
+import errno
 from mozpool import util
 from contextlib import contextmanager
 
@@ -74,176 +73,95 @@ def res2status(res):
     return False if ord(res[0]) == 1 else True
 
 @contextmanager
-def serialize_by_host(hostname):
+def serialize_by_relay_board(relay_board_name):
     """
-    Ensure that exactly one enclosed block with the given hostname can run at a
+    Ensure that exactly one enclosed block with the given relay_board_name can run at a
     time on this host.  This accounts for a small wait time *after* the connection
     to allow the relay board to reset (its TCP stack appears to be single-threaded!)
     """
-    locks.acquire(hostname)
+    locks.acquire(relay_board_name)
     try:
         yield
     finally:
         # sleep long enough for the relay board to recover after the TCP connection
         time.sleep(1)
-        locks.release(hostname)
+        locks.release(relay_board_name)
 
 class TimeoutError(Exception):
     pass
 
-class ConnectionLostError(Exception):
-    pass
+def set_timeout(sock, before):
+    remaining = before - time.time()
+    if remaining <= 0:
+        raise TimeoutError
+    sock.settimeout(remaining)
 
-class RelayClient(asyncore.dispatcher):
-    """
-    A client for the relay protocol.  The transaction is driven by a coroutine.
-    The coroutine must complete within TIMEOUT seconds, and does not begin until
-    the socket is connected.  The coroutine takes a single argument, the client,
-    and can yield to read or write::
-
-        yield client.write(data)
-        data = yield client.read()
-
-    And the socket is closed when the coroutine ends.
-
-    This is generally used in a thread for a single socket.  The advantage is
-    that it allows a timeout to be applied even to connect operations.
-    """
-
-    @classmethod
-    def generator(cls, host, timeout):
-        # try to split host into host:port, applying the default
-        if ':' in host:
-            host, port = host.split(':')
+@contextmanager
+def connected_socket(relay_board_name, before):
+    with serialize_by_relay_board(relay_board_name):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        set_timeout(sock, before)
+        if ':' in relay_board_name:
+            host, port = relay_board_name.split(':')
             port = int(port)
         else:
+            host = relay_board_name
             port = DEFAULT_PORT
-        def wrap(generator):
-            def run():
-                client = cls(host, port, timeout, generator)
-                return client.run()
-            return run
-        return wrap
+        sock.connect((host, port))
+        yield sock
+        sock.close()
 
-    def __init__(self, host, port, timeout, generator):
-        # use a unique map here to avoid asyncore keeping a reference to this object
-        # around forever if close() isn't called correctly
-        asyncore.dispatcher.__init__(self, map={})
-        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.host = host
-        self.port = port
-        self.connect( (host, port) )
-        self.state = 'connecting'
-        self.output = ''
-        self.complete_by = time.time() + timeout
-        self.coroutine = generator(self)
+def timed_read(sock, before):
+    set_timeout(sock, before)
+    return sock.recv(1024)
 
-    def read(self):
-        if self.state != 'idle':
-            return
-        self.state = 'reading'
-        return self
+def timed_write(sock, data, before):
+    set_timeout(sock, before)
+    return sock.sendall(data)
 
-    def write(self, data):
-        if self.state != 'idle':
-            return
-        self.state = 'writing'
-        self.output += data
-        return self
-
-    def handle_connect(self):
-        if self.state != 'connecting':
-            return
-        self.state = 'idle'
-        self._step()
-
-    def handle_close(self):
-        self._step(exc=(ConnectionLostError(),))
-
-    def handle_timeout(self):
-        self._step(exc=(TimeoutError(),))
-
-    def handle_error(self):
-        self._step(exc=sys.exc_info())
-
-    def handle_read(self):
-        if self.state != 'reading':
-            return
-        self.state = 'idle'
-        self._step(self.recv(8192))
-
-    def handle_write(self):
-        if self.state != 'writing':
-            # handle_write is sometimes called after a connection succeeds
-            return
-        sent = self.send(self.output)
-        self.output = self.output[sent:]
-        if not self.output:
-            self.state = 'idle'
-            self._step()
-
-    def writable(self):
-        return self.state == 'writing' or self.state == 'connecting'
-
-    def readable(self):
-        return self.state == 'reading'
-
-    def run(self):
-        try:
-            while self.state != 'done':
-                timeout = self.complete_by - time.time()
-                if timeout <= 0:
-                    if self.state != 'done':
-                        self.handle_timeout()
-                    return
-
-                asyncore.loop(timeout=timeout, count=1, map={self.fileno() : self})
-        finally:
-            # be sure to call close unconditionally
-            self.close()
-        return self.return_value
-
-    def _step(self, value=None, exc=None):
-        if exc:
-            to_call = self.coroutine.throw, exc
-        else:
-            to_call = self.coroutine.send, (value,)
-
-        try:
-            to_call[0](*to_call[1])
-            assert self.state != 'idle', "coroutine yielded without anything to do"
-        except StopIteration, e:
-            self.close()
-            self.state = 'done'
-            if e.args:
-                self.return_value = e.args[0]
-            else:
-                self.return_value = None
+def log_errors(on_error):
+    def wrap(fn):
+        def replacement(relay_board_name, *args, **kwargs):
+            try:
+                return fn(relay_board_name, *args, **kwargs)
+            except TimeoutError:
+                logger.error("timeout communicating with %s" % (relay_board_name,))
+                return on_error
+            except socket.error, e:
+                # handle the common case with less traceback
+                if e.errno == errno.ECONNREFUSED:
+                    logger.error("error communicating with relay board %s: connection refused" % (relay_board_name,))
+                else:
+                    logger.error("error communicating with relay board %s" % (relay_board_name,), exc_info=e)
+                return on_error
+        return replacement
+    return wrap
 
 ## external API (but internal to BMM)
 
-def get_status(host, bank, relay, timeout):
+@log_errors(on_error=None)
+def get_status(relay_board_name, bank, relay, timeout):
     """
-    Get the status of a relay on a specified bank on the given host, within
-    TIMEOUT seconds.  Returns None on error, and otherwise a boolean (True
-    meaning "on").
+    Get the status of a relay on a specified bank on the given relay board,
+    within TIMEOUT seconds.  Returns None on error, and otherwise a boolean
+    (True meaning "on").
     """
+    before = time.time() + timeout
+
     assert(bank >= 1 and bank <= 4)
     assert(relay >= 1 and relay <= 8)
-    @RelayClient.generator(host, timeout)
-    def gen(client):
-        yield client.write(START_COMMAND)
-        yield client.write(READ_RELAY_N_AT_BANK(relay))
-        yield client.write(chr(bank))
-        # relay board will return 0 or 1 indicating its state
-        res = yield client.read()
-        raise StopIteration(res2status(res))
-    return _run_gen(host, gen, on_error=None)
 
-def set_status(host, bank, relay, status, timeout):
+    with connected_socket(relay_board_name, before) as sock:
+        timed_write(sock, START_COMMAND, before)
+        timed_write(sock, READ_RELAY_N_AT_BANK(relay), before)
+        timed_write(sock, chr(bank), before)
+        res = timed_read(sock, before)
+        return res2status(res)
+
+@log_errors(on_error=False)
+def set_status(relay_board_name, bank, relay, status, timeout):
     """
-
-    Set the status of a relay on a specified bank on the given host, within
+    Set the status of a relay on a specified bank on the given relay board, within
     TIMEOUT seconds.
 
     If status is True, turn on the specified device. If it is False,
@@ -251,82 +169,62 @@ def set_status(host, bank, relay, status, timeout):
 
     Return True on success, or False on error.
     """
+    before = time.time() + timeout
     assert(bank >= 1 and bank <= 4)
     assert(relay >= 1 and relay <= 8)
 
-    @RelayClient.generator(host, timeout)
-    def gen(client):
-        logger.info("set_status(%s) on %s bank %s relay %s initiated" % (status, host, bank, relay))
-        yield client.write(START_COMMAND)
-        yield client.write(status2cmd(status, relay))
-        yield client.write(chr(bank))
-        res = yield client.read()
+    with connected_socket(relay_board_name, before) as sock:
+        logger.info("set_status(%s) on %s bank %s relay %s initiated" % (status, relay_board_name, bank, relay))
+        timed_write(sock, START_COMMAND, before)
+        timed_write(sock, status2cmd(status, relay), before)
+        timed_write(sock, chr(bank), before)
+        res = timed_read(sock, before)
         if res != COMMAND_OK:
-            logger.error("Command on %s did not succeed, status: %d" % (host, ord(res)))
-            raise StopIteration(False)
+            logger.error("Command on %s did not succeed, status: %d" % (relay_board_name, ord(res)))
+            return False
         else:
-            raise StopIteration(True)
-    return _run_gen(host, gen)
+            return True
 
-def powercycle(host, bank, relay, timeout):
+@log_errors(on_error=False)
+def powercycle(relay_board_name, bank, relay, timeout):
     """
     Cycle the power of a device connected to a relay on a specified bank
-    on the board at the given hostname.
+    on the given relay board.
 
     The relay will be turned on and then off, with status checked
     after each operation.
 
     Return True if successful, False otherwise.
     """
+    before = time.time() + timeout
     assert(bank >= 1 and bank <= 4)
     assert(relay >= 1 and relay <= 8)
 
-    @RelayClient.generator(host, timeout)
-    def gen(client):
-        logger.info("power-cycle on %s bank %s relay %s initiated" % (host, bank, relay))
-        # sadly, because we don't have 'yield from' yet, this all has to happen
-        # in one function body.
+    with connected_socket(relay_board_name, before) as sock:
+        logger.info("power-cycle on %s bank %s relay %s initiated" % (relay_board_name, bank, relay))
         for status in False, True:
             # set the status
-            yield client.write(START_COMMAND)
-            yield client.write(status2cmd(status, relay))
-            yield client.write(chr(bank))
-            res = yield client.read()
+            timed_write(sock, START_COMMAND, before)
+            timed_write(sock, status2cmd(status, relay), before)
+            timed_write(sock, chr(bank), before)
+            res = timed_read(sock, before)
             if res != COMMAND_OK:
-                logger.info("Command on %s did not succeed, status: %d" % (host, ord(res)))
-                raise StopIteration(False)
+                logger.info("Command on %s did not succeed, status: %d" % (relay_board_name, ord(res)))
+                return False
 
             # check the status
-            yield client.write(START_COMMAND)
-            yield client.write(READ_RELAY_N_AT_BANK(relay))
-            yield client.write(chr(bank))
-            res = yield client.read()
+            timed_write(sock, START_COMMAND, before)
+            timed_write(sock, READ_RELAY_N_AT_BANK(relay), before)
+            timed_write(sock, chr(bank), before)
+            res = timed_read(sock, before)
             got_status = res2status(res)
             if (not status and got_status) or (status and not got_status):
-                logger.info("Bank %d relay %d on %s did not change state" % (bank, relay, host))
-                raise StopIteration(False)
+                logger.info("Bank %d relay %d on %s did not change state" % (bank, relay, relay_board_name))
+                return False
 
             # if we just turned the device off, give it a chance to rest
             if status is False:
                 time.sleep(1)
-        logger.info("power-cycle on %s bank %s relay %s successful" % (host, bank, relay))
-        raise StopIteration(True)
-    return _run_gen(host, gen)
+        logger.info("power-cycle on %s bank %s relay %s successful" % (relay_board_name, bank, relay))
+        return True
 
-def _run_gen(host, gen, on_error=False):
-    try:
-        with serialize_by_host(host):
-            return gen()
-    except TimeoutError:
-        logger.error("timeout communicating with %s" % (host,))
-        return on_error
-    except ConnectionLostError:
-        logger.error("connection to %s lost" % (host,))
-        return on_error
-    except socket.error, e:
-        # handle the common case with less traceback
-        if e.errno == 111:
-            logger.error("error communicating with relay host %s: connection refused" % (host,))
-        else:
-            logger.error("error communicating with relay host %s" % (host,), exc_info=e)
-        return on_error

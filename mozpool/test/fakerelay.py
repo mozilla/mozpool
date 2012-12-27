@@ -6,6 +6,7 @@ import logging
 import time
 import threading
 import socket
+import errno
 
 PORT = 2101
 COMMAND_OK = chr(85)
@@ -114,7 +115,12 @@ class RelayBoard(object):
     def handle_commands(self, sock):
         data = ''
         while True:
-            b = sock.recv(3)
+            try:
+                b = sock.recv(3)
+            except socket.error, e:
+                if e.errno == errno.ECONNRESET:
+                    return # ignore connection reset
+                raise
             if self.delay:
                 time.sleep(self.delay)
             if not len(b):
