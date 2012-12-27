@@ -1002,10 +1002,11 @@ class TestBmmRelay(unittest.TestCase):
 
     def setUp(self):
         # start up a fake relay server, and set relay.PORT to point to it
-        self.server = fakerelay.RelayTCPServer(('127.0.0.1', 0))
+        self.relayboard = fakerelay.RelayBoard('test', ('127.0.0.1', 0), record_actions=True)
+        self.relayboard.add_relay(2, 2, fakerelay.Relay())
+        self.relayboard.spawn_one()
         self.old_PORT = relay.PORT
-        relay.PORT = self.server.get_port()
-        self.server.spawn_one()
+        relay.PORT = self.relayboard.get_port()
 
     def tearDown(self):
         relay.PORT = self.old_PORT
@@ -1013,34 +1014,34 @@ class TestBmmRelay(unittest.TestCase):
     @patch('time.sleep')
     def test_get_status(self, sleep):
         self.assertEqual(relay.get_status('127.0.0.1', 2, 2, 10), True)
-        self.assertEqual(self.server.actions, [('get', 2, 2)])
+        self.assertEqual(self.relayboard.actions, [('get', 2, 2)])
 
     def test_get_status_timeout(self):
-        self.server.delay = 1
+        self.relayboard.delay = 1
         self.assertEqual(relay.get_status('127.0.0.1', 2, 2, 0.1), None)
 
     @patch('time.sleep')
     def test_set_status_on(self, sleep):
         self.assertEqual(relay.set_status('127.0.0.1', 2, 2, True, 10), True)
-        self.assertEqual(self.server.actions, [('set', 'panda-on', 2, 2)])
+        self.assertEqual(self.relayboard.actions, [('set', 'panda-on', 2, 2)])
 
     @patch('time.sleep')
     def test_set_status_off(self, sleep):
         self.assertEqual(relay.set_status('127.0.0.1', 2, 2, False, 10), True)
-        self.assertEqual(self.server.actions, [('set', 'panda-off', 2, 2)])
+        self.assertEqual(self.relayboard.actions, [('set', 'panda-off', 2, 2)])
 
     def test_set_status_timeout(self):
-        self.server.delay = 1
+        self.relayboard.delay = 1
         self.assertEqual(relay.set_status('127.0.0.1', 2, 2, True, 0.1), False)
 
     @patch('time.sleep')
     def test_powercycle(self, sleep):
         self.assertEqual(relay.powercycle('127.0.0.1', 2, 2, 10), True)
-        self.assertEqual(self.server.actions,
+        self.assertEqual(self.relayboard.actions,
                 [('set', 'panda-off', 2, 2), ('get', 2, 2), ('set', 'panda-on', 2, 2), ('get', 2, 2)])
 
     def test_powercycle_timeout(self):
-        self.server.delay = 0.05
+        self.relayboard.delay = 0.05
         self.assertEqual(relay.powercycle('127.0.0.1', 2, 2, 0.1), False)
 
 
@@ -1157,6 +1158,7 @@ class TestPxeConfigScript(ConfigMixin, unittest.TestCase):
         self.assertStdout('hijk')
 
 if __name__ == "__main__":
+    open("test.log", "w") # truncate the file
     logging.basicConfig(level=logging.DEBUG, filename='test.log')
     logger = logging.getLogger('runtests')
 
