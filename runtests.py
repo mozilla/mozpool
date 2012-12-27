@@ -1005,44 +1005,40 @@ class TestBmmRelay(unittest.TestCase):
         self.relayboard = fakerelay.RelayBoard('test', ('127.0.0.1', 0), record_actions=True)
         self.relayboard.add_relay(2, 2, fakerelay.Relay())
         self.relayboard.spawn_one()
-        self.old_PORT = relay.PORT
-        relay.PORT = self.relayboard.get_port()
-
-    def tearDown(self):
-        relay.PORT = self.old_PORT
+        self.relay_host = '127.0.0.1:%d' % self.relayboard.get_port()
 
     @patch('time.sleep')
     def test_get_status(self, sleep):
-        self.assertEqual(relay.get_status('127.0.0.1', 2, 2, 10), True)
+        self.assertEqual(relay.get_status(self.relay_host, 2, 2, 10), True)
         self.assertEqual(self.relayboard.actions, [('get', 2, 2)])
 
     def test_get_status_timeout(self):
         self.relayboard.delay = 1
-        self.assertEqual(relay.get_status('127.0.0.1', 2, 2, 0.1), None)
+        self.assertEqual(relay.get_status(self.relay_host, 2, 2, 0.1), None)
 
     @patch('time.sleep')
     def test_set_status_on(self, sleep):
-        self.assertEqual(relay.set_status('127.0.0.1', 2, 2, True, 10), True)
+        self.assertEqual(relay.set_status(self.relay_host, 2, 2, True, 10), True)
         self.assertEqual(self.relayboard.actions, [('set', 'panda-on', 2, 2)])
 
     @patch('time.sleep')
     def test_set_status_off(self, sleep):
-        self.assertEqual(relay.set_status('127.0.0.1', 2, 2, False, 10), True)
+        self.assertEqual(relay.set_status(self.relay_host, 2, 2, False, 10), True)
         self.assertEqual(self.relayboard.actions, [('set', 'panda-off', 2, 2)])
 
     def test_set_status_timeout(self):
         self.relayboard.delay = 1
-        self.assertEqual(relay.set_status('127.0.0.1', 2, 2, True, 0.1), False)
+        self.assertEqual(relay.set_status(self.relay_host, 2, 2, True, 0.1), False)
 
     @patch('time.sleep')
     def test_powercycle(self, sleep):
-        self.assertEqual(relay.powercycle('127.0.0.1', 2, 2, 10), True)
+        self.assertEqual(relay.powercycle(self.relay_host, 2, 2, 10), True)
         self.assertEqual(self.relayboard.actions,
                 [('set', 'panda-off', 2, 2), ('get', 2, 2), ('set', 'panda-on', 2, 2), ('get', 2, 2)])
 
     def test_powercycle_timeout(self):
         self.relayboard.delay = 0.05
-        self.assertEqual(relay.powercycle('127.0.0.1', 2, 2, 0.1), False)
+        self.assertEqual(relay.powercycle(self.relay_host, 2, 2, 0.1), False)
 
 
 class TestBmmPxe(ConfigMixin, unittest.TestCase):

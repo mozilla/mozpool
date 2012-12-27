@@ -34,7 +34,7 @@ __all__ = ['get_status',
            'set_status',
            'powercycle']
 
-PORT = 2101
+DEFAULT_PORT = 2101
 
 locks = util.LocksByName()
 logger = logging.getLogger('bmm.relay')
@@ -111,7 +111,13 @@ class RelayClient(asyncore.dispatcher):
     """
 
     @classmethod
-    def generator(cls, host, port, timeout):
+    def generator(cls, host, timeout):
+        # try to split host into host:port, applying the default
+        if ':' in host:
+            host, port = host.split(':')
+            port = int(port)
+        else:
+            port = DEFAULT_PORT
         def wrap(generator):
             def run():
                 client = cls(host, port, timeout, generator)
@@ -124,6 +130,8 @@ class RelayClient(asyncore.dispatcher):
         # around forever if close() isn't called correctly
         asyncore.dispatcher.__init__(self, map={})
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.host = host
+        self.port = port
         self.connect( (host, port) )
         self.state = 'connecting'
         self.output = ''
@@ -222,7 +230,7 @@ def get_status(host, bank, relay, timeout):
     """
     assert(bank >= 1 and bank <= 4)
     assert(relay >= 1 and relay <= 8)
-    @RelayClient.generator(host, PORT, timeout)
+    @RelayClient.generator(host, timeout)
     def gen(client):
         yield client.write(START_COMMAND)
         yield client.write(READ_RELAY_N_AT_BANK(relay))
@@ -230,7 +238,7 @@ def get_status(host, bank, relay, timeout):
         # relay board will return 0 or 1 indicating its state
         res = yield client.read()
         raise StopIteration(res2status(res))
-    return _run_gen(host, PORT, gen, on_error=None)
+    return _run_gen(host, gen, on_error=None)
 
 def set_status(host, bank, relay, status, timeout):
     """
@@ -246,7 +254,7 @@ def set_status(host, bank, relay, status, timeout):
     assert(bank >= 1 and bank <= 4)
     assert(relay >= 1 and relay <= 8)
 
-    @RelayClient.generator(host, PORT, timeout)
+    @RelayClient.generator(host, timeout)
     def gen(client):
         logger.info("set_status(%s) on %s bank %s relay %s initiated" % (status, host, bank, relay))
         yield client.write(START_COMMAND)
@@ -254,11 +262,11 @@ def set_status(host, bank, relay, status, timeout):
         yield client.write(chr(bank))
         res = yield client.read()
         if res != COMMAND_OK:
-            logger.error("Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res)))
+            logger.error("Command on %s did not succeed, status: %d" % (host, ord(res)))
             raise StopIteration(False)
         else:
             raise StopIteration(True)
-    return _run_gen(host, PORT, gen)
+    return _run_gen(host, gen)
 
 def powercycle(host, bank, relay, timeout):
     """
@@ -273,7 +281,7 @@ def powercycle(host, bank, relay, timeout):
     assert(bank >= 1 and bank <= 4)
     assert(relay >= 1 and relay <= 8)
 
-    @RelayClient.generator(host, PORT, timeout)
+    @RelayClient.generator(host, timeout)
     def gen(client):
         logger.info("power-cycle on %s bank %s relay %s initiated" % (host, bank, relay))
         # sadly, because we don't have 'yield from' yet, this all has to happen
@@ -285,7 +293,7 @@ def powercycle(host, bank, relay, timeout):
             yield client.write(chr(bank))
             res = yield client.read()
             if res != COMMAND_OK:
-                logger.info("Command on %s:%d did not succeed, status: %d" % (host, PORT, ord(res)))
+                logger.info("Command on %s did not succeed, status: %d" % (host, ord(res)))
                 raise StopIteration(False)
 
             # check the status
@@ -295,7 +303,7 @@ def powercycle(host, bank, relay, timeout):
             res = yield client.read()
             got_status = res2status(res)
             if (not status and got_status) or (status and not got_status):
-                logger.info("Bank %d relay %d on %s:%d did not change state" % (bank, relay, host, PORT))
+                logger.info("Bank %d relay %d on %s did not change state" % (bank, relay, host))
                 raise StopIteration(False)
 
             # if we just turned the device off, give it a chance to rest
@@ -303,22 +311,22 @@ def powercycle(host, bank, relay, timeout):
                 time.sleep(1)
         logger.info("power-cycle on %s bank %s relay %s successful" % (host, bank, relay))
         raise StopIteration(True)
-    return _run_gen(host, PORT, gen)
+    return _run_gen(host, gen)
 
-def _run_gen(host, PORT, gen, on_error=False):
+def _run_gen(host, gen, on_error=False):
     try:
         with serialize_by_host(host):
             return gen()
     except TimeoutError:
-        logger.error("timeout communicating with %s:%d" % (host, PORT))
+        logger.error("timeout communicating with %s" % (host,))
         return on_error
     except ConnectionLostError:
-        logger.error("connection to %s:%d lost" % (host, PORT))
+        logger.error("connection to %s lost" % (host,))
         return on_error
     except socket.error, e:
         # handle the common case with less traceback
         if e.errno == 111:
-            logger.error("error communicating with relay host %s:%s: connection refused" % (host, PORT))
+            logger.error("error communicating with relay host %s: connection refused" % (host,))
         else:
-            logger.error("error communicating with relay host:", exc_info=e)
+            logger.error("error communicating with relay host %s" % (host,), exc_info=e)
         return on_error
