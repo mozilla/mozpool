@@ -303,18 +303,40 @@ class pxe_power_cycling(PowerCycleMixin, statemachine.State):
 @DeviceStateMachine.state_class
 class pxe_booting(statemachine.State):
     """
-    The power has been cycled and we are waiting for the uboot image to start
-    and run its second stage.  When successful, the next state is based on the
-    event received from the second stage.
+    The power has been cycled and we are waiting for the uboot to find its pxe config and
+    begin the ubuntu live boot session.  When successful, the next state should be
+    mobile_init_started.
     """
-
-    # TODO: convince mobile-init.sh to report an event here - bug 811316
 
     # Startup seems to take about 90s; double that makes a good timeout.  There
     # are a number of ways this step could go wrong, so we allow a lot of
     # retries before calling it a failure.
     TIMEOUT = 180
     PERMANENT_FAILURE_COUNT = 30
+
+    def on_mobile_init_started(self, args):
+        self.machine.clear_counter(self.state_name)
+        bmm_api.clear_pxe(self.machine.device_name)
+        self.machine.goto_state(mobile_init_started)
+
+    def on_timeout(self):
+        if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
+            self.machine.goto_state(failed_pxe_booting)
+        else:
+            self.machine.goto_state(pxe_power_cycling)
+
+@DeviceStateMachine.state_class
+class mobile_init_started(statemachine.State):
+    """
+    Once mobile-init has started, its only job is to download and execute a second stage
+    script as given by the pxe config.  Any timeouts here indicate trouble retrieving
+    or executing the second stage
+    """
+
+    # This should take no time at all and there are not many failures this can get into
+    # so we keep the timeout and failure count low
+    TIMEOUT = 10
+    PERMANENT_FAILURE_COUNT = 10
 
     def on_android_downloading(self, args):
         self.machine.clear_counter(self.state_name)
@@ -334,7 +356,7 @@ class pxe_booting(statemachine.State):
 
     def on_timeout(self):
         if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
-            self.machine.goto_state(failed_pxe_booting)
+            self.machine.goto_state(failed_mobile_init_started)
         else:
             self.machine.goto_state(pxe_power_cycling)
 
@@ -588,6 +610,10 @@ class failed_power_cycling(failed):
 @DeviceStateMachine.state_class
 class failed_pxe_booting(failed):
     "While PXE booting, the device repeatedly failed to contact the imaging server from the live image."
+
+@DeviceStateMachine.state_class
+class failed_mobile_init_started(failed):
+    "While executing mobile-init, the device repeatedly failed to contact the imaging server from the live image."
 
 @DeviceStateMachine.state_class
 class failed_android_downloading(failed):
