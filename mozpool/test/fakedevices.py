@@ -57,7 +57,7 @@ class Device(object):
 
     # config parameters
     image_pingable = {
-        'b2g': True,
+        'b2g': 0.98,
         # default: False
     }
 
@@ -126,6 +126,8 @@ class Device(object):
 
     def ping(self):
         ping_result = self.power and self.pingable
+        if isinstance(self.pingable, float):
+            ping_result = random.random() < self.pingable
         self.logger.debug('pinged; result=%s (state %s)' % (ping_result, self.state))
         return ping_result
 

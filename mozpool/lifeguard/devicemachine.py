@@ -156,13 +156,32 @@ class unknown(AcceptPleaseRequests, statemachine.State):
 
 
 @DeviceStateMachine.state_class
-class free(AcceptPleaseRequests, statemachine.State):
-    "This device is not in use and available for mozpool requests."
-
-@DeviceStateMachine.state_class
 class locked_out(statemachine.State):
     """This device is handled outside of mozpool, and mozpool should not touch it.
     The device must be forced out of this state."""
+
+@DeviceStateMachine.state_class
+class free(AcceptPleaseRequests, statemachine.State):
+    """This device is not in use and available for mozpool requests.  While in this state,
+    Mozpool monitors the device periodically and takes corrective action if it fails."""
+
+    TIMEOUT = 300
+
+    def on_entry(self):
+        # TODO: when SUT support is in place, determine whether to use a SUT check or a
+        # ping, or nothing, based on the current image as recorded in the db.
+        def ping_complete(success):
+            if not success:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_failed', {})
+        bmm_api.start_ping(self.machine.device_name, ping_complete)
+
+    def on_timeout(self):
+        self.machine.goto_state(free)
+
+    def on_ping_failed(self, args):
+        # TODO: when there's a self-test process, do that instead
+        self.logger.warning('device stopped pinging while free; trying a power cycle')
+        self.machine.goto_state(pc_power_cycling)
 
 @DeviceStateMachine.state_class
 class ready(AcceptPleaseRequests, statemachine.State):
