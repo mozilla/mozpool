@@ -21,7 +21,9 @@ parser.add_option('-d', '--devices', dest='devices', action='store', type='int',
 parser.add_option('-r', '--requests', dest='requests', action='store',
                   type='int', default=0)
 parser.add_option('-p', '--port', dest='port', action='store', type='int',
-                  default=80)
+                  default=80, help='mozpool server port')
+parser.add_option('--relayport', dest='relayport', action='store', type='int',
+                  default=2101, help='port for the local fake relay server')
 (options, args) = parser.parse_args(args)
 
 # max 8 relays each in max 4 banks per server
@@ -33,6 +35,8 @@ if num_servers > 1:
 
 img_svr_ids = []
 fqdns = []
+
+relay_server = 'localhost:%d' % options.relayport
 
 for i in range(0, num_servers):
     if i == 0:
@@ -50,23 +54,38 @@ r = conn.execute(model.hardware_types.insert(),
                  type='panda', model='ES Rev B2')
 hardware_type_id = r.inserted_primary_key[0]
 
-conn.execute(model.pxe_configs.insert(),
-        name='image1',
-        description='test img',
-        contents='some config',
-        active=True)
-pxe_config_id = r.inserted_primary_key[0]
+r = conn.execute(model.pxe_configs.insert(),
+                 name='fake-b2g',
+                 description='fake b2g config',
+                 contents='mobile-imaging-url=fake/b2g-second-stage.sh',
+                 active=True)
+b2g_pxe_config_id = r.inserted_primary_key[0]
 
-conn.execute(model.images.insert(),
-             name='b2g',
-             boot_config_keys='["b2gbase"]',
-             can_reuse=False)
-image_id = r.inserted_primary_key[0]
+r = conn.execute(model.pxe_configs.insert(),
+                 name='fake-android',
+                 description='fake android config',
+                 contents='mobile-imaging-url=fake/android-second-stage.sh',
+                 active=True)
+android_pxe_config_id = r.inserted_primary_key[0]
 
-conn.execute(model.image_pxe_configs.insert(),
-             image_id=image_id,
-             hardware_type_id=hardware_type_id,
-             pxe_config_id=pxe_config_id)
+r = conn.execute(model.images.insert(),
+                 name='b2g',
+                 boot_config_keys='["b2gbase"]',
+                 can_reuse=False)
+b2g_image_id = r.inserted_primary_key[0]
+
+r = conn.execute(model.images.insert(),
+                 name='android',
+                 boot_config_keys='[]',
+                 can_reuse=True)
+android_image_id = r.inserted_primary_key[0]
+
+for image_id, pxe_config_id in ((b2g_image_id, b2g_pxe_config_id),
+                                (android_image_id, android_pxe_config_id)):
+    conn.execute(model.image_pxe_configs.insert(),
+                 image_id=image_id,
+                 hardware_type_id=hardware_type_id,
+                 pxe_config_id=pxe_config_id)
 
 device_ids = []
 
@@ -77,12 +96,12 @@ for device_id in range(0, options.devices):
                      name='device%d' % (device_id + 1),
                      fqdn='device%d.fqdn' % (device_id + 1),
                      inventory_id=1111 * (device_id + 1),
-                     state='free',
+                     state='off',
                      environment='odd' if (device_id % 2) else 'even',
                      state_counters='{}',
                      mac_address='%012x' % device_id,
                      imaging_server_id=img_svr_ids[server_id],
-                     relay_info='%s:bank%d:relay%d' % (fqdns[server_id], bank,
+                     relay_info='%s:bank%d:relay%d' % (relay_server, bank,
                                                        relay),
                      boot_config='',
                      hardware_type_id=hardware_type_id)
