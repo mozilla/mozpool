@@ -24,15 +24,17 @@ def deviceredirect(function):
             raise web.notfound()
         if server != config.get('server', 'fqdn'):
             raise web.found("http://%s%s" % (server, web.ctx.path))
-        # otherwise, send an access-control header, so that pages in other domains can
-        # call this API endpoint without trouble
-        fqdns = data.all_imaging_servers()
-        # this needs to be a sequence of headers, not one whitespace-joined header
-        for fqdn in fqdns:
-            origin = 'http://%s' % fqdn
+        # send an appropriate access-control header, if necessary
+        origin = web.ctx.environ.get('HTTP_ORIGIN')
+        if origin and origin.startswith('http://'):
+            origin_hostname = origin[7:]
+            fqdns = data.all_imaging_servers()
+            if origin_hostname not in fqdns:
+                raise web.Forbidden
             web.header('Access-Control-Allow-Origin', origin)
         return function(self, id, *args)
     return wrapped
+
 
 class InMemCache:
     """
