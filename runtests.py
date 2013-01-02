@@ -185,7 +185,7 @@ class TestData(ConfigMixin, unittest.TestCase):
         data.update_device(1, dict(fqdn='device1.fqdn', imaging_server='server9', mac_address='aabbccddeeff',
             hardware_type='samsung', hardware_model='galaxy'))
         res = conn.execute(model.devices.select())
-        self.assertEquals([ dict(r) for r in res.fetchall() ], [
+        self.assertEquals([dict(r) for r in res.fetchall()], [
             {u'state': u'offline', u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
@@ -639,7 +639,7 @@ class TestInvSyncGet(unittest.TestCase):
         if want_relay_info:
             relay_info = 'relay%d' % ((hash(fqdn) / 1000) % 10)
             kv.append(dict(key='system.relay.0', value=relay_info))
-        server_model = { 'model' : server_model_model, 'vendor' : server_model_vendor }
+        server_model = {'model' : server_model_model, 'vendor' : server_model_vendor}
         return dict(
             hostname=fqdn,
             id=inventory_id,
