@@ -16,8 +16,8 @@ from mozpool.test import fakerelay
 
 class Relay(fakerelay.Relay):
 
-    def __init__(self, device):
-        super(Relay, self).__init__(1) # 1 == device off
+    def __init__(self, device, initial_status=1):
+        super(Relay, self).__init__(initial_status)
         self.device = device
 
     def status_changed(self, new_status, device_on):
@@ -34,7 +34,7 @@ class Failure(Exception):
 
 class Device(object):
 
-    def __init__(self, rack, name):
+    def __init__(self, rack, name, dev_dict):
         self.rack = rack
         self.name = name
         self.logger = logging.getLogger('fakedevices.%s' % name)
@@ -43,17 +43,20 @@ class Device(object):
         # and for debugging purposes, as this class does not implement a state
         # machine.  Some of the states align with those in devicemachine.py,
         # for developer sanity
-        self.state = 'off'
+        self.state = 'unknown'
 
         # current power state (controlled by the corresponding Relay)
-        self.power = False
+        self.power = True
         self.power_cond = threading.Condition()
 
         # the image on the sdcard
-        self.sdcard_image = 'blank'
+        self.sdcard_image = dev_dict['last_image']
 
         # current pingability status
         self.pingable = False
+
+        # this is used in run() to figure out what to do first
+        self.dev_dict = dev_dict
 
     # config parameters
     image_pingable = {
@@ -137,10 +140,23 @@ class Device(object):
         return ping_result
 
     def run(self):
+        # handle startup specially, since the power is on, and the initial
+        # state is determined from the DB.
+        startup = True
         while True:
-            self.power = False
-            self.pingable = False
             try:
+                if startup:
+                    # start up in a failure state (not pingable and hung)
+                    # unless the DB says this device is up and running, in
+                    # which case boot it from its sdcard
+                    startup = False
+                    meth = self.fail
+                    if self.dev_dict['state'] in ('free', 'ready'):
+                        meth = self.boot_sdcard
+                    meth()
+                    continue
+
+                # go through the boot process
                 self._wait_for_power_on()
                 self._set_state('booting')
                 # load uboot, which makes us pingable for a bit
@@ -178,7 +194,7 @@ class Device(object):
         fqdn = config.get('server', 'fqdn')
         url = 'http://%s/api/device/%s/bootconfig/' % (fqdn, self.name)
         r = requests.get(url)
-        bootconfig = r.json
+        bootconfig = r.json()
         if 'b2gbase' not in bootconfig:
             self.logger('got invalid bootconfig - no b2gbase')
             raise Failure
@@ -211,8 +227,12 @@ class Device(object):
         self._send_event('maintenance_mode')
         # run for an hour, then crash
         self._wait(3600)
+        self.fail()
+
+    def fail(self):
         self.pingable = False
         self._set_state('failed')
+        self._wait()
 
 
 class Chassis(object):
@@ -229,7 +249,9 @@ class Chassis(object):
 
     def add_device(self, bank, relay, device):
         assert isinstance(bank, int)
-        self.relayboard.add_relay(bank, relay, Relay(device))
+        self.relayboard.add_relay(bank, relay,
+                # set up the relay's initial power state based on the device
+                Relay(device, initial_status=0 if device.power else 1))
         self.devices[device.name] = device
 
     def run(self):
@@ -295,7 +317,7 @@ class Rack(object):
                 self.chassis[hostname] = Chassis(self, hostname)
             chassis = self.chassis[hostname]
 
-            device = Device(self, dev_dict['name'])
+            device = Device(self, dev_dict['name'], dev_dict)
             self.devices[dev_dict['name']] = device
             self.devices_by_fqdn[dev_dict['fqdn']] = device
             chassis.add_device(int(bank[4:]), int(relay[5:]), device)
