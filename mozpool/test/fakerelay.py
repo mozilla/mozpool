@@ -21,18 +21,18 @@ class Relay(object):
 
     def set_status(self, status):
         self.status = status
-        panda = 'off' if status else 'on'
-        self.logger.info('set status %s (panda %s)' % (status, panda))
-        self.status_changed(status, panda == 'on')
+        device = 'off' if status else 'on'
+        self.logger.info('set status %s (device %s)' % (status, device))
+        self.status_changed(status, device == 'on')
 
-    def status_changed(self, new_status, panda_on):
+    def status_changed(self, new_status, device):
         # subclasses can override this
         pass
 
 
 class RelayBoard(object):
 
-    # set this on an instance to control the time between reading a commnad and
+    # set this on an instance to control the time between reading a command and
     # responding to it
     delay = 0
 
@@ -44,7 +44,7 @@ class RelayBoard(object):
         the Relay class.
 
         If record_actions is true, then relayboard.actions will contain a list
-        of the actions that occurred on the board. 
+        of the actions that occurred on the board.
         """
         self.name = name
         self.addr = addr
@@ -104,7 +104,7 @@ class RelayBoard(object):
             self.handle_commands(csock)
             csock.close()
 
-            # bail out now if we're only running hte loop once
+            # bail out now if we're only running the loop once
             if once:
                 return
 

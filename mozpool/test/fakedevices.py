@@ -57,7 +57,8 @@ class Device(object):
 
     # config parameters
     image_pingable = {
-        'b2g': 0.98,
+        'b2g': 0.97,
+        'android': 0.99,
         # default: False
     }
 
@@ -115,6 +116,10 @@ class Device(object):
                 mo = re.search('mobile-imaging-url=[^ ]*/([^ ]*).sh', cfg)
                 if mo:
                     return mo.group(1)
+                else:
+                    self.logger.warn('PXE config does not contain a mobile-imaging-url; not PXE booting')
+        # if nothing's found, return None
+        return None
 
     def _send_event(self, event, set_state=True):
         # conveniently, most state and event names match
