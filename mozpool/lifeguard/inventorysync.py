@@ -20,9 +20,6 @@ from mozpool import config
 #  - hardware_type (default value used for now)
 #  - hardware_model (default value used for now)
 
-DEFAULT_HARDWARE_TYPE = 'panda'
-DEFAULT_HARDWARE_MODEL = 'ES Rev B2'
-
 def get_devices(url, filter, username, password, ignore_devices_on_servers_re=None, verbose=False):
     """
     Return a list of hosts from inventory.  FILTER is a tastypie-style filter
@@ -38,7 +35,7 @@ def get_devices(url, filter, username, password, ignore_devices_on_servers_re=No
         if r.status_code != requests.codes.ok:
             raise RuntimeError('got status code %s from inventory' % r.status_code)
 
-        for o in r.json['objects']:
+        for o in r.json()['objects']:
             hostname = o['hostname']
 
             kv = dict([ (kv['key'], kv['value']) for kv in o['key_value'] ])
@@ -55,8 +52,8 @@ def get_devices(url, filter, username, password, ignore_devices_on_servers_re=No
                re.match(ignore_devices_on_servers_re, kv['system.imaging_server.0']):
                 if verbose: print hostname, 'SKIPPED - ignored imaging server'
                 continue
-            
-            # FIXME: hardware type and model are hard-coded for now.
+
+            type, model = o['server_model']['vendor'], o['server_model']['model']
             rv.append(dict(
                 name=name,
                 fqdn=hostname,
@@ -64,13 +61,13 @@ def get_devices(url, filter, username, password, ignore_devices_on_servers_re=No
                 mac_address=mac_address,
                 imaging_server=kv['system.imaging_server.0'],
                 relay_info=kv['system.relay.0'],
-                hardware_type=DEFAULT_HARDWARE_TYPE,
-                hardware_model=DEFAULT_HARDWARE_MODEL))
+                hardware_type=type,
+                hardware_model=model))
 
             if verbose: print hostname, 'downloaded.'
 
         # go on to the next set of hosts
-        path = r.json['meta']['next']
+        path = r.json()['meta']['next']
 
     return rv
 

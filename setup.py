@@ -15,7 +15,7 @@ setup(name='mozpool',
       },
       install_requires=[
           'sqlalchemy',
-          'requests',
+          'requests >= 1.0.0',
           'distribute',
           'argparse',
           'templeton >= 0.6.2',

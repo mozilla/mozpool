@@ -85,11 +85,13 @@ def dump_devices(device_name=None):
     conn = sql.get_conn()
     devices = model.devices
     img_svrs = model.imaging_servers
+    hw_types = model.hardware_types
     stmt = sqlalchemy.select(
         [devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id,
          devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
-         devices.c.relay_info],
-        from_obj=[devices.join(img_svrs)])
+         devices.c.relay_info, hw_types.c.type.label('hardware_type'),
+         hw_types.c.model.label('hardware_model')],
+        from_obj=[devices.join(img_svrs).join(hw_types)])
     if device_name:
         stmt = stmt.where(devices.c.name==device_name)
     res = conn.execute(stmt)
@@ -174,6 +176,9 @@ def update_device(id, values):
 
     # convert imaging_server to its ID, and strip the id
     values['imaging_server_id'] = find_imaging_server_id(values.pop('imaging_server'))
+    if 'hardware_type' in values or 'hardware_model' in values:
+        values['hardware_type_id'] = find_hardware_type_id(
+            values.pop('hardware_type'), values.pop('hardware_model'))
     if 'id' in values:
         values.pop('id')
 

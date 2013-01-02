@@ -72,14 +72,14 @@ class TestData(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestData, self).setUp()
         add_server("server1")
-        add_hardware_type("panda", "ES Rev B2")
+        add_hardware_type("htyp", "hmod")
         add_device("device1", server="server1", relayinfo="relay-1:bank1:relay1")
 
     def testInsertHardwareType(self):
-        add_hardware_type("phone", "samsung_galaxy_s2")
+        add_hardware_type("samsung", "galaxy_s2")
         self.assertRaises(sqlalchemy.exc.SQLAlchemyError,
-                          lambda: add_hardware_type("phone",
-                                                    "samsung_galaxy_s2"))
+                          lambda: add_hardware_type("samsung",
+                                                    "galaxy_s2"))
 
     def testRelayInfo(self):
         self.assertEquals(("relay-1", 1, 1),
@@ -106,7 +106,8 @@ class TestData(ConfigMixin, unittest.TestCase):
     def testDumpDevices(self):
         self.assertEquals(data.dump_devices(), [
             dict(id=1, name='device1', fqdn='device1', inventory_id=1, mac_address='000000000000',
-                imaging_server='server1', relay_info='relay-1:bank1:relay1'),
+                imaging_server='server1', relay_info='relay-1:bank1:relay1',
+                hardware_type='htyp', hardware_model='hmod'),
             ])
 
     def testAllDeviceStates(self):
@@ -119,12 +120,13 @@ class TestData(ConfigMixin, unittest.TestCase):
                 mac_address='aabbccddeeff', imaging_server='server2',
                 relay_info='relay-2:bank2:relay2',
                 hardware_type='panda', hardware_model='ES Rev B2'))
-        # device with existing imaging_server to test the insert-if-not-found behavior
+        # device with existing imaging_server and new hardware typ to test the
+        # insert-if-not-found behavior
         data.insert_device(dict(
                 name='device3', fqdn='device3.fqdn', inventory_id=24,
                 mac_address='aabbccddeeff', imaging_server='server1',
                 relay_info='relay-2:bank2:relay2',
-                hardware_type='panda', hardware_model='ES Rev B2'))
+                hardware_type='tegra', hardware_model='blah'))
         conn = sql.get_conn()
         res = conn.execute(model.devices.select())
         self.assertEquals(sorted([ dict(r) for r in res.fetchall() ]),
@@ -134,13 +136,13 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'fqdn': u'device2.fqdn', u'inventory_id': 23,
              u'imaging_server_id': 2, u'boot_config': None,
              u'mac_address': u'aabbccddeeff', u'id': 2, u'last_image_id': None,
-             u'comments': None, u'environment': None, u'hardware_type_id': 1},
+             u'comments': None, u'environment': None, u'hardware_type_id': 2},
             {u'state': u'new',u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
              u'fqdn': u'device3.fqdn', u'inventory_id': 24,
              u'imaging_server_id': 1, u'boot_config': None,
              u'mac_address': u'aabbccddeeff', u'id': 3, u'last_image_id': None,
-             u'comments': None, u'environment': None, u'hardware_type_id': 1},
+             u'comments': None, u'environment': None, u'hardware_type_id': 3},
             {u'state': u'offline',u'state_counters': u'{}', u'state_timeout': None,
              u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
              u'fqdn': u'device1', u'inventory_id': 1, u'imaging_server_id': 1,
@@ -176,6 +178,20 @@ class TestData(ConfigMixin, unittest.TestCase):
              u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1,
              u'last_image_id': None, u'comments': None, u'environment': None,
              u'hardware_type_id': 1},
+        ])
+
+    def testUpdateDeviceHardwareType(self):
+        conn = sql.get_conn()
+        data.update_device(1, dict(fqdn='device1.fqdn', imaging_server='server9', mac_address='aabbccddeeff',
+            hardware_type='samsung', hardware_model='galaxy'))
+        res = conn.execute(model.devices.select())
+        self.assertEquals([ dict(r) for r in res.fetchall() ], [
+            {u'state': u'offline', u'state_counters': u'{}', u'state_timeout': None,
+             u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
+             u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
+             u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1,
+             u'last_image_id': None, u'comments': None, u'environment': None,
+             u'hardware_type_id': 2},
         ])
 
     def testDeviceConfigEmpty(self):
@@ -601,13 +617,14 @@ class TestInvSyncGet(unittest.TestCase):
             paths.pop(0)
             r = mock.Mock(spec=requests.Response)
             r.status_code = 200
-            r.json = dict(
+            r.json = lambda : dict(
                 meta=dict(next=paths[0] if paths else None),
                 objects=chunk)
             return r
         requests.get.configure_mock(side_effect=get)
 
-    def make_host(self, name, want_mac_address=True, want_imaging_server=True, want_relay_info=True):
+    def make_host(self, name, want_mac_address=True, want_imaging_server=True, want_relay_info=True,
+            server_model_vendor='PandaBoard', server_model_model='ES'):
         # make deterministic values
         fqdn = '%s.vlan.dc.mozilla.com' % name
         inventory_id = hash(fqdn) % 100
@@ -622,10 +639,12 @@ class TestInvSyncGet(unittest.TestCase):
         if want_relay_info:
             relay_info = 'relay%d' % ((hash(fqdn) / 1000) % 10)
             kv.append(dict(key='system.relay.0', value=relay_info))
+        server_model = { 'model' : server_model_model, 'vendor' : server_model_vendor }
         return dict(
             hostname=fqdn,
             id=inventory_id,
-            key_value=kv)
+            key_value=kv,
+            server_model=server_model)
 
     def test_one_response(self, get):
         self.set_responses([
@@ -635,12 +654,12 @@ class TestInvSyncGet(unittest.TestCase):
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
-             'fqdn': 'panda-001.vlan.dc.mozilla.com', 'hardware_type': 'panda',
-             'hardware_model': 'ES Rev B2'},
+             'fqdn': 'panda-001.vlan.dc.mozilla.com', 'hardware_type': 'PandaBoard',
+             'hardware_model': 'ES'},
             {'inventory_id': 97, 'relay_info': 'relay9', 'name': 'panda-002',
              'imaging_server': 'img1', 'mac_address': '86a1c8ce6ea2',
-             'fqdn': 'panda-002.vlan.dc.mozilla.com', 'hardware_type': 'panda',
-             'hardware_model': 'ES Rev B2'},
+             'fqdn': 'panda-002.vlan.dc.mozilla.com', 'hardware_type': 'PandaBoard',
+             'hardware_model': 'ES'},
         ])
         self.assertEqual(requests.get.call_args_list, [
             mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
@@ -655,8 +674,8 @@ class TestInvSyncGet(unittest.TestCase):
             # panda-001 was skipped, since 'img9' matches '.*9'
             {'inventory_id': 97, 'relay_info': 'relay9', 'name': 'panda-002',
              'imaging_server': 'img1', 'mac_address': '86a1c8ce6ea2',
-             'fqdn': 'panda-002.vlan.dc.mozilla.com', 'hardware_type': 'panda',
-             'hardware_model': 'ES Rev B2'},
+             'fqdn': 'panda-002.vlan.dc.mozilla.com', 'hardware_type': 'PandaBoard',
+             'hardware_model': 'ES'},
         ])
         self.assertEqual(requests.get.call_args_list, [
             mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
@@ -673,18 +692,18 @@ class TestInvSyncGet(unittest.TestCase):
         self.assertEqual(hosts, [
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
-             'fqdn': 'panda-001.vlan.dc.mozilla.com', 'hardware_type': 'panda',
-             'hardware_model': 'ES Rev B2'},
+             'fqdn': 'panda-001.vlan.dc.mozilla.com', 'hardware_type': 'PandaBoard',
+             'hardware_model': 'ES'},
             # panda-002 was skipped
             {'inventory_id': 52, 'relay_info': 'relay4', 'name': 'panda-003',
              'imaging_server': 'img9', 'mac_address': 'aec31326594a',
-             'fqdn': 'panda-003.vlan.dc.mozilla.com', 'hardware_type': 'panda',
-             'hardware_model': 'ES Rev B2'},
+             'fqdn': 'panda-003.vlan.dc.mozilla.com', 'hardware_type': 'PandaBoard',
+             'hardware_model': 'ES'},
             # panda-004 was skipped
             {'inventory_id': 6, 'relay_info': 'relay9', 'name': 'panda-005',
              'imaging_server': 'img3', 'mac_address': 'c19b00f9644b',
-             'fqdn': 'panda-005.vlan.dc.mozilla.com', 'hardware_type': 'panda',
-             'hardware_model': 'ES Rev B2'}
+             'fqdn': 'panda-005.vlan.dc.mozilla.com', 'hardware_type': 'PandaBoard',
+             'hardware_model': 'ES'}
             # panda-006 was skipped
         ])
         self.assertEqual(requests.get.call_args_list, [
