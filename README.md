@@ -196,6 +196,8 @@ To control relays:
     relay turnon <hostname> <bank> <relay>
     relay turnoff <hostname> <bank> <relay>
 
+<hostname> can be in the form host:port; the default port is 2101.
+
 Note: do not manually adjust relays that are also under MozPool's active control!
 
 PXE Configs
@@ -214,6 +216,24 @@ To synchronize the internal DB with inventory:
     mozpool-inventorysync
 
 (use `--verbose` to see what it's up to - note that it's not too fast!)
+
+Development Environment
+-----------------------
+
+Mozpool ships with a "fake" device implementation that emulates the Mozpool-facing behaviors of devices: power control, imaging scripts, and ping.
+It does *not* emulate the actual hardware or operating systems.
+
+To activate this support, add the following to your `config.ini`:
+
+    [testing]
+    run_fakes = true
+
+and add devices to your database with `imaging_server` matching the configured `fqdn`, and with a `relay_info` column starting with `localhost`, and specifying an available port.
+It is possible to mix fake and real devices in the same mozpool instance, although this may confuse consumers of the API!
+
+The `testdata.py` script conveniently sets this up for you:
+
+    mozpool-db run testdata.py -d 10 -p 2999
 
 Tests
 -----
