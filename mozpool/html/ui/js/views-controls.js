@@ -145,6 +145,10 @@ var TextView = Backbone.View.extend({
 
     modelChanged: function() {
         this.$el.val(window.control_state.get(this.control_state_attribute));
+    },
+
+    setPlaceholder: function(placeholder) {
+        this.$el.attr('placeholder', placeholder);
     }
 });
 

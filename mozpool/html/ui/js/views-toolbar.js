@@ -207,22 +207,22 @@ var LifeguardPleaseView = Backbone.View.extend({
     name: 'please',
     title: 'Please..',
 
+    initialize: function() {
+        _.bindAll(this, 'updateVisibility');
+    },
+
     render: function() {
         var view;
 
         view = new HelpView({help_text:
-            'This advanced tool requests "managed" operations from lifeguard.  ' +
-            'Power-cycling requires no arguments (image and boot config are ignored).  ' +
-            'Imaging requires an image name, and depending on the image may also require a boot config ' +
-            '(e.g., B2G requires a boot config with a "b2gbase" key).'});
+            'This tool requests "managed" operations from lifeguard.  '});
         this.$el.append(view.render().$el);
 
-        this.$el.append(new PleaseVerbView().render().$el);
+        // please div
+        this.please_el = $('<div>');
+        this.$el.append(this.please_el);
 
-        this.$el.append(' with image ');
-
-        view = new ImageSelectView({});
-        this.$el.append(view.render().$el);
+        this.please_el.append(new PleaseVerbView().render().$el);
 
         view = new NewJobButtonView({
             buttonText: 'Go',
@@ -231,18 +231,69 @@ var LifeguardPleaseView = Backbone.View.extend({
             jobType: 'lifeguard-please',
             addJobArgs: [ 'please_verb', 'image', 'boot_config_raw' ],
             submitComments: true});
-        this.$el.append(view.render().$el);
+        this.please_el.append(view.render().$el);
 
-        this.$el.append($('<br>'));
-        this.$el.append('Boot Config (JSON): ');
+        // image div
+        this.image_el = $('<div>');
+        this.$el.append(this.image_el);
+        this.image_el.append('… with image ');
+        view = new ImageSelectView({});
+        this.image_el.append(view.render().$el);
 
-        view = new TextView({ control_state_attribute: 'boot_config_raw', size: 80 });
-        this.$el.append(view.render().$el);
+        // bootconfig div
+        this.bootconfig_el = $('<div>')
+        this.$el.append(this.bootconfig_el);
+        this.bootconfig_el.append('… and boot config ');
+        this.bootconfig_view = new TextView({ control_state_attribute: 'boot_config_raw', size: 80 });
+        this.bootconfig_el.append(this.bootconfig_view.render().$el);
 
-        this.$el.append($('<br>'));
-        this.$el.append('Update Comments: ');
+        // comments div
+        this.comments_el = $('<div>');
+        this.$el.append(this.comments_el);
+        this.comments_el.append('Update Comments: ');
         view = new CommentsView();
-        this.$el.append(view.render().$el);
+        this.comments_el.append(view.render().$el);
+
+        // don't bind until all of the elements are in place..
+        window.control_state.bind('change', this.updateVisibility);
+        this.updateVisibility()
+
+        return this;
+    },
+
+    updateVisibility: function() {
+        var verb = window.control_state.get('please_verb');
+        var verb_model = window.please_verbs.get(verb);
+        var show_image = false, show_bootconfig = false;
+        var bootconfig_keys = [];
+
+        if (verb_model && verb_model.get('needs_image')) {
+            show_image = true;
+            image_model = window.images.get(window.control_state.get('image'));
+            if (image_model) {
+                boot_config_keys = image_model.get('boot_config_keys');
+                if (boot_config_keys.length > 0) {
+                    show_bootconfig = true;
+                }
+            }
+        }
+
+        if (show_image) {
+            this.image_el.show();
+        } else {
+            this.image_el.hide();
+        }
+
+        if (show_bootconfig) {
+            var placeholder = {};
+            _.each(boot_config_keys, function(k) { placeholder[k] = '…'; });
+            placeholder = JSON.stringify(placeholder);
+
+            this.bootconfig_view.setPlaceholder(placeholder);
+            this.bootconfig_el.show();
+        } else {
+            this.bootconfig_el.hide();
+        }
     },
 });
 

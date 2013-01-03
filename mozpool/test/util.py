@@ -75,12 +75,13 @@ def add_pxe_config(name, description="Boot image",
                            id=id,
                            active=active)
 
-def add_image(name, boot_config_keys='[]', can_reuse=False, id=None):
+def add_image(name, boot_config_keys='[]', can_reuse=False, id=None, hidden=False):
     sql.get_conn().execute(model.images.insert(),
                            id=id,
                            name=name,
                            boot_config_keys=boot_config_keys,
-                           can_reuse=can_reuse)
+                           can_reuse=can_reuse,
+                           hidden=hidden)
 
 def add_image_pxe_config(image_name, pxe_config_name, hardware_type,
                          hardware_model):

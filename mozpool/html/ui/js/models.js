@@ -32,12 +32,13 @@ var UpdateableCollection = Backbone.Collection.extend({
     },
 
     mungeResponse: function(response) {
+        return response;
     },
 
     parse: function(response) {
         var self = this;
 
-        response = response[this.responseAttr];
+        response = this.mungeResponse(response)[this.responseAttr];
         if (this.namesOnly) {
             // add id columns, based on the names
             response = $.map(response, function(name) { return { name: name, id: name }; });
@@ -185,7 +186,14 @@ var Images = UpdateableCollection.extend({
     url: '/api/image/list/',
     model: Image,
     responseAttr: 'images',
-    namesOnly: false
+    namesOnly: false,
+    mungeResponse: function(response) {
+        // use the names as id's
+        _.each(response['images'], function(img) {
+            img['id'] = img['name'];
+        });
+        return response;
+    },
 });
 
 var LogLine = Backbone.Model.extend({
@@ -225,7 +233,7 @@ var CurrentControlState = Backbone.Model.extend({
         this.set('renew_duration', '3600');
         this.set('new_state', '');
         this.set('pxe_config', '');
-        this.set('boot_config_raw', '{"b2gbase":"http://..."}');
+        this.set('boot_config_raw', '');
         this.set('b2gbase', '');
         this.set('please_verb', '');
         this.set('image', 'b2g');
@@ -246,9 +254,10 @@ var PleaseVerbs = Backbone.Collection.extend({
 
     initialize: function(args) {
         // fill with static values
-        _.each([ 'please_image', 'please_power_cycle' ], function(s) {
-            this.push({name: s, id: s});
-        }, this);
+        this.push({name: 'please_image', id: 'please_image', needs_image: true});
+        this.push({name: 'please_power_cycle', id: 'please_power_cycle', needs_image: false});
+        this.push({name: 'please_self_test', id: 'please_self_test', needs_image: false});
+        this.push({name: 'please_start_maintenance', id: 'please_start_maintenance', needs_image: false});
     }
 });
 

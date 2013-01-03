@@ -80,6 +80,20 @@ r = conn.execute(model.images.insert(),
                  can_reuse=True)
 android_image_id = r.inserted_primary_key[0]
 
+r = conn.execute(model.images.insert(),
+                 name='self-test',
+                 boot_config_keys='[]',
+                 can_reuse=False,
+                 hidden=True)
+android_image_id = r.inserted_primary_key[0]
+
+r = conn.execute(model.images.insert(),
+                 name='maintenance',
+                 boot_config_keys='[]',
+                 can_reuse=False,
+                 hidden=True)
+android_image_id = r.inserted_primary_key[0]
+
 for image_id, pxe_config_id in ((b2g_image_id, b2g_pxe_config_id),
                                 (android_image_id, android_pxe_config_id)):
     conn.execute(model.image_pxe_configs.insert(),

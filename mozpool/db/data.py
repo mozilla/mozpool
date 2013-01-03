@@ -100,6 +100,7 @@ def dump_devices(device_name=None):
 def dump_images(image_name=None):
     conn = sql.get_conn()
     stmt = sqlalchemy.select([model.images])
+    stmt = stmt.where(sqlalchemy.not_(model.images.c.hidden))
     if image_name:
         stmt = stmt.where(model.images.c.name==image_name)
     res = conn.execute(stmt)
@@ -146,7 +147,7 @@ def find_hardware_type_id(hardware_type, hardware_model):
                  model.hardware_types.c.model==hardware_model)))
     return res.fetchall()[0].id
 
-def insert_device(values):
+def insert_device(values, _now=None):
     """Insert a new device into the DB.  VALUES should be in the dictionary
     format used for inventorysync - see inventorysync.py"""
     values = values.copy()
@@ -155,7 +156,9 @@ def insert_device(values):
     values['imaging_server_id'] = find_imaging_server_id(values.pop('imaging_server'))
     values['hardware_type_id'] = find_hardware_type_id(
         values.pop('hardware_type'), values.pop('hardware_model'))
+    # set up the state machine in the 'new' state, with an immediate timeout
     values['state'] = 'new'
+    values['state_timeout'] = _now or datetime.datetime.now()
     values['state_counters'] = '{}'
 
     sql.get_conn().execute(model.devices.insert(), [ values ])

@@ -115,29 +115,32 @@ class TestData(ConfigMixin, unittest.TestCase):
         self.assertEquals(data.all_device_states(), { 'device1' : 'offline', 'device2' : 'foobared' })
 
     def testInsertDevice(self):
+        now = datetime.datetime(2013, 1, 1)
         data.insert_device(dict(
                 name='device2', fqdn='device2.fqdn', inventory_id=23,
                 mac_address='aabbccddeeff', imaging_server='server2',
                 relay_info='relay-2:bank2:relay2',
-                hardware_type='panda', hardware_model='ES Rev B2'))
+                hardware_type='panda', hardware_model='ES Rev B2'),
+                _now=now)
         # device with existing imaging_server and new hardware typ to test the
         # insert-if-not-found behavior
         data.insert_device(dict(
                 name='device3', fqdn='device3.fqdn', inventory_id=24,
                 mac_address='aabbccddeeff', imaging_server='server1',
                 relay_info='relay-2:bank2:relay2',
-                hardware_type='tegra', hardware_model='blah'))
+                hardware_type='tegra', hardware_model='blah'),
+                _now=now)
         conn = sql.get_conn()
         res = conn.execute(model.devices.select())
         self.assertEquals(sorted([ dict(r) for r in res.fetchall() ]),
         sorted([
-            {u'state': u'new', u'state_counters': u'{}', u'state_timeout': None,
+            {u'state': u'new', u'state_counters': u'{}', u'state_timeout': now,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device2',
              u'fqdn': u'device2.fqdn', u'inventory_id': 23,
              u'imaging_server_id': 2, u'boot_config': None,
              u'mac_address': u'aabbccddeeff', u'id': 2, u'last_image_id': None,
              u'comments': None, u'environment': None, u'hardware_type_id': 2},
-            {u'state': u'new',u'state_counters': u'{}', u'state_timeout': None,
+            {u'state': u'new',u'state_counters': u'{}', u'state_timeout': now,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
              u'fqdn': u'device3.fqdn', u'inventory_id': 24,
              u'imaging_server_id': 1, u'boot_config': None,

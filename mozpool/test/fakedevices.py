@@ -224,10 +224,20 @@ class Device(object):
         self.boot_sdcard()
 
     def boot_maintenance_second_stage(self):
-        self._send_event('maintenance_mode')
+        self._send_event('maint_mode')
         # run for an hour, then crash
         self._wait(3600)
         self.fail()
+
+    def boot_selftest_second_stage(self):
+        self._send_event('self_test_running')
+        if random.random() < 0.8:
+            # run for a minute, then succeed
+            self._wait(60)
+            self._send_event('self_test_ok')
+            self._wait()
+        else:
+            self.fail()
 
     def fail(self):
         self.pingable = False

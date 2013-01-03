@@ -87,11 +87,21 @@ class LifeguardDriver(statedriver.StateDriver):
 ####
 # Mixins
 
-class AcceptPleaseRequests(object):
+class AcceptBasicPleaseRequests(object):
+    "Mixin to accept requests to self-test or enter maintenance mode"
+
+    def on_please_self_test(self, args):
+        self.machine.goto_state(start_self_test)
+
+    def on_please_start_maintenance(self, args):
+        self.machine.goto_state(start_maintenance)
+
+
+class AcceptPleaseRequests(AcceptBasicPleaseRequests):
+    "Mixin to also accept requests that assume a working device"
 
     def on_please_power_cycle(self, args):
         self.machine.goto_state(pc_power_cycling)
-
 
     def on_please_image(self, args):
         self.logger.info('writing image %s, boot config %s to db' %
@@ -147,7 +157,10 @@ class PowerCycleMixin(object):
 
 @DeviceStateMachine.state_class
 class new(AcceptPleaseRequests, statemachine.State):
-    "This device is newly installed.  Await instructions."
+    "This device is newly installed.  Begin by self-testing."
+
+    def on_timeout(self):
+        self.machine.goto_state(start_self_test)
 
 
 @DeviceStateMachine.state_class
@@ -155,10 +168,12 @@ class unknown(AcceptPleaseRequests, statemachine.State):
     "This device is in an unknown state.  Await instructions."
 
 
+
 @DeviceStateMachine.state_class
 class locked_out(statemachine.State):
     """This device is handled outside of mozpool, and mozpool should not touch it.
     The device must be forced out of this state."""
+
 
 @DeviceStateMachine.state_class
 class free(AcceptPleaseRequests, statemachine.State):
@@ -179,9 +194,9 @@ class free(AcceptPleaseRequests, statemachine.State):
         self.machine.goto_state(free)
 
     def on_ping_failed(self, args):
-        # TODO: when there's a self-test process, do that instead
-        self.logger.warning('device stopped pinging while free; trying a power cycle')
-        self.machine.goto_state(pc_power_cycling)
+        self.logger.warning('device stopped pinging while free; running self-test')
+        self.machine.goto_state(start_self_test)
+
 
 @DeviceStateMachine.state_class
 class ready(AcceptPleaseRequests, statemachine.State):
@@ -302,6 +317,33 @@ class start_pxe_boot(statemachine.State):
         self.machine.clear_counter()
         self.machine.goto_state(pxe_power_cycling)
 
+
+@DeviceStateMachine.state_class
+class start_self_test(statemachine.State):
+    """
+    A self-test has been requested.  Clear counters, set the device configuration,
+    and get started.
+    """
+
+    def on_entry(self):
+        self.machine.clear_counter()
+        data.set_device_config(self.machine.device_name, 'self-test', '')
+        self.machine.goto_state(pxe_power_cycling)
+
+
+@DeviceStateMachine.state_class
+class start_maintenance(statemachine.State):
+    """
+    Maintenance mode has been requested.  Clear counters, set the device configuration,
+    and get started.
+    """
+
+    def on_entry(self):
+        self.machine.clear_counter()
+        data.set_device_config(self.machine.device_name, 'maintenance', '')
+        self.machine.goto_state(pxe_power_cycling)
+
+
 @DeviceStateMachine.state_class
 class pxe_power_cycling(PowerCycleMixin, statemachine.State):
     """
@@ -314,7 +356,12 @@ class pxe_power_cycling(PowerCycleMixin, statemachine.State):
     def setup_pxe(self):
         # set the pxe config based on what's in the DB
         cfg = data.device_config(self.machine.device_name)
-        pxe_config = data.get_pxe_config_for_device(self.machine.device_name)
+        try:
+            pxe_config = data.get_pxe_config_for_device(self.machine.device_name)
+        except data.NotFound:
+            self.logger.warning('no appropriate PXE config found')
+            self.machine.goto_state(failed_pxe_booting)
+            return
         bmm_api.set_pxe(self.machine.device_name, pxe_config,
                         cfg['boot_config'])
 
@@ -344,6 +391,7 @@ class pxe_booting(statemachine.State):
         else:
             self.machine.goto_state(pxe_power_cycling)
 
+
 @DeviceStateMachine.state_class
 class mobile_init_started(statemachine.State):
     """
@@ -372,6 +420,11 @@ class mobile_init_started(statemachine.State):
         # continue to boot into maintenance mode
         self.machine.clear_counter(self.state_name)
         self.machine.goto_state(maintenance_mode)
+
+    def on_self_test_running(self, args):
+        self.machine.clear_counter(self.state_name)
+        bmm_api.clear_pxe(self.machine.device_name)
+        self.machine.goto_state(self_test_running)
 
     def on_timeout(self):
         if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
@@ -601,10 +654,10 @@ class b2g_pinging(statemachine.State):
     # TODO: also try a SUT agent connection here (mcote)
 
 ####
-# PXE Booting :: Maintenance Mode
+# PXE Booting :: Self-Test
 
 @DeviceStateMachine.state_class
-class maintenance_mode(AcceptPleaseRequests, statemachine.State):
+class maintenance_mode(AcceptBasicPleaseRequests, statemachine.State):
     """
     The panda has successfully booted into maintenance mode, and has a waiting
     SSH prompt.  There is no timeout here; one of the 'please_' events must be used
@@ -613,10 +666,32 @@ class maintenance_mode(AcceptPleaseRequests, statemachine.State):
 
 
 ####
+# PXE Booting :: Maintenance Mode
+
+@DeviceStateMachine.state_class
+class self_test_running(AcceptBasicPleaseRequests, statemachine.State):
+    """
+    The panda has begun running self-tests.  The self-test script will log information
+    about the device, but the only input this state will see is a self_test_ok event,
+    or a timeout if the self-test fails.  This state allows another self-test to be
+    initiated, or maintenance mode - useful, for example, if a faulty cable was replaced.
+    """
+
+    # let the test run for pretty much as long as it wants to
+    TIMEOUT = 3600
+
+    def on_timeout(self):
+        self.machine.goto_state(failed_self_test)
+
+    def on_self_test_ok(self, args):
+        self.machine.goto_state(free)
+
+####
 # Failure states
 
-class failed(AcceptPleaseRequests, statemachine.State):
-    "Parent class for failed_.. classes"
+class failed(AcceptBasicPleaseRequests, statemachine.State):
+    """Parent class for failed_.. classes.  The only way out is a self-test or
+    maintenance mode."""
 
     def on_entry(self):
         self.logger.error("device has failed: %s" % self.state_name)
@@ -656,5 +731,9 @@ class failed_b2g_extracting(failed):
 
 @DeviceStateMachine.state_class
 class failed_b2g_pinging(failed):
+    "While installing B2G, the device timed out repeatedly while pinging the new image waiting for it to come up"
+
+@DeviceStateMachine.state_class
+class failed_self_test(failed):
     "While installing B2G, the device timed out repeatedly while pinging the new image waiting for it to come up"
 

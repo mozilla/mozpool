@@ -133,6 +133,9 @@ CREATE TABLE images (
   boot_config_keys text not null,
   -- true (1) if we can reuse an existing device with this image and boot_config
   can_reuse INTEGER not null,
+  -- true (1) if this image should be hidden from the user (used for utility images
+  -- like self-test, maintenance, etc.)
+  hidden INTEGER not null,
 
   unique index name_idx (name)
 );
