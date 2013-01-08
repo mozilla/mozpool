@@ -276,7 +276,10 @@ CREATE PROCEDURE dbcron()
 BEGIN
     CALL update_log_partitions('device_logs', 14, 1);
     CALL update_log_partitions('request_logs', 14, 1);
-    -- TODO: optimize requests and any other tables that get lots of deletes
+    -- drop old requests; this interval should be greater than the log retention interval
+    DELETE from requests where expires < DATE_SUB(NOW(), INTERVAL 30 DAY);
+    -- optimize the request table, since things are often added and removed
+    OPTIMIZE TABLE requests;
 END $$
 
 DELIMITER ;
