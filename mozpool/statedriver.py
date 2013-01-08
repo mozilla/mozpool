@@ -84,16 +84,13 @@ class StateDriver(threading.Thread):
         machine = self._get_machine(machine_name)
         machine.handle_event(event, args)
 
-    def conditional_state_change(self, machine_name, old_state, new_state,
-                                 call_first):
+    def conditional_state_change(self, machine_name, old_state, new_state):
         """
         Transition to NEW_STATE only if the device is in OLD_STATE.
-        Simultaneously set the PXE config and boot config as described, or
-        clears the PXE config if new_pxe_config is None.
         Returns True on success, False on failure.
         """
         machine = self._get_machine(machine_name)
-        return machine.conditional_goto_state(old_state, new_state, call_first)
+        return machine.conditional_goto_state(old_state, new_state)
 
     def poll_for_timeouts(self):
         for machine_name in self._get_timed_out_machine_names():

@@ -67,22 +67,6 @@ class LifeguardDriver(statedriver.StateDriver):
     def _get_timed_out_machine_names(self):
         return data.get_timed_out_devices(self.imaging_server_id)
 
-    def conditional_state_change(self, device_name, old_state, new_state,
-                                 new_pxe_config, new_boot_config):
-        """
-        Transition to NEW_STATE only if the device is in OLD_STATE.
-        Simultaneously set the PXE config and boot config as described, or
-        clears the PXE config if new_pxe_config is None.
-        Returns True on success, False on failure.
-        """
-        def call_first():
-            if new_pxe_config is None:
-                bmm_api.clear_pxe(device_name)
-            else:
-                bmm_api.set_pxe(device_name, new_pxe_config, new_boot_config)
-        return statedriver.StateDriver.conditional_state_change(
-            self, device_name, old_state, new_state, call_first)
-
 
 ####
 # Mixins

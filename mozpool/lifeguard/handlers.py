@@ -24,15 +24,8 @@ class state_change:
     @deviceredirect
     @templeton.handlers.json_response
     def POST(self, device_name, from_state, to_state):
-        args, body = templeton.handlers.get_request_parms()
-        if 'pxe_config' in body:
-            pxe_config = body['pxe_config']
-            boot_config = body.get('boot_config', '')
-        else:
-            pxe_config = None
-            boot_config = None
         success = mozpool.lifeguard.driver.conditional_state_change(
-            device_name, from_state, to_state, pxe_config, boot_config) 
+                                        device_name, from_state, to_state)
         if not success:
             raise web.conflict()
         return {}

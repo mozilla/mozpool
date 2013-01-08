@@ -507,7 +507,8 @@ class TestDeviceStateChange(ConfigMixin, unittest.TestCase):
                 params='{}')
         self.assertEqual(200, r.status)
         goto_state.assert_called_with('new')
-        clear_pxe.assert_called_with('device1')
+        # doesn't change the PXE config anymore
+        clear_pxe.assert_not_called()
 
     @patch('mozpool.bmm.api.set_pxe')
     @patch('mozpool.statemachine.StateMachine.goto_state')
@@ -516,7 +517,8 @@ class TestDeviceStateChange(ConfigMixin, unittest.TestCase):
                 params=json.dumps(dict(pxe_config='p', boot_config='b')))
         self.assertEqual(200, r.status)
         goto_state.assert_called_with('new')
-        set_pxe.assert_called_with('device1', 'p', 'b')
+        # doesn't change the PXE config anymore
+        set_pxe.assert_not_called()
 
     @patch('mozpool.statemachine.StateMachine.goto_state')
     def testStateChangeConflict(self, goto_state):

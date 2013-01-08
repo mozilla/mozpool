@@ -60,12 +60,10 @@ class StateMachine(object):
             self.state = None
             self.unlock()
 
-    def conditional_goto_state(self, old_state, new_state, call_first=None):
+    def conditional_goto_state(self, old_state, new_state):
         """
         Transition to NEW_STATE only if the device is in OLD_STATE.  Returns
-        True on success, False on failure.  If CALL_FIRST is given, it is
-        called with no arguments after the state change is guaranteed to go
-        forward, but before it is actually performed.
+        True on success, False on failure. 
         """
         self.lock()
         self.state = self._make_state_instance()
@@ -73,7 +71,6 @@ class StateMachine(object):
             current_state = self.state.state_name
             if current_state != 'unknown' and old_state != self.state.state_name:
                 return False
-            call_first()
             self.goto_state(new_state)
             return True
         finally:

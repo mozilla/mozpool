@@ -121,7 +121,7 @@ a MozPool server or the device itself.
 
 * POST to conditionally set the lifeguard state of a device from old_state to
   new_state.  If the current state is not old_state, the request will fail.
-  The POST body is as described for `/api/device/{id}/power-cycle/`.
+  The POST body is ignored.
 
   200 OK is returned on success; on failure, 409 Conflict.
 
