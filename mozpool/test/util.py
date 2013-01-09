@@ -37,8 +37,9 @@ def add_server(hostname):
     sql.get_conn().execute(model.imaging_servers.insert(), fqdn=hostname)
 
 def add_hardware_type(hw_type, hw_model):
-    sql.get_conn().execute(model.hardware_types.insert(), type=hw_type,
-                           model=hw_model)
+    res = sql.get_conn().execute(model.hardware_types.insert(), type=hw_type,
+                                 model=hw_model)
+    return res.lastrowid
 
 def add_device(device, server="server", state="offline",
               mac_address="000000000000",
@@ -75,13 +76,15 @@ def add_pxe_config(name, description="Boot image",
                            id=id,
                            active=active)
 
-def add_image(name, boot_config_keys='[]', can_reuse=False, id=None, hidden=False):
+def add_image(name, boot_config_keys='[]', can_reuse=False, id=None,
+              hidden=False, has_sut_agent=True):
     sql.get_conn().execute(model.images.insert(),
                            id=id,
                            name=name,
                            boot_config_keys=boot_config_keys,
                            can_reuse=can_reuse,
-                           hidden=hidden)
+                           hidden=hidden,
+                           has_sut_agent=has_sut_agent)
 
 def add_image_pxe_config(image_name, pxe_config_name, hardware_type,
                          hardware_model):

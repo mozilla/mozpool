@@ -221,20 +221,31 @@ class TestData(ConfigMixin, unittest.TestCase):
         # though its state is free; it should not be returned
         add_device("device4", state='free', environment='bar')
         add_request('server', device='device4', image='img1')
-        self.assertEqual(sorted(data.get_free_devices()),
+        self.assertEqual(sorted([x['name'] for x in data.get_free_devices()]),
                          sorted(['device2', 'device3']))
-        self.assertEqual(sorted(data.get_free_devices(environment='foo')),
+        self.assertEqual(sorted([x['name'] for x in
+                                 data.get_free_devices(environment='foo')]),
                          sorted(['device2']))
-        self.assertEqual(sorted(data.get_free_devices(environment='bar')),
+        self.assertEqual(sorted([x['name'] for x in
+                                 data.get_free_devices(environment='bar')]),
                          sorted(['device3']))
-        self.assertEqual(sorted(data.get_free_devices(environment='bing')),
+        self.assertEqual(sorted([x['name'] for x in
+                                 data.get_free_devices(environment='bing')]),
                          sorted([]))
-        self.assertEqual(sorted(data.get_free_devices(
-                         environment='bar', device_name='device2')),
+        self.assertEqual(sorted([x['name'] for x in data.get_free_devices(
+                         environment='bar', device_name='device2')]),
                          sorted([]))
-        self.assertEqual(sorted(data.get_free_devices(
-                         environment='bar', device_name='device3')),
+        self.assertEqual(sorted([x['name'] for x in data.get_free_devices(
+                         environment='bar', device_name='device3')]),
                          sorted(['device3']))
+
+    def testDeviceHardwareType(self):
+        new_hw_id = add_hardware_type('google', 'nexus-one')
+        add_device('phonedevice', server='server1', hardware_type_id=new_hw_id)
+        self.assertEqual(data.device_hardware_type('device1'),
+                         {'type': 'htyp', 'model': 'hmod'})
+        self.assertEqual(data.device_hardware_type('phonedevice'),
+                         {'type': 'google', 'model': 'nexus-one'})
 
 
 class TestDeviceList(ConfigMixin, unittest.TestCase):

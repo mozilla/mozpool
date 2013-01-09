@@ -136,6 +136,8 @@ CREATE TABLE images (
   -- true (1) if this image should be hidden from the user (used for utility images
   -- like self-test, maintenance, etc.)
   hidden INTEGER not null,
+  -- true (1) if this image contains a SUT agent available on boot
+  has_sut_agent INTEGER not null,
 
   unique index name_idx (name)
 );

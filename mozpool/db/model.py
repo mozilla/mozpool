@@ -81,6 +81,7 @@ images = sa.Table('images', metadata,
     sa.Column('boot_config_keys', sa.Text),
     sa.Column('can_reuse', sa.Boolean, nullable=False),
     sa.Column('hidden', sa.Boolean, nullable=False),
+    sa.Column('has_sut_agent', sa.Boolean, nullable=False),
 )
 
 pxe_configs = sa.Table('pxe_configs', metadata,

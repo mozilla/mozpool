@@ -257,7 +257,7 @@ var LifeguardTableView = DeviceTableView.extend({
         if (bootConfig) {
             bootConfig = JSON.parse(bootConfig);
         }
-        if (bootConfig) {
+        if (!$.isEmptyObject(bootConfig)) {
             image += '&dagger;';
         }
         return image;

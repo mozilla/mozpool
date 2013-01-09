@@ -171,15 +171,24 @@ class finding_device(Closable, Expirable, statemachine.State):
         self.logger.info('Finding device.')
         device_name = None
         count = self.machine.increment_counter(self.state_name)
-        request = data.dump_requests(self.machine.request_id)[0]
+        request = data.request_config(self.machine.request_id)
+        image_is_reusable = data.image_is_reusable(request['image'])
 
         free_devices = data.get_free_devices(
                 environment=request['environment'],
                 device_name=request['requested_device'])
 
         if free_devices:
+            if image_is_reusable:
+                devices_with_image = [x for x in free_devices
+                                      if x['image'] == request['image'] and
+                                         data.from_json(x['boot_config']) ==
+                                         data.from_json(request['boot_config'])]
+                if devices_with_image:
+                    free_devices = devices_with_image
+
             # pick a device at random from the returned list
-            device_name = random.choice(free_devices)
+            device_name = random.choice(free_devices)['name']
             self.logger.info('Assigning device %s.' % device_name)
             if data.reserve_device(self.machine.request_id,
                                                 device_name):
@@ -217,7 +226,7 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
             self.machine.goto_state(device_busy)
             return
 
-        if self.contact_lifeguard():
+        if self.contact_lifeguard(request_config):
             self.machine.goto_state(pending)
             return
         counters = self.machine.read_counters()
@@ -228,19 +237,29 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
         self.machine.increment_counter(self.state_name)
         self.machine.goto_state(contacting_lifeguard)
 
-    def contact_lifeguard(self):
+    def contact_lifeguard(self, request_config):
+        # If the requested image is reusable and we got a device with that
+        # image and the requested bootconfig, just power cycle it.
+        # Otherwise, image it.  Note that there will be a failure if the
+        # image is not installed and the device is not imageable.
+        event = ''
         device_request_data = {}
-        request_config = data.request_config(self.machine.request_id)
         assigned_device_name = request_config['assigned_device']
 
-        # Use the device's hardware type and requested image to find the
-        # pxe config, if any
+        if data.image_is_reusable(request_config['image']):
+            device_config = data.device_config(request_config['assigned_device'])
+            if (device_config['image'] == request_config['image'] and
+                data.from_json(device_config['boot_config']) ==
+                data.from_json(request_config['boot_config'])):
+                event = 'please_power_cycle'
 
-        # We need to pass boot_config as a JSON string, but verify that it's
-        # a non-null object.
-        event = 'please_image'
-        device_request_data['boot_config'] = request_config['boot_config']
-        device_request_data['image'] = request_config['image']
+        if not event:
+            # Use the device's hardware type and requested image to find the
+            # pxe config, if any.
+            event = 'please_image'
+            device_request_data['boot_config'] = request_config['boot_config']
+            device_request_data['image'] = request_config['image']
+
         device_url = 'http://%s/api/device/%s/event/%s/' % (
             data.get_server_for_device(assigned_device_name),
             assigned_device_name, event)

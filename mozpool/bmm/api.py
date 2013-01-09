@@ -4,7 +4,7 @@
 
 import logging
 import time
-import threading
+from mozpool.async import wait_for_async, run_async
 from mozpool.db import data
 from mozpool.db import logs
 from mozpool.bmm import relay
@@ -12,35 +12,6 @@ from mozpool.bmm import pxe
 from mozpool.bmm import ping as ping_module
 
 logger = logging.getLogger('bmm.api')
-
-def _wait_for_async(start_fn):
-    done_cond = threading.Condition()
-
-    cb_result = []
-    def cb(arg):
-        cb_result.append(arg)
-        done_cond.acquire()
-        done_cond.notify()
-        done_cond.release()
-
-    done_cond.acquire()
-    start_fn(cb)
-    done_cond.wait()
-    done_cond.release()
-
-    return cb_result[0]
-
-def _run_async(callback_before, callback, operation):
-    def try_operation():
-        res = False
-        try:
-            res = operation()
-        except:
-            logger.error("exception ignored in async operation:", exc_info=True)
-
-        if time.time() < callback_before:
-            callback(res)
-    threading.Thread(target=try_operation).start()
 
 def start_powercycle(device_name, callback, max_time=30):
     """
@@ -57,12 +28,12 @@ def start_powercycle(device_name, callback, max_time=30):
     hostname, bnk, rly = data.device_relay_info(device_name)
 
     logs.device_logs.add(device_name, "initiating power cycle", 'bmm')
-    _run_async(callback_before, callback, lambda : relay.powercycle(hostname, bnk, rly, max_time))
+    run_async(callback_before, callback, lambda : relay.powercycle(hostname, bnk, rly, max_time), logger)
 
 def powercycle(device_name, max_time=30):
     """Like start_powercycle, but block until completion and return the success
     status"""
-    return _wait_for_async(lambda cb :
+    return wait_for_async(lambda cb :
             start_powercycle(device_name, cb, max_time))
 
 def start_poweroff(device_name, callback, max_time=30):
@@ -82,13 +53,14 @@ def start_poweroff(device_name, callback, max_time=30):
     hostname, bnk, rly = data.device_relay_info(device_name)
 
     logs.device_logs.add(device_name, "initiating power-off ", 'bmm')
-    _run_async(callback_before, callback,
-            lambda : relay.set_status(hostname, bnk, rly, False, max_time))
+    run_async(callback_before, callback,
+            lambda : relay.set_status(hostname, bnk, rly, False, max_time),
+              logger)
 
 def poweroff(device_name, max_time=30):
     """Like start_poweroff, but block until completion and return the success
     status"""
-    return _wait_for_async(lambda cb :
+    return wait_for_async(lambda cb :
             start_poweroff(device_name, cb, max_time))
 
 def set_pxe(device_name, image_name, boot_config):
@@ -118,10 +90,10 @@ def start_ping(device_name, callback):
         pingable = ping_module.ping(fqdn)
         logs.device_logs.add(device_name, "ping of %s complete: %s" % (fqdn, 'ok' if pingable else 'failed'), 'bmm')
         return pingable
-    _run_async(callback_before, callback, do_ping)
+    run_async(callback_before, callback, do_ping, logger)
 
 def ping(device_name):
     """Like ping, but block until completion and return the success
     status"""
-    return _wait_for_async(lambda cb :
+    return wait_for_async(lambda cb :
             start_ping(device_name, cb))

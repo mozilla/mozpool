@@ -68,32 +68,39 @@ r = conn.execute(model.pxe_configs.insert(),
                  active=True)
 android_pxe_config_id = r.inserted_primary_key[0]
 
+# has_sut_agent is set to False until we get a fake SUT agent into the
+# fake pandas.
+
 r = conn.execute(model.images.insert(),
                  name='b2g',
                  boot_config_keys='["b2gbase"]',
                  can_reuse=False,
-                 hidden=False)
+                 hidden=False,
+                 has_sut_agent=False)
 b2g_image_id = r.inserted_primary_key[0]
 
 r = conn.execute(model.images.insert(),
                  name='android',
                  boot_config_keys='[]',
                  can_reuse=True,
-                 hidden=False)
+                 hidden=False,
+                 has_sut_agent=False)
 android_image_id = r.inserted_primary_key[0]
 
 r = conn.execute(model.images.insert(),
                  name='self-test',
                  boot_config_keys='[]',
                  can_reuse=False,
-                 hidden=True)
+                 hidden=True,
+                 has_sut_agent=False)
 android_image_id = r.inserted_primary_key[0]
 
 r = conn.execute(model.images.insert(),
                  name='maintenance',
                  boot_config_keys='[]',
                  can_reuse=False,
-                 hidden=True)
+                 hidden=True,
+                 has_sut_agent=False)
 android_image_id = r.inserted_primary_key[0]
 
 for image_id, pxe_config_id in ((b2g_image_id, b2g_pxe_config_id),
