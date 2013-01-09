@@ -71,13 +71,15 @@ android_pxe_config_id = r.inserted_primary_key[0]
 r = conn.execute(model.images.insert(),
                  name='b2g',
                  boot_config_keys='["b2gbase"]',
-                 can_reuse=False)
+                 can_reuse=False,
+                 hidden=False)
 b2g_image_id = r.inserted_primary_key[0]
 
 r = conn.execute(model.images.insert(),
                  name='android',
                  boot_config_keys='[]',
-                 can_reuse=True)
+                 can_reuse=True,
+                 hidden=False)
 android_image_id = r.inserted_primary_key[0]
 
 r = conn.execute(model.images.insert(),
