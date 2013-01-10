@@ -243,3 +243,62 @@ To run the tests:
  * install mock
  * install paste
  * run `python runtests.py`
+
+Release Notes
+=============
+
+2.0.0
+=====
+
+ * Bug 819197: improve device-selection implementation
+ * Bug 819350: Add `mobile_init_started` state
+ * Bug 822423: add support for emulating devices and relay boards in a running daemon, with initial state from the DB (Bug 825922)
+ * Bug 817057: poll with ping in the free state
+ * Bug 824816: use socket.settimeout instead of the asyncore madness
+ * Bug 825977: read hardware type/model from inventory
+ * Bug 816557: implement CORS correctly
+ * Bug 819335: add self-test, and require it to get out of failed or new states
+ * Bug 825071: **Incompatible Change**: remove support for PXE config and bootconfig in the POST body of the `/device/{id}/set-state/` API call
+ * Bug 815785: Add support for SUT agent
+ * Bug 828030: clean up requests
+
+Upgrade notes:
+ * Mozpool now requires at least version 1.0.0 of Requests
+ * A `hidden` column must be added to the `images` table.  This can be done safely before the upgrade occurs.
+ * Two new, hidden images must be added, with corresponding PXE configs: `self-test` and `maintenance`.
+ * The `mobile-init.sh` script must send a `mobile_init_started` event.
+
+1.2.0
+=====
+
+ * Bug 819081: Added assignee to requests table
+ * Bug 818953: Fix request logging
+ * Bug 819505: Support different hardware types and models
+ * Bug 819186: use a DB cronjob instead of scheduled events
+ * Bug 822113: add an API call for state and cache it (for use by monitoring scripts)
+ * Bug 819576: Store image data in db and verify request data against it
+
+1.1.1
+=====
+
+ * Bug 817762: run state timeout handlers in threads, and log if they run for too long
+
+1.1.0
+=====
+
+ * Bug 817035: Add comments for devices and a `/device/{id}/set-comments/` API call to set them
+ * Bug 817035: add a `locked_out` state
+ * Bug 817035: Major UI refactor
+
+   * the toolbar is now "tabbed", albeit with a CSS implementation of tabs that will make your eyes bleed.  Sorry.
+   * Lifeguard and BMM display different columns - we need the space!
+   * Can set comments in the web UI
+   * Hopefully a clearer delineation of PXE configs, bootconfig, and b2gbase
+
+ * Bug 817035: Add "tailing" support to the log view
+ * Bug 817035: Add environments and allow requests to specify one
+
+1.0.0
+=====
+
+First release following http://semver.org
