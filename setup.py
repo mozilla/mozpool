@@ -2,9 +2,10 @@
 # coding=utf-8
 
 from setuptools import setup, find_packages
+import mozpool
 
 setup(name='mozpool',
-      version='2.0.0',
+      version=mozpool.version,
       description='System to manage a pool of cranky mobile devices',
       author=u'Ted Mielczarek, Mark Côté, Dustin Mitchell',
       url='http://hg.mozilla.org/build/mozpool',

@@ -46,6 +46,8 @@ def main():
     urllib3_logger = logging.getLogger('requests.packages.urllib3')
     urllib3_logger.setLevel(logging.CRITICAL)
 
+    logger = logging.getLogger('')
+    logger.info('Mozpool-%s server starting' % mozpool.version)
 
     # if we're running fake boards, start those up
     if config.get('testing', 'run_fakes'):

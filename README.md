@@ -250,6 +250,7 @@ Release Notes
  * Bug 836417: retry more slowly and more times in the ``sut_verifying`` state
  * Bug 836065: limit displayed log entries to the most recent 1000
  * Bug 836272: log much less about pinging in the free state
+ * Bug 834246: log the Mozpool version number at startup
 
 2.0.0
 =====
