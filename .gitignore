@@ -1,5 +1,6 @@
 *~
 *.pyc
+*.swp
 mozpool/config.ini
 dist
 MANIFEST
