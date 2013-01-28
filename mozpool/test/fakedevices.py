@@ -12,6 +12,7 @@ import requests
 from mozpool.db import data
 from mozpool import config
 from mozpool.bmm import ping
+from mozpool.sut import cli as sut_cli
 from mozpool.test import fakerelay
 
 class Relay(fakerelay.Relay):
@@ -63,6 +64,11 @@ class Device(object):
         'b2g': 0.97,
         'android': 0.99,
         # default: False
+    }
+
+    image_sut_functionality = {
+        'b2g': {'sut_verify': 0.99, 'check_sdcard': 0.97},
+        'android': {'sut_verify': 0.99, 'check_sdcard': 0.97},
     }
 
     # likelihoods of failure while waiting in each state
@@ -132,12 +138,49 @@ class Device(object):
         url = 'http://%s/api/device/%s/event/%s/' % (fqdn, self.name, event)
         requests.get(url)
 
+    # patched methods from BMM
+
     def ping(self):
         ping_result = self.power and self.pingable
         if isinstance(self.pingable, float):
             ping_result = random.random() < self.pingable
         self.logger.debug('pinged; result=%s (state %s)' % (ping_result, self.state))
         return ping_result
+
+    def sut_verify(self):
+        prob_ok = self.image_sut_functionality.get(self.sdcard_image, {}).get('sut_verify')
+        rv = False
+        if prob_ok and random.random() < prob_ok:
+            rv = True
+        self.logger.debug('sut sut_verify: result=%s (state %s)' % (rv, self.state))
+        return rv
+
+    def check_sdcard(self):
+        prob_ok = self.image_sut_functionality.get(self.sdcard_image, {}).get('check_sdcard')
+        rv = False
+        if prob_ok and random.random() < prob_ok:
+            rv = True
+        self.logger.debug('sut check_sdcard: result=%s (state %s)' % (rv, self.state))
+        return rv
+
+    def reboot(self):
+        # if no SUT support, this won't work..
+        if not self.image_sut_functionality.get(self.sdcard_image):
+            rv = False
+
+        # this works about 75% of the time, and is simulated internally as a power cycle
+        elif random.random() < 0.75:
+            self.set_power_status(False)
+            time.sleep(2)
+            self.set_power_status(True)
+            rv = True
+        else:
+            time.sleep(3)
+            rv = False
+        self.logger.debug('sut reboot: result=%s (state %s)' % (rv, self.state))
+        return rv
+
+    # controller function
 
     def run(self):
         # handle startup specially, since the power is on, and the initial
@@ -282,7 +325,7 @@ class Rack(object):
         self.devices_by_fqdn = {}
 
         self.logger = logging.getLogger('fakedevices')
-        self._patch_ping()
+        self._patch()
         self._populate()
 
     def __str__(self):
@@ -302,14 +345,20 @@ class Rack(object):
             thd.setDaemon(1)
             thd.start()
 
-    def _patch_ping(self):
-        # patch out bmm's ping method so we can intercept pings of our own devices
-        old_ping = ping.ping
-        def patched_ping(fqdn):
-            if fqdn not in self.devices_by_fqdn:
-                return old_ping(fqdn)
-            return self.devices_by_fqdn[fqdn].ping()
-        ping.ping = patched_ping
+    def _patch(self):
+        # patch out bmm's ping and sut support so we can intercept checks of our own devices
+        def patch(module, fn_name):
+            old_fn = getattr(module, fn_name)
+            def patched_fn(device_fqdn):
+                if device_fqdn not in self.devices_by_fqdn:
+                    return old_fn(device_fqdn)
+                dev = self.devices_by_fqdn[device_fqdn]
+                return getattr(dev, fn_name)()
+            setattr(module, fn_name, patched_fn)
+        patch(ping, 'ping')
+        patch(sut_cli, 'sut_verify')
+        patch(sut_cli, 'check_sdcard')
+        patch(sut_cli, 'reboot')
 
     def _populate(self):
         fqdn = config.get('server', 'fqdn')

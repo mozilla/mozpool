@@ -163,6 +163,7 @@ class PowerCycleMixin(object):
             else:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name,
                                                       'power_cycle_failed', {})
+        self.setup_pxe()
         sut_api.start_reboot(self.machine.device_name, reboot_initiated)
 
     def relay_powercycle(self):
