@@ -115,7 +115,7 @@ class request_status:
 class request_log:
     @templeton.handlers.json_response
     def GET(self, request_id):
-        return {'log': logs.request_logs.get_all(request_id)}
+        return {'log': logs.request_logs.get(request_id)}
 
 class request_renew:
     @requestredirect

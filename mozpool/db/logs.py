@@ -5,6 +5,7 @@
 import datetime
 from mozpool.db import model, sql
 from sqlalchemy.sql import and_, select
+from sqlalchemy import desc
 
 
 class Logs(object):
@@ -39,28 +40,25 @@ class Logs(object):
                 "source": row["source"],
                 "message": row["message"]}
 
-    def get_all(self, name):
-        res = sql.get_conn().execute(
-            select([self.logs_table.c.id,
+    def get(self, name, timeperiod=None, limit=None):
+        """Get log entries for a device for the past timeperiod, limiting to the
+        LIMIT most recent."""
+        q = select([self.logs_table.c.id,
                     self.logs_table.c.ts,
                     self.logs_table.c.source,
-                    self.logs_table.c.message]) \
-                .where(self.foreign_key_col==self._get_object_id(name)))
+                    self.logs_table.c.message])
+        q = q.order_by(desc(self.logs_table.c.ts))
+        if timeperiod:
+            from_time = datetime.datetime.now() - timeperiod
+            q = q.where(and_(self.foreign_key_col==self._get_object_id(name),
+                            self.logs_table.c.ts>=from_time))
+        if limit:
+            q = q.limit(limit)
 
-        return [self.log_row_to_dict(row) for row in res]
-
-    def get(self, name, timeperiod=datetime.timedelta(hours=1)):
-        """Get log entries for a device for the past timeperiod."""
-        from_time = datetime.datetime.now() - timeperiod
-        res = sql.get_conn().execute(
-            select([self.logs_table.c.id,
-                    self.logs_table.c.ts,
-                    self.logs_table.c.source,
-                    self.logs_table.c.message]) \
-                .where(and_(self.foreign_key_col==self._get_object_id(name),
-                            self.logs_table.c.ts>=from_time)))
-
-        return [self.log_row_to_dict(row) for row in res]
+        res = sql.get_conn().execute(q)
+        rv = [self.log_row_to_dict(row) for row in res]
+        rv.reverse()
+        return rv
 
 
 class LogsByObjectName(Logs):

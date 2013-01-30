@@ -202,18 +202,23 @@ var LogLine = Backbone.Model.extend({
 var Log = UpdateableCollection.extend({
     model: LogLine,
     refreshInterval: 5000, // 5s, so we don't crush the DB
-    url: null, // filled in by log.js
+    url: null, // filled in by setupUrl
     doneInitialFetch: false,
     responseAttr: 'log',
 
+    setupUrl: function(base, limit) {
+        this.baseUrl = base;
+        this.url = base + '?limit=' + limit;
+    },
+
     fetch: function(args) {
-        // update the URL if we've done the initial fetch
         var rv = UpdateableCollection.prototype.fetch.call(this, args);
+        // update the URL if we've done the initial fetch
         if (!this.doneInitialFetch) {
             this.doneInitialFetch = true;
             // only fetch the last five minutes from here on out, to make merging easier.
             // This lets us miss our refreshInterval by quite a bit, but not forever (TODO)
-            this.url = this.url + '?timeperiod=300';
+            this.url = this.baseUrl + '&timeperiod=300';
         }
         return rv;
     },

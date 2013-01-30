@@ -247,6 +247,8 @@ To run the tests:
 Release Notes
 =============
 
+ * Bug 836065: limit displayed log entries to the most recent 1000
+
 2.0.0
 =====
 

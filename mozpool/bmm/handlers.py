@@ -65,11 +65,15 @@ class log:
         args, _ = templeton.handlers.get_request_parms()
         if 'timeperiod' in args:
             seconds = int(args['timeperiod'][0])
-            history = datetime.timedelta(seconds=seconds)
-            return {'log':logs.device_logs.get(device_name,
-                    timeperiod=history)}
+            timeperiod = datetime.timedelta(seconds=seconds)
         else:
-            return {'log':logs.device_logs.get_all(device_name)}
+            timeperiod = None
+        if 'limit' in args:
+            limit = int(args['limit'][0])
+        else:
+            limit = None
+        return {'log':logs.device_logs.get(device_name,
+                timeperiod=timeperiod, limit=limit)}
 
 class environment_list:
     @templeton.handlers.json_response
