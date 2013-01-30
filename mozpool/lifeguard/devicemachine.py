@@ -220,7 +220,7 @@ class free(AcceptPleaseRequests, statemachine.State):
     """This device is not in use and available for mozpool requests.  While in this state,
     Mozpool monitors the device periodically and takes corrective action if it fails."""
 
-    TIMEOUT = 300
+    TIMEOUT = 600
 
     def on_entry(self):
         # TODO: when SUT support is in place, determine whether to use a SUT check or a

@@ -101,7 +101,9 @@ class StateMachine(object):
 
         self.state.on_exit()
 
-        self.logger.info('entering state %s' % (new_state_name_or_class,))
+        # only log actual state changes, rather than re-entries of the same state
+        if self.state.state_name != new_state_name_or_class:
+            self.logger.info('entering state %s' % (new_state_name_or_class,))
 
         self.state = self._make_state_instance(new_state_name_or_class)
         self.write_state(new_state_name_or_class, self.state.TIMEOUT)

@@ -88,7 +88,8 @@ def start_ping(device_name, callback):
     fqdn = data.device_fqdn(device_name)
     def do_ping():
         pingable = ping_module.ping(fqdn)
-        logs.device_logs.add(device_name, "ping of %s complete: %s" % (fqdn, 'ok' if pingable else 'failed'), 'bmm')
+        if not pingable:
+            logs.device_logs.add(device_name, "ping of %s failed" % (fqdn,), 'bmm')
         return pingable
     run_async(callback_before, callback, do_ping, logger)
 
