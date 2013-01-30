@@ -7,7 +7,7 @@ setup(
     author_email='armenzg@mozilla.com',
     packages=['mozpoolclient'],
     scripts=[],
-    url='http://pypi.python.org/pypi/MozpoolClient/',
+    url='http://pypi.python.org/pypi/mozpoolclient/',
     license='MPL',
     description='It allows you to interact with devices managed by Mozpool.',
     long_description=open('README.txt').read(),
