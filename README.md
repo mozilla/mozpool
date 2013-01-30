@@ -248,6 +248,7 @@ Release Notes
 =============
 
  * Bug 836065: limit displayed log entries to the most recent 1000
+ * Bug 836272: log much less about pinging in the free state
 
 2.0.0
 =====
