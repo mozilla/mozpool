@@ -11,5 +11,7 @@ setup(
     license='MPL',
     description='It allows you to interact with devices managed by Mozpool.',
     long_description=open('README.txt').read(),
-    install_requires=[],
+    install_requires=[
+        'requests >= 1.0.0',
+    ],
 )
