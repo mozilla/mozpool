@@ -7,7 +7,6 @@
 '''Interact with mozpool/lifeguard/bmm.
 '''
 import getpass
-import logging as log
 import re
 import requests
 import socket
@@ -58,11 +57,16 @@ def check_mozpool_status(status):
         raise MozpoolException('mozpool status not ok, code %s' % pprint.pformat(status))
 
 class MozpoolHandler:
-    def __init__(self, mozpool_api_url):
+    def __init__(self, mozpool_api_url, log_obj=None):
         self.mozpool_api_url = mozpool_api_url
         self.mozpool_timeout=10
         self.user = getpass.getuser()
         self.hostname = socket.gethostname()
+        if log_obj:
+            self.log_obj = log_obj
+        else:
+            import logging as log
+            self.log_obj = log
 
     # Helper methods {{{2
     def url_get(self, url, decode_json=True, **kwargs):
@@ -70,7 +74,7 @@ class MozpoolHandler:
 
         This could be moved to a generic url handler object.
         """
-        log.debug("Request GET %s..." % url)
+        self.log_obj.debug("Request GET %s..." % url)
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self.mozpool_timeout
         num_retries = 10
@@ -79,7 +83,7 @@ class MozpoolHandler:
             try_num += 1
             try:
                 r = requests.get(url, **kwargs)
-                log.debug("Status code: %s" % str(r.status_code))
+                self.log_obj.debug("Status code: %s" % str(r.status_code))
                 if decode_json:
                     j = self.decode_json(r.text)
                     if j is not None:
@@ -92,7 +96,7 @@ class MozpoolHandler:
                 raise MozpoolException("Try %d: Can't get %s: %s!" % (try_num, url, str(e)))
             if try_num <= num_retries:
                 sleep_time = 2 * try_num
-                log.info("Sleeping %d..." % sleep_time)
+                self.log_obj.info("Sleeping %d..." % sleep_time)
                 time.sleep(sleep_time)
 
     def decode_json(self, contents):
@@ -111,7 +115,7 @@ class MozpoolHandler:
 
         This could be moved to a generic url handler object.
         """
-        log.debug("Request POST %s..." % url)
+        self.log_obj.debug("Request POST %s..." % url)
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self.mozpool_timeout
         num_retries = 10
@@ -123,7 +127,7 @@ class MozpoolHandler:
             try:
                 r = requests.post(url, data=data, **kwargs)
                 if r.status_code in good_statuses:
-                    log.debug("Status code: %s" % str(r.status_code))
+                    self.log_obj.debug("Status code: %s" % str(r.status_code))
                     if decode_json:
                         j = self.decode_json(r.text)
                         if j is not None:
@@ -133,13 +137,13 @@ class MozpoolHandler:
                     else:
                         return (r.text, r.status_code)
                 else:
-                    log.critical("Bad return status from %s: %d!" % (url, r.status_code))
+                    self.log_obj.critical("Bad return status from %s: %d!" % (url, r.status_code))
                     return (None, r.status_code)
             except requests.exceptions.RequestException, e:
-                log.exception("Try %d: Can't get %s: %s!" % (try_num, url, str(e)))
+                self.log_obj.exception("Try %d: Can't get %s: %s!" % (try_num, url, str(e)))
             if try_num <= num_retries:
                 sleep_time = 2 * try_num
-                log.info("Sleeping %d..." % sleep_time)
+                self.log_obj.info("Sleeping %d..." % sleep_time)
                 time.sleep(sleep_time)
 
     def partial_url_get(self, partial_url, **kwargs):
@@ -167,7 +171,7 @@ class MozpoolHandler:
         if isinstance(devices, list):
             matches = filter(lambda dd: dd['name'] == device, devices)
             if len(matches) != 1:
-                logging.critical("Couldn't find %s in device list!" % device_id)
+                self.log_obj.critical("Couldn't find %s in device list!" % device_id)
                 return
             else:
                 return matches[0]
