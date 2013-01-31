@@ -1,2 +1,4 @@
+v0.1.2, Jan. 31st -- Allow to use an external logging object + README.txt
+                     fixes. 
 v0.1.1, Jan. 30th -- Use setup from setuptools + point to main Mozpool repo
 v0.1.0, Jan. 28th -- Initial release
