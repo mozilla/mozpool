@@ -342,7 +342,9 @@ class sut_verifying(statemachine.State):
     If no SUT agent, just proceed to next state.
     """
 
-    PERMANENT_FAILURE_COUNT = 3
+    # wait about 10m for the device to come up
+    PERMANENT_FAILURE_COUNT = 13
+    # the SUT check can take up to 45s, so don't reduce this further
     TIMEOUT = 45
 
     def on_entry(self):
@@ -353,15 +355,11 @@ class sut_verifying(statemachine.State):
             if success:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name,
                                                       'sut_verify_ok', {})
-            else:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
-                                                      'sut_verify_failed', {})
+             # if not, wait for the timeout to occur, rather than immediately
+             # re-checking
         sut_api.start_sut_verify(self.machine.device_name, sut_verified)
 
     def on_timeout(self):
-        self.on_sut_verify_failed({})
-
-    def on_sut_verify_failed(self, args):
         if (self.machine.increment_counter(self.state_name) >
             self.PERMANENT_FAILURE_COUNT):
             self.machine.goto_state(failed_sut_verifying)
