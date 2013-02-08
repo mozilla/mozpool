@@ -218,7 +218,7 @@ var Log = UpdateableCollection.extend({
             this.doneInitialFetch = true;
             // only fetch the last five minutes from here on out, to make merging easier.
             // This lets us miss our refreshInterval by quite a bit, but not forever (TODO)
-            this.url = this.baseUrl + '&timeperiod=300';
+            this.url = this.baseUrl + '?timeperiod=300';
         }
         return rv;
     },

@@ -50,10 +50,10 @@ class Logs(object):
         q = q.order_by(desc(self.logs_table.c.ts))
         if timeperiod:
             from_time = datetime.datetime.now() - timeperiod
-            q = q.where(and_(self.foreign_key_col==self._get_object_id(name),
-                            self.logs_table.c.ts>=from_time))
+            q = q.where(self.logs_table.c.ts>=from_time)
         if limit:
             q = q.limit(limit)
+        q = q.where(self.foreign_key_col==self._get_object_id(name))
 
         res = sql.get_conn().execute(q)
         rv = [self.log_row_to_dict(row) for row in res]
