@@ -25,6 +25,11 @@ filter = hostname__startswith=panda-
 # Defaults to gethostbyname(socket.getfqdn)
 #ipaddress =
 
+# set this to a file that will be touched every time a state machine driver
+# polls for timeouts.  This can be used to make sure the timeouts are still
+# occurring.  See bug 817762.
+#heartbeat_file =
+
 [paths]
 # Root path where the TFTP server serves files.
 tftp_root =

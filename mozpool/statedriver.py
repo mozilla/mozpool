@@ -6,6 +6,7 @@ import abc
 import time
 import threading
 import logging
+import config
 
 ####
 # Driver
@@ -69,6 +70,10 @@ class StateDriver(threading.Thread):
             self.logger.warning("run loop returned (this should not happen!)")
 
     def _tick(self):
+        hb_file = config.get('server', 'heartbeat_file')
+        if hb_file:
+            open(hb_file, "w")
+
         try:
             self.poll_for_timeouts()
             self.poll_others()
