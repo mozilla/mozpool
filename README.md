@@ -247,6 +247,14 @@ To run the tests:
 Release Notes
 =============
 
+2.0.2
+=====
+
+This is a bug-fix release.
+
+ * Bug 838925: add capability to touch a heartbeat file on every timeout
+ * Bug 836065: fix errors in logging implementation in 2.0.1
+
 2.0.1
 =====
 
