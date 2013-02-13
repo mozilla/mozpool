@@ -54,6 +54,3 @@ def set(section, key, value):
     if not _config.has_section(section):
         _config.add_section(section)
     _config.set(section, key, value)
-
-def image_store():
-    return get('paths', 'image_store')

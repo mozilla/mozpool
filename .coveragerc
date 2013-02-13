@@ -1,0 +1,22 @@
+[report]
+# Regexes for lines to exclude from consideration
+exclude_lines =
+    # Have to re-enable the standard pragma
+    pragma: no cover
+
+    # Don't complain if tests don't hit defensive assertion code:
+    raise AssertionError
+    raise NotImplementedError
+
+    # 'pass' generally means 'this won't be called'
+    ^ *pass *$
+
+    # coverage seems to miss 'continue' statements..
+    continue
+
+include =
+    mozpool/*
+
+omit =
+    # omit all of our tests
+    mozpool/test/*

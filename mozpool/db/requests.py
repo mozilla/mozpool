@@ -24,7 +24,7 @@ class Methods(base.MethodsBase,
         return object_name
 
     def add(self, requested_device, environment, assignee, duration, image_id,
-            boot_config):
+            boot_config, _now=datetime.datetime.utcnow):
         """
         Add a new request with the given parameters.  The state is set to
         'new'.
@@ -39,8 +39,7 @@ class Methods(base.MethodsBase,
                     'requested_device': requested_device,
                     'environment': environment,
                     'assignee': assignee,
-                    'expires': datetime.datetime.utcnow() +
-                                datetime.timedelta(seconds=duration),
+                    'expires': _now() + datetime.timedelta(seconds=duration),
                     'image_id': image_id,
                     'boot_config': json.dumps(boot_config),
                     'state': 'new',
@@ -49,19 +48,21 @@ class Methods(base.MethodsBase,
         res = self.db.execute(model.requests.insert(), request)
         return res.lastrowid
 
-    def renew(self, request_id, duration):
-        self.db.execute(model.requests.update(model.requests).values(expires=datetime.datetime.utcnow() + datetime.timedelta(seconds=duration)).where(model.requests.c.id==request_id))
+    def renew(self, request_id, duration, _now=datetime.datetime.utcnow):
+        q = model.requests.update()
+        q = q.where(model.requests.c.id==request_id)
+        self.db.execute(q,
+            dict(expires=_now() + datetime.timedelta(seconds=duration)))
 
-    def list_expired(self, imaging_server_id):
+    def list_expired(self, imaging_server_id, _now=datetime.datetime.utcnow):
         """
         Get a list of all requests whose 'expires' timestamp is in the past,
-        are not in the 'expired' state, and which belong to this imaging
-        server.
+        are not in the 'expired' or 'closed' state, and which belong to this
+        imaging server.
         """
-        now = datetime.datetime.utcnow()
         res = self.db.execute(select(
                 [model.requests.c.id],
-                (model.requests.c.expires < now)
+                (model.requests.c.expires < _now())
                 & (model.requests.c.state != 'expired')
                 & (model.requests.c.state != 'closed')
                 & (model.requests.c.imaging_server_id == imaging_server_id)))
@@ -78,8 +79,8 @@ class Methods(base.MethodsBase,
 
     def list(self, include_closed=False):
         """
-
-        List all requests, or just closed requests if include_closed is true.
+        List all open requests (those without state='closed'), or all requests
+        if include_closed is true.
 
         Returns a list of dictionaries, each with keys id, imaging_server,
         assignee, boot_config, state, expires, requested_device, environment,
@@ -105,14 +106,18 @@ class Methods(base.MethodsBase,
         device_requests = dict([(x[0], (x[1], x[2])) for x in res])
         for r in requests:
             if r['id'] in device_requests:
-                r['assigned_device'] = device_requests[r['id']][0]
-                r['device_state'] = device_requests[r['id']][1]
+                r[u'assigned_device'] = device_requests[r['id']][0]
+                r[u'device_state'] = device_requests[r['id']][1]
             else:
-                r['assigned_device'] = ''
-                r['device_state'] = ''
+                r[u'assigned_device'] = u''
+                r[u'device_state'] = u''
         return requests
 
     def get_assigned_device(self, request_id):
+        """
+        Get the name of the device assigned to this request, or None if no
+        device is assigned (or if no such request exists).
+        """
         res = self.db.execute(select(
                 [model.devices.c.name],
                 from_obj=[model.device_requests.join(model.devices)]).where(

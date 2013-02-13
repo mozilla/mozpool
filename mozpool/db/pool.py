@@ -15,7 +15,7 @@ def _checkout_listener(dbapi_con, con_record, con_proxy):
     try:
         cursor = dbapi_con.cursor()
         cursor.execute("SELECT 1")
-    except dbapi_con.OperationalError, ex:
+    except dbapi_con.OperationalError, ex: # pragma: no cover
         if ex.args[0] in (2006, 2013, 2014, 2045, 2055):
             raise sqlalchemy.exc.DisconnectionError()
         raise
@@ -46,7 +46,7 @@ class DBPool(object):
         if engine.dialect.name == 'sqlite':
             try:
                 engine.execute("pragma journal_mode = wal")
-            except:
+            except: # pragma: no cover
                 pass # oh well..
 
         if engine.dialect.name == 'mysql':

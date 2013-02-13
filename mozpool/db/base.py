@@ -54,8 +54,7 @@ class StateMachineMethodsMixin(object):
 
     def get_machine_state(self, id):
         """
-        Get the state of this object - (state, timeout, counters), or
-        raise NotFound
+        Get the state of this object, or raise NotFound
         """
         tbl = self.state_machine_table
         res = self.db.execute(select([tbl.c.state],
@@ -73,7 +72,7 @@ class StateMachineMethodsMixin(object):
 
     def get_counters(self, id):
         """
-        Get the counters for this machine.
+        Get the counters for this machine, or raise NotFound
         """
         tbl = self.state_machine_table
         res = self.db.execute(select([tbl.c.state_counters],
@@ -114,13 +113,14 @@ class ObjectLogsMethodsMixin(object):
     def _get_object_id(self, object_name):
         raise NotImplementedError
 
-    def log_message(self, object_name, message, source="webapp"):
+    def log_message(self, object_name, message, source="webapp",
+            _now=datetime.datetime.now):
         """
         Add a log message for this object.
         """
         id = self._get_object_id(object_name)
         values = {self.foreign_key_col.name: id,
-                  "ts": datetime.datetime.now(),
+                  "ts": _now(),
                   "source": source,
                   "message": message}
         self.db.execute(self.logs_table.insert(), values)
@@ -136,7 +136,8 @@ class ObjectLogsMethodsMixin(object):
         """
         Get log entries for an object for the past timeperiod, limiting to the
         LIMIT most recent.  Each log entry is represented as a dictionary with
-        keys 'id', 'timestamp', 'source', and 'message'.
+        keys 'id', 'timestamp', 'source', and 'message'.  The timestamp is
+        an ISO-format string, not a datetime.
         """
 
         q = select([self.logs_table.c.id,

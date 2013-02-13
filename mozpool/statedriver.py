@@ -38,7 +38,8 @@ class StateDriver(threading.Thread):
 
     def stop(self):
         self._stop = True
-        self.join()
+        if self.isAlive():
+            self.join()
         self.logger.removeHandler(self.log_handler)
 
     def run(self):
@@ -90,6 +91,17 @@ class StateDriver(threading.Thread):
         machine = self._get_machine(machine_name)
         machine.handle_event(event, args)
 
+    def handle_timeout(self, machine_name):
+        """
+        Handle a timeout for the given machine.
+        """
+        machine = self._get_machine(machine_name)
+        try:
+            machine.handle_timeout()
+        except:
+            self.logger.error("(ignored) error while handling timeout:",
+                            exc_info=True)
+
     def conditional_state_change(self, machine_name, old_state, new_state):
         """
         Transition to NEW_STATE only if the device is in OLD_STATE.
@@ -101,12 +113,7 @@ class StateDriver(threading.Thread):
     def poll_for_timeouts(self):
         for machine_name in self._get_timed_out_machine_names():
             self.logger.info("handling timeout on %s" % machine_name)
-            machine = self._get_machine(machine_name)
-            try:
-                machine.handle_timeout()
-            except:
-                self.logger.error("(ignored) error while handling timeout:",
-                                exc_info=True)
+            self.handle_timeout(machine_name)
 
     def _get_machine(self, machine_name):
         return self.state_machine_cls(machine_name, self.db)

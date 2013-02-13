@@ -28,6 +28,10 @@ class Methods(base.MethodsBase):
         return True
 
     def clear(self, request_id):
+        """
+        Clear the association between the given request and its device.  This
+        will silently succeed if the request has no associated device.
+        """
         self.db.execute(model.device_requests.delete().where(
                 model.device_requests.c.request_id==request_id))
 

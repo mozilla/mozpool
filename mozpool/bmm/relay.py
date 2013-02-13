@@ -35,6 +35,9 @@ __all__ = ['get_status',
 
 DEFAULT_PORT = 2101
 
+# this is set to something shorter for the tests
+ONE_SECOND = 1
+
 locks = util.LocksByName()
 logger = logging.getLogger('bmm.relay')
 
@@ -84,7 +87,7 @@ def serialize_by_relay_board(relay_board_name):
         yield
     finally:
         # sleep long enough for the relay board to recover after the TCP connection
-        time.sleep(1)
+        time.sleep(ONE_SECOND)
         locks.release(relay_board_name)
 
 class TimeoutError(Exception):
@@ -124,7 +127,7 @@ def log_errors(on_error):
         def replacement(relay_board_name, *args, **kwargs):
             try:
                 return fn(relay_board_name, *args, **kwargs)
-            except TimeoutError:
+            except (TimeoutError, socket.timeout):
                 logger.error("timeout communicating with %s" % (relay_board_name,))
                 return on_error
             except socket.error, e:
@@ -224,7 +227,7 @@ def powercycle(relay_board_name, bank, relay, timeout):
 
             # if we just turned the device off, give it a chance to rest
             if status is False:
-                time.sleep(1)
+                time.sleep(ONE_SECOND)
         logger.info("power-cycle on %s bank %s relay %s successful" % (relay_board_name, bank, relay))
         return True
 

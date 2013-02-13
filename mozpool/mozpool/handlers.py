@@ -2,6 +2,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+from __future__ import absolute_import
+
 import templeton
 import web
 
@@ -23,6 +25,12 @@ urls = (
 
     "/image/list/?", "image_list",
 )
+
+class device_list(Handler):
+    @templeton.handlers.json_response
+    def GET(self):
+        args, _ = templeton.handlers.get_request_parms()
+        return {'devices': self.db.devices.list(detail='details' in args)}
 
 class device_request(Handler):
     @templeton.handlers.json_response
@@ -57,12 +65,6 @@ class device_request(Handler):
         if self.db.requests.get_machine_state(request_id) == 'closed':
             raise ConflictJSON(response_data)
         return response_data
-
-class device_list(Handler):
-    @templeton.handlers.json_response
-    def GET(self):
-        args, _ = templeton.handlers.get_request_parms()
-        return {'devices': self.db.devices.list(detail='details' in args)}
 
 class request_list(Handler):
     @templeton.handlers.json_response
@@ -102,6 +104,7 @@ class request_renew(Handler):
         _, body = templeton.handlers.get_request_parms()
         try:
             new_duration = int(body["duration"])
+            request_id = int(request_id)
         except (KeyError, ValueError):
             raise web.badrequest()
         self.db.requests.renew(request_id, new_duration)
@@ -110,7 +113,7 @@ class request_renew(Handler):
 class request_return(Handler):
     @requestredirect
     def POST(self, request_id):
-        mozpool.mozpool.driver.handle_event(request_id, 'close', None)
+        mozpool.mozpool.driver.handle_event(int(request_id), 'close', None)
         raise nocontent()
 
 class image_list(Handler):

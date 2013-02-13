@@ -37,6 +37,9 @@ class RelayBoard(object):
     # responding to it
     delay = 0
 
+    # set this to skip the 1 second tcp-cooling-off sleep
+    skip_final_1s = False
+
     def __init__(self, name, addr, record_actions=False):
         """
         Create a new relay board with the given name and socket-style address.
@@ -78,6 +81,7 @@ class RelayBoard(object):
         # wait until it's actually bound to the port..
         self.started_cond.wait()
         self.started_cond.release()
+        return thd
 
     def run(self, once=False):
         while not self.stop_requested:
@@ -110,7 +114,8 @@ class RelayBoard(object):
                 return
 
             # emulate some extra time for the TCP stack to recover
-            time.sleep(1)
+            if not self.skip_final_1s:
+                time.sleep(1)
 
     def handle_commands(self, sock):
         data = ''

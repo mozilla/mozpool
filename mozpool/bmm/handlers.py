@@ -30,8 +30,11 @@ class power_cycle(Handler):
         args, body = templeton.handlers.get_request_parms()
         a = api.API(self.db)
         if 'pxe_config' in body:
-            a.set_pxe(device_name, body['pxe_config'],
-                    body.get('boot_config', ''))
+            # update the boot config in the db
+            img_info = self.db.devices.get_image(device_name)
+            self.db.devices.set_image(device_name,
+                    img_info['image'], body.get('boot_config', ''))
+            a.set_pxe(device_name, body['pxe_config'])
         else:
             a.clear_pxe(device_name)
         # start the power cycle and ignore the result
@@ -78,23 +81,6 @@ class device_log(Handler):
         return {'log':self.db.devices.get_logs(device_name,
                 timeperiod=timeperiod, limit=limit)}
 
-class environment_list(Handler):
-    @templeton.handlers.json_response
-    def GET(self):
-        return { 'environments' : self.db.environments.list() }
-
-class pxe_config_list(Handler):
-    @templeton.handlers.json_response
-    def GET(self):
-        args, _ = templeton.handlers.get_request_parms()
-        return { 'pxe_configs' : self.db.pxe_configs.list(
-            active_only=('active_only' in args)) }
-
-class pxe_config_details(Handler):
-    @templeton.handlers.json_response
-    def GET(self, name):
-        return { 'details' : self.db.pxe_configs.get(name) }
-
 class device_set_comments(Handler):
     @deviceredirect
     @templeton.handlers.json_response
@@ -111,10 +97,24 @@ class device_set_environment(Handler):
 
 class device_bootconfig(Handler):
     def GET(self, device_name):
-        try:
-            img = self.db.devices.get_image(device_name)
-            # this is JSON, but we're returning it as a string..
-            web.header('Content-Type', 'application/json; charset=utf-8')
-            return img['boot_config']
-        except KeyError:
-            raise web.notfound()
+        img = self.db.devices.get_image(device_name)
+        # this is JSON, but we're returning it as a string..
+        web.header('Content-Type', 'application/json; charset=utf-8')
+        return img['boot_config']
+
+class environment_list(Handler):
+    @templeton.handlers.json_response
+    def GET(self):
+        return { 'environments' : self.db.environments.list() }
+
+class pxe_config_list(Handler):
+    @templeton.handlers.json_response
+    def GET(self):
+        args, _ = templeton.handlers.get_request_parms()
+        return { 'pxe_configs' : sorted(self.db.pxe_configs.list(
+            active_only=('active_only' in args))) }
+
+class pxe_config_details(Handler):
+    @templeton.handlers.json_response
+    def GET(self, name):
+        return { 'details' : self.db.pxe_configs.get(name) }

@@ -9,7 +9,8 @@ class Methods(base.MethodsBase):
 
     def list(self, active_only=False):
         """
-        Return a list of the names of all PXE configs.  If active_only is true, then only active PXE configs are returned.
+        Return a list of the names of all PXE configs.  If active_only is true,
+        then only active PXE configs are returned.
         """
         q = select([model.pxe_configs.c.name])
         if active_only:

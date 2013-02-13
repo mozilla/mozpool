@@ -12,7 +12,7 @@ def relay_script():
     # Basic commandline interface for testing the relay module.
     def usage():
         print "Usage: %s [powercycle|status|turnon|turnoff] <hostname> <bank> <relay>" % sys.argv[0]
-        sys.exit(1)
+        sys.exit(2)
     if len(sys.argv) != 5:
         usage()
     cmd, hostname, bnk, rly = sys.argv[1:5]
@@ -52,7 +52,7 @@ With modify, specify any of --description, --config, and --active/--inactive.
 With list, optionally specify --active to only display active configs.
 """
 
-def pxe_config_script(args=sys.argv[1:]):
+def pxe_config_script():
     parser = argparse.ArgumentParser(description='Edit BMM PXE configurations', epilog=epilog)
 
     parser.add_argument('--active', action='store_true', dest='active', default=None, help='PXE config is active')
@@ -62,7 +62,7 @@ def pxe_config_script(args=sys.argv[1:]):
     parser.add_argument('action', nargs=1, help='action to perform: add, list, show, modify')
     parser.add_argument('name', nargs='?', help='name of the PXE config')
 
-    args = parser.parse_args(args)
+    args = parser.parse_args()
 
     args.action = args.action[0]
     if args.action != 'list' and not args.name:

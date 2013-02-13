@@ -81,6 +81,7 @@ class Methods(base.MethodsBase,
     def get_fqdn(self, device_name):
         """
         Get the fqdn of the device.
+        Raises NotFound if the device is not found.
         """
         res = self.db.execute(select([model.devices.c.fqdn],
                                             model.devices.c.name==device_name))
@@ -99,6 +100,7 @@ class Methods(base.MethodsBase,
     def get_mac_address(self, device_name):
         """
         Get the mac address of device.
+        Raises NotFound if the device is not found.
         """
         res = self.db.execute(select([model.devices.c.mac_address],
                                             model.devices.c.name==device_name))
@@ -150,9 +152,9 @@ class Methods(base.MethodsBase,
 
     def get_relay_info(self, device_name):
         """
-        Get the relay info for the given device,  in the form (hostname, bank,
-        relay).  Raises NotFound if no such device exists, or None if no relay
-        is configured for the device.
+        Get the relay info for the given device, in the form (hostname, bank,
+        relay).  Raises NotFound if no such device exists, and returns None if
+        no relay is configured for the device.
         """
         res = self.db.execute(select([model.devices.c.relay_info],
                                             model.devices.c.name==device_name))
@@ -187,6 +189,8 @@ class Methods(base.MethodsBase,
         """
         Set the named device's image and boot_config.  The boot_config should
         be a JSON string.
+
+        Raises NotFound if there is no such image
         """
         assert isinstance(boot_config, (str, unicode))
         res = self.db.execute(select([model.images.c.id]).

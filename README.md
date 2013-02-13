@@ -250,6 +250,7 @@ Release Notes
  * The documentation for ``/api/image/list`` was updated to match its behavior.
  * The database interface layer was completely rewritten for better hackability and testability.
  * Bug 848561: Log entries and devices are now sorted properly in the web UI
+ * Bug 844363: The test suite was completely rewritten for easier maintenance and much better coverage.
 
 2.0.3
 =====

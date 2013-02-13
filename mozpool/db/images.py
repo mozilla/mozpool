@@ -19,9 +19,9 @@ class Methods(base.MethodsBase):
 
     def list(self):
         """
-        Get information about all visibile images, represented as dictionaries
+        Get information about all visible images, represented as dictionaries
         with keys 'id', 'name', 'boot_config_keys', 'can_reuse', 'hidden', and
-        'has_sut_agent'.  Raises NotFound if no such image exists.
+        'has_sut_agent'.
         """
         stmt = sqlalchemy.select([model.images])
         stmt = stmt.where(sqlalchemy.not_(model.images.c.hidden))

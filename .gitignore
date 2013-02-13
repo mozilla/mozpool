@@ -6,3 +6,5 @@ dist
 MANIFEST
 mozpool.egg-info
 test.log
+.coverage
+covhtml

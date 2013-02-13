@@ -23,8 +23,9 @@ class DateTimeJSONEncoder(json.JSONEncoder):
 
 def deviceredirect(function):
     """
-    Generate a redirect when a request is made for a device that is not
-    managed by this instance of the service.
+    Generate a redirect when a request is made for a device that is not managed
+    by this instance of the service.  If no redirect is generated, but the
+    request is cross-origin, generate an appropriate header in response.
     """
     def wrapped(self, id, *args):
         try:
