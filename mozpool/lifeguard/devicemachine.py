@@ -4,9 +4,8 @@
 
 import datetime
 from mozpool import config, statemachine, statedriver
-from mozpool.bmm import api as bmm_api
-from mozpool.db import data, logs
-from mozpool.sut import api as sut_api
+from mozpool.bmm import api
+from mozpool.db import exceptions
 import mozpool.lifeguard
 
 
@@ -15,27 +14,25 @@ import mozpool.lifeguard
 
 class DeviceStateMachine(statemachine.StateMachine):
 
-    def __init__(self, device_name):
-        statemachine.StateMachine.__init__(self, 'device', device_name)
+    def __init__(self, device_name, db):
+        statemachine.StateMachine.__init__(self, 'device', device_name, db)
         self.device_name = device_name
 
     def read_state(self):
-        state, timeout, counters = data.get_device_state(self.device_name)
-        return state
+        return self.db.devices.get_machine_state(self.device_name)
 
     def write_state(self, new_state, timeout_duration):
         if timeout_duration is None:
             state_timeout = None
         else:
             state_timeout = datetime.datetime.now() + datetime.timedelta(seconds=timeout_duration)
-        data.set_device_state(self.device_name, new_state, state_timeout)
+        self.db.devices.set_machine_state(self.device_name, new_state, state_timeout)
 
     def read_counters(self):
-        state, timeout, counters = data.get_device_state(self.device_name)
-        return counters
+        return self.db.devices.get_counters(self.device_name)
 
     def write_counters(self, counters):
-        data.set_device_counters(self.device_name, counters)
+        self.db.devices.set_counters(self.device_name, counters)
 
 
 ####
@@ -43,8 +40,7 @@ class DeviceStateMachine(statemachine.StateMachine):
 
 class DeviceLogDBHandler(statedriver.DBHandler):
 
-    object_name = 'device'
-    log_object = logs.device_logs
+    object_type = 'device'
 
 
 class LifeguardDriver(statedriver.StateDriver):
@@ -60,13 +56,20 @@ class LifeguardDriver(statedriver.StateDriver):
     thread_name = 'LifeguardDriver'
     log_db_handler = DeviceLogDBHandler
 
-    def __init__(self, poll_frequency=statedriver.POLL_FREQUENCY):
-        statedriver.StateDriver.__init__(self, poll_frequency)
-        self.imaging_server_id = data.find_imaging_server_id(
-            config.get('server', 'fqdn'))
+    def __init__(self, db, poll_frequency=statedriver.POLL_FREQUENCY):
+        statedriver.StateDriver.__init__(self, db, poll_frequency)
+        self.imaging_server_id = self.db.imaging_servers.get_id(config.get('server', 'fqdn'))
+
+        # set up the BMM API for use by machines
+        self.api = api.API(db)
+
+    def _get_machine(self, machine_name):
+        machine = super(LifeguardDriver, self)._get_machine(machine_name)
+        machine.api = self.api
+        return machine
 
     def _get_timed_out_machine_names(self):
-        return data.get_timed_out_devices(self.imaging_server_id)
+        return self.db.devices.list_timed_out(self.imaging_server_id)
 
 
 ####
@@ -90,15 +93,15 @@ class AcceptPleaseRequests(AcceptBasicPleaseRequests):
 
     def on_please_image(self, args):
         try:
-            data.get_pxe_config_for_device(self.machine.device_name,
+            self.db.devices.get_pxe_config(self.machine.device_name,
                                            args['image'])
             self.logger.info('writing image %s, boot config %s to db' %
                              (args['image'], args['boot_config']))
-            data.set_device_config(self.machine.device_name,
+            self.db.devices.set_image(self.machine.device_name,
                                    args['image'],
                                    args['boot_config'])
             self.machine.goto_state(start_pxe_boot)
-        except data.NotFound:
+        except exceptions.NotFound:
             self.logger.error('cannot image device')
 
 
@@ -133,11 +136,11 @@ class PowerCycleMixin(object):
 
     def setup_pxe(self):
         # hook for subclasses
-        bmm_api.clear_pxe(self.machine.device_name)
+        self.machine.api.clear_pxe(self.machine.device_name)
 
     def on_entry(self):
-        has_sut_agent = data.device_has_sut_agent(self.machine.device_name)
-        has_relay = data.device_relay_info(self.machine.device_name)
+        has_sut_agent = self.db.devices.has_sut_agent(self.machine.device_name)
+        has_relay = self.db.devices.get_relay_info(self.machine.device_name)
         if has_sut_agent and (not has_relay or
                               (self.machine.increment_counter('sut_attempts') <=
                                self.TRY_RELAY_AFTER_SUT_COUNT)):
@@ -164,7 +167,8 @@ class PowerCycleMixin(object):
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name,
                                                       'power_cycle_failed', {})
         self.setup_pxe()
-        sut_api.start_reboot(self.machine.device_name, reboot_initiated)
+        self.logger.info("starting SUT reboot")
+        self.machine.api.start_reboot(self.machine.device_name, reboot_initiated)
 
     def relay_powercycle(self):
         # kick off a power cycle on entry
@@ -173,7 +177,8 @@ class PowerCycleMixin(object):
             if success:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'power_cycle_ok', {})
         self.setup_pxe()
-        bmm_api.start_powercycle(self.machine.device_name, powercycle_done)
+        self.logger.info("initiating power cycle")
+        self.machine.api.start_powercycle(self.machine.device_name, powercycle_done)
 
     def on_timeout(self):
         self.on_power_cycle_failed({})
@@ -229,7 +234,7 @@ class free(AcceptPleaseRequests, statemachine.State):
         def ping_complete(success):
             if not success:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_failed', {})
-        bmm_api.start_ping(self.machine.device_name, ping_complete)
+        self.machine.api.start_ping(self.machine.device_name, ping_complete)
 
     def on_timeout(self):
         self.machine.goto_state(free)
@@ -260,7 +265,7 @@ class ready(AcceptPleaseRequests, statemachine.State):
         # terminated, e.g., if the request is returned but the device is
         # still booting (since we want to continue through all the states).
         # Check for that here and return to free if necessary.
-        if data.get_request_for_device(self.machine.device_name):
+        if self.db.device_requests.get_by_device(self.machine.device_name):
             self.machine.goto_state(ready)
         else:
             self.logger.warn('in ready state but not assigned to a request; '
@@ -315,7 +320,7 @@ class pc_pinging(statemachine.State):
             # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
             if success:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
-        bmm_api.start_ping(self.machine.device_name, ping_complete)
+        self.machine.api.start_ping(self.machine.device_name, ping_complete)
 
     def on_timeout(self):
         if self.machine.increment_counter('pc_pinging') > self.PERMANENT_FAILURE_COUNT:
@@ -349,7 +354,7 @@ class sut_verifying(statemachine.State):
     TIMEOUT = 45
 
     def on_entry(self):
-        if not data.device_has_sut_agent(self.machine.device_name):
+        if not self.db.devices.has_sut_agent(self.machine.device_name):
             self.on_sut_verify_ok({})
             return
         def sut_verified(success):
@@ -358,7 +363,8 @@ class sut_verifying(statemachine.State):
                                                       'sut_verify_ok', {})
              # if not, wait for the timeout to occur, rather than immediately
              # re-checking
-        sut_api.start_sut_verify(self.machine.device_name, sut_verified)
+        self.logger.info("Verifying via SUT")
+        self.machine.api.start_sut_verify(self.machine.device_name, sut_verified)
 
     def on_timeout(self):
         if (self.machine.increment_counter(self.state_name) >
@@ -384,7 +390,7 @@ class sut_sdcard_verifying(statemachine.State):
     TIMEOUT = 210
 
     def on_entry(self):
-        if not data.device_has_sut_agent(self.machine.device_name):
+        if not self.db.devices.has_sut_agent(self.machine.device_name):
             self.on_sut_sdcard_ok({})
             return
         def sdcard_verified(success):
@@ -394,7 +400,8 @@ class sut_sdcard_verifying(statemachine.State):
             else:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name,
                                                       'sut_sdcard_failed', {})
-        sut_api.start_check_sdcard(self.machine.device_name, sdcard_verified)
+        self.logger.info("Checking sdcard via SUT")
+        self.machine.api.start_check_sdcard(self.machine.device_name, sdcard_verified)
 
     def on_timeout(self):
         self.on_sut_sdcard_failed({})
@@ -452,12 +459,12 @@ class start_self_test(statemachine.State):
     def on_entry(self):
         self.machine.clear_counter()
         try:
-            data.get_pxe_config_for_device(self.machine.device_name,
+            self.db.devices.get_pxe_config(self.machine.device_name,
                                            'self-test')
-        except data.NotFound:
+        except exceptions.NotFound:
             self.machine.goto_state(pc_power_cycling)
         else:
-            data.set_device_config(self.machine.device_name, 'self-test', '')
+            self.db.devices.set_image(self.machine.device_name, 'self-test', '')
             self.machine.goto_state(pxe_power_cycling)
 
 
@@ -470,7 +477,7 @@ class start_maintenance(statemachine.State):
 
     def on_entry(self):
         self.machine.clear_counter()
-        data.set_device_config(self.machine.device_name, 'maintenance', '')
+        self.db.devices.set_image(self.machine.device_name, 'maintenance', '')
         self.machine.goto_state(pxe_power_cycling)
 
 
@@ -485,15 +492,15 @@ class pxe_power_cycling(PowerCycleMixin, statemachine.State):
 
     def setup_pxe(self):
         # set the pxe config based on what's in the DB
-        cfg = data.device_config(self.machine.device_name)
+        self.db.devices.get_image(self.machine.device_name)
         try:
-            pxe_config = data.get_pxe_config_for_device(self.machine.device_name)
-        except data.NotFound:
+            pxe_config = self.db.devices.get_pxe_config(self.machine.device_name)
+        except exceptions.NotFound:
             self.logger.warning('no appropriate PXE config found')
             self.machine.goto_state(failed_pxe_booting)
             return
-        bmm_api.set_pxe(self.machine.device_name, pxe_config,
-                        cfg['boot_config'])
+        self.logger.info("setting PXE config to %s" % (pxe_config,))
+        self.machine.api.set_pxe(self.machine.device_name, pxe_config)
 
 
 @DeviceStateMachine.state_class
@@ -512,7 +519,7 @@ class pxe_booting(statemachine.State):
 
     def on_mobile_init_started(self, args):
         self.machine.clear_counter(self.state_name)
-        bmm_api.clear_pxe(self.machine.device_name)
+        self.machine.api.clear_pxe(self.machine.device_name)
         self.machine.goto_state(mobile_init_started)
 
     def on_timeout(self):
@@ -537,12 +544,12 @@ class mobile_init_started(statemachine.State):
 
     def on_android_downloading(self, args):
         self.machine.clear_counter(self.state_name)
-        bmm_api.clear_pxe(self.machine.device_name)
+        self.machine.api.clear_pxe(self.machine.device_name)
         self.machine.goto_state(android_downloading)
 
     def on_b2g_downloading(self, args):
         self.machine.clear_counter(self.state_name)
-        bmm_api.clear_pxe(self.machine.device_name)
+        self.machine.api.clear_pxe(self.machine.device_name)
         self.machine.goto_state(b2g_downloading)
 
     def on_maint_mode(self, args):
@@ -553,7 +560,7 @@ class mobile_init_started(statemachine.State):
 
     def on_self_test_running(self, args):
         self.machine.clear_counter(self.state_name)
-        bmm_api.clear_pxe(self.machine.device_name)
+        self.machine.api.clear_pxe(self.machine.device_name)
         self.machine.goto_state(self_test_running)
 
     def on_timeout(self):
@@ -574,7 +581,7 @@ class android_downloading(statemachine.State):
     """
 
     # Downloading takes about 30s.  Allow a generous multiple of that to handle
-    # moments of high load or bigger images.  Failures here are likely a misconfig, 
+    # moments of high load or bigger images.  Failures here are likely a misconfig,
     # so they aren't retried very many times
     TIMEOUT = 180
     PERMANENT_FAILURE_COUNT = 3
@@ -650,7 +657,9 @@ class android_pinging(statemachine.State):
             # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
             if success:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
-        bmm_api.start_ping(self.machine.device_name, ping_complete)
+            else:
+                self.logger.warning("ping failed")
+        self.machine.api.start_ping(self.machine.device_name, ping_complete)
 
     def on_timeout(self):
         # this is a little tricky - android_pinging tracks a few tries to ping this device, so
@@ -682,7 +691,7 @@ class b2g_downloading(statemachine.State):
     """
 
     # Downloading takes about 30s.  Allow a generous multiple of that to handle
-    # moments of high load or bigger images.  Failures here are likely a misconfig, 
+    # moments of high load or bigger images.  Failures here are likely a misconfig,
     # so they aren't retried very many times
     TIMEOUT = 180
     PERMANENT_FAILURE_COUNT = 3
@@ -760,7 +769,7 @@ class b2g_pinging(statemachine.State):
             # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
             if success:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
-        bmm_api.start_ping(self.machine.device_name, ping_complete)
+        self.machine.api.start_ping(self.machine.device_name, ping_complete)
 
     def on_timeout(self):
         # this is a little tricky - b2g_pinging tracks a few tries to ping this device, so

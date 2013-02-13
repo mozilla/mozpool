@@ -26,13 +26,14 @@ class StateDriver(threading.Thread):
     thread_name = 'StateDriver'
     log_db_handler = None
 
-    def __init__(self, poll_frequency=POLL_FREQUENCY):
+    def __init__(self, db, poll_frequency=POLL_FREQUENCY):
         threading.Thread.__init__(self, name=self.thread_name)
         self.setDaemon(True)
         self._stop = False
+        self.db = db
         self.poll_frequency = poll_frequency
         self.logger = logging.getLogger(self.logger_name)
-        self.log_handler = self.log_db_handler()
+        self.log_handler = self.log_db_handler(db)
         self.logger.addHandler(self.log_handler)
 
     def stop(self):
@@ -108,8 +109,8 @@ class StateDriver(threading.Thread):
                                 exc_info=True)
 
     def _get_machine(self, machine_name):
-        return self.state_machine_cls(machine_name)
-    
+        return self.state_machine_cls(machine_name, self.db)
+
     def poll_others(self):
         """
         Override with any activities to be performed each pass through the
@@ -127,14 +128,22 @@ class StateDriver(threading.Thread):
 
 class DBHandler(logging.Handler):
 
-    object_name = ''
-    log_object = None
+    object_type = ''
+
+    def __init__(self, db):
+        super(DBHandler, self).__init__()
+        self.db = db
+        # pick the appropriate sub-object of db based on object_type
+        self.db_methods = {
+            'request' : db.requests,
+            'device' : db.devices,
+        }[self.object_type]
 
     def emit(self, record):
         logger = record.name.split('.')
-        if len(logger) != 2 or logger[0] != self.object_name:
+        if len(logger) != 2 or logger[0] != self.object_type:
             return
         name = logger[1]
 
         msg = self.format(record)
-        self.log_object.add(name, msg, source='statemachine')
+        self.db_methods.log_message(name, msg, source='statemachine')

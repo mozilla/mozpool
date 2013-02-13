@@ -5,8 +5,8 @@
 import os
 import sys
 import argparse
-from mozpool.db import data
 from mozpool.bmm import relay
+from mozpool.db import setup
 
 def relay_script():
     # Basic commandline interface for testing the relay module.
@@ -70,6 +70,8 @@ def pxe_config_script(args=sys.argv[1:]):
     elif args.action == 'list' and args.name:
         parser.error("name is not allowed with 'list'")
 
+    db = setup()
+
     def get_config():
         if not args.config:
             parser.error('--config is required')
@@ -81,7 +83,7 @@ def pxe_config_script(args=sys.argv[1:]):
             return open(args.config).read()
 
     def show_details(name):
-        deets = data.pxe_config_details(name)['details']
+        deets = db.pxe_configs.get(name)
         print "** Name:", deets['name'], '(inactive)' if not deets['active'] else ''
         print "** Description:", deets['description']
         print "** Contents:"
@@ -93,12 +95,12 @@ def pxe_config_script(args=sys.argv[1:]):
         if not args.description:
             parser.error('--description is required for --add')
         config = get_config()
-        data.add_pxe_config(args.name, args.description, args.active, config)
+        db.pxe_configs.add(args.name, args.description, args.active, config)
         show_details(args.name)
 
     elif args.action == 'modify':
         config = None if args.config is None else get_config()
-        data.update_pxe_config(args.name, args.description, args.active, config)
+        db.pxe_configs.update(args.name, args.description, args.active, config)
         show_details(args.name)
 
     elif args.action == 'show':
@@ -108,5 +110,5 @@ def pxe_config_script(args=sys.argv[1:]):
 
     elif args.action == 'list':
         active_arg = {'active_only':True} if args.active else {}
-        for name in data.list_pxe_configs(**active_arg)['pxe_configs']:
+        for name in db.pxe_configs.list(**active_arg):
             show_details(name)

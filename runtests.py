@@ -16,23 +16,23 @@ import threading
 import urlparse
 import logging
 import cStringIO
-import sqlalchemy
 from mock import patch
 from paste.fixture import TestApp
 
 from mozpool import config
 from mozpool import statemachine
 from mozpool import util
+from mozpool import db
 from mozpool.web import server
-from mozpool.db import data, sql
-from mozpool.db import model
 from mozpool.bmm import relay
 from mozpool.bmm import pxe
 from mozpool.bmm import ping
 from mozpool.bmm import scripts
+from mozpool.db import model
 from mozpool.lifeguard import inventorysync
+import mozpool.test.util
 from mozpool.test.util import (add_server, add_hardware_type, add_device,
-    add_pxe_config, add_image, add_image_pxe_config, add_request, setup_db)
+    add_pxe_config, add_image, add_image_pxe_config, add_request)
 from mozpool.test import fakerelay
 import mozpool.bmm.api
 import mozpool.lifeguard
@@ -58,195 +58,12 @@ class ConfigMixin(object):
         config.set('paths', 'tftp_root', tftp_root)
         config.set('paths', 'image_store', image_store)
         # set up the db
-        setup_db(self.dbfile)
-        self.app = TestApp(server.get_app().wsgifunc())
+        self.db = mozpool.test.util.db = db.setup()
+        model.metadata.create_all(self.db.pool.engine)
+        self.app = TestApp(server.get_app(self.db).wsgifunc())
 
     def tearDown(self):
-        sql.get_conn().close()
-        sql.engine = None
         shutil.rmtree(self.tempdir)
-
-class TestData(ConfigMixin, unittest.TestCase):
-    maxDiff = None
-
-    def setUp(self):
-        super(TestData, self).setUp()
-        add_server("server1")
-        add_hardware_type("htyp", "hmod")
-        add_device("device1", server="server1", relayinfo="relay-1:bank1:relay1")
-
-    def testInsertHardwareType(self):
-        add_hardware_type("samsung", "galaxy_s2")
-        self.assertRaises(sqlalchemy.exc.SQLAlchemyError,
-                          lambda: add_hardware_type("samsung",
-                                                    "galaxy_s2"))
-
-    def testRelayInfo(self):
-        self.assertEquals(("relay-1", 1, 1),
-                          data.device_relay_info("device1"))
-
-    def testListDevices(self):
-        self.assertEquals(data.list_devices(), { 'devices' : [ 'device1' ] })
-
-    def testListDevicesDetails(self):
-        add_image('img1', id=23)
-        add_device('device2', last_image_id=23, server='server1')
-        self.assertEquals(data.list_devices(detail=True), {'devices': [
-            udict(id=1, name='device1', fqdn='device1', inventory_id=1,
-                  mac_address='000000000000', imaging_server='server1',
-                  relay_info='relay-1:bank1:relay1', state='offline',
-                  comments=None, last_image=None, boot_config=u'{}',
-                  environment=None),
-            udict(id=2, name='device2', fqdn='device2', inventory_id=2,
-                  mac_address='000000000000', imaging_server='server1',
-                  relay_info='', state='offline', comments=None,
-                  last_image='img1', boot_config=u'{}', environment=None),
-            ]})
-
-    def testDumpDevices(self):
-        self.assertEquals(data.dump_devices(), [
-            dict(id=1, name='device1', fqdn='device1', inventory_id=1, mac_address='000000000000',
-                imaging_server='server1', relay_info='relay-1:bank1:relay1',
-                hardware_type='htyp', hardware_model='hmod'),
-            ])
-
-    def testAllDeviceStates(self):
-        add_device('device2', server='server1', state='foobared')
-        self.assertEquals(data.all_device_states(), { 'device1' : 'offline', 'device2' : 'foobared' })
-
-    def testInsertDevice(self):
-        now = datetime.datetime(2013, 1, 1)
-        data.insert_device(dict(
-                name='device2', fqdn='device2.fqdn', inventory_id=23,
-                mac_address='aabbccddeeff', imaging_server='server2',
-                relay_info='relay-2:bank2:relay2',
-                hardware_type='panda', hardware_model='ES Rev B2'),
-                _now=now)
-        # device with existing imaging_server and new hardware typ to test the
-        # insert-if-not-found behavior
-        data.insert_device(dict(
-                name='device3', fqdn='device3.fqdn', inventory_id=24,
-                mac_address='aabbccddeeff', imaging_server='server1',
-                relay_info='relay-2:bank2:relay2',
-                hardware_type='tegra', hardware_model='blah'),
-                _now=now)
-        conn = sql.get_conn()
-        res = conn.execute(model.devices.select())
-        self.assertEquals(sorted([ dict(r) for r in res.fetchall() ]),
-        sorted([
-            {u'state': u'new', u'state_counters': u'{}', u'state_timeout': now,
-             u'relay_info': u'relay-2:bank2:relay2', u'name': u'device2',
-             u'fqdn': u'device2.fqdn', u'inventory_id': 23,
-             u'imaging_server_id': 2, u'boot_config': None,
-             u'mac_address': u'aabbccddeeff', u'id': 2, u'last_image_id': None,
-             u'comments': None, u'environment': None, u'hardware_type_id': 2},
-            {u'state': u'new',u'state_counters': u'{}', u'state_timeout': now,
-             u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
-             u'fqdn': u'device3.fqdn', u'inventory_id': 24,
-             u'imaging_server_id': 1, u'boot_config': None,
-             u'mac_address': u'aabbccddeeff', u'id': 3, u'last_image_id': None,
-             u'comments': None, u'environment': None, u'hardware_type_id': 3},
-            {u'state': u'offline',u'state_counters': u'{}', u'state_timeout': None,
-             u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
-             u'fqdn': u'device1', u'inventory_id': 1, u'imaging_server_id': 1,
-             u'boot_config': u'{}', u'mac_address': u'000000000000', u'id': 1,
-             u'last_image_id': None, u'comments': None, u'environment': None,
-             u'hardware_type_id': 1},
-            ]))
-
-    def testDeleteDevice(self):
-        conn = sql.get_conn()
-        now = datetime.datetime.now()
-        add_device("device2", server="server1", relayinfo="relay-2:bank1:relay1")
-        conn.execute(model.device_logs.insert(), [
-            dict(device_id=1, ts=now, source='test', message='hi'),
-            dict(device_id=1, ts=now, source='test', message='world'),
-        ])
-        data.delete_device(1)
-
-        # check that both logs and devices were deleted
-        res = conn.execute(sqlalchemy.select([model.devices.c.name]))
-        self.assertEquals(res.fetchall(), [('device2',)])
-        res = conn.execute(model.device_logs.select())
-        self.assertEquals(res.fetchall(), [])
-
-    def testUpdateDevice(self):
-        conn = sql.get_conn()
-        data.update_device(1, dict(fqdn='device1.fqdn', imaging_server='server9', mac_address='aabbccddeeff'))
-        res = conn.execute(model.devices.select())
-        self.assertEquals([ dict(r) for r in res.fetchall() ], [
-            {u'state': u'offline', u'state_counters': u'{}', u'state_timeout': None,
-             u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
-             u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
-             u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1,
-             u'last_image_id': None, u'comments': None, u'environment': None,
-             u'hardware_type_id': 1},
-        ])
-
-    def testUpdateDeviceHardwareType(self):
-        conn = sql.get_conn()
-        data.update_device(1, dict(fqdn='device1.fqdn', imaging_server='server9', mac_address='aabbccddeeff',
-            hardware_type='samsung', hardware_model='galaxy'))
-        res = conn.execute(model.devices.select())
-        self.assertEquals([dict(r) for r in res.fetchall()], [
-            {u'state': u'offline', u'state_counters': u'{}', u'state_timeout': None,
-             u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
-             u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
-             u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1,
-             u'last_image_id': None, u'comments': None, u'environment': None,
-             u'hardware_type_id': 2},
-        ])
-
-    def testDeviceConfigEmpty(self):
-        self.assertEqual(data.device_config('foo'), {})
-
-    def testDeviceConfigNoImage(self):
-        add_device("withconfig", server="server1", config='abcd')
-        self.assertEqual(data.device_config('withconfig'),
-                         {'boot_config': 'abcd', 'image': None})
-
-    def testDeviceConfigImage(self):
-        add_image('img1', id=23)
-        add_device("withimg", config='', server="server1", last_image_id=23)
-        self.assertEqual(data.device_config('withimg'),
-                         {'boot_config': '', 'image': 'img1'})
-
-    def test_get_free_devices(self):
-        # (note, device1 is not free)
-        add_server('server')
-        add_image('img1', id=23)
-        add_device("device2", state='free', environment='foo')
-        add_device("device3", state='free', environment='bar')
-        # device4 has an outstanding request that's still open, even
-        # though its state is free; it should not be returned
-        add_device("device4", state='free', environment='bar')
-        add_request('server', device='device4', image='img1')
-        self.assertEqual(sorted([x['name'] for x in data.get_free_devices()]),
-                         sorted(['device2', 'device3']))
-        self.assertEqual(sorted([x['name'] for x in
-                                 data.get_free_devices(environment='foo')]),
-                         sorted(['device2']))
-        self.assertEqual(sorted([x['name'] for x in
-                                 data.get_free_devices(environment='bar')]),
-                         sorted(['device3']))
-        self.assertEqual(sorted([x['name'] for x in
-                                 data.get_free_devices(environment='bing')]),
-                         sorted([]))
-        self.assertEqual(sorted([x['name'] for x in data.get_free_devices(
-                         environment='bar', device_name='device2')]),
-                         sorted([]))
-        self.assertEqual(sorted([x['name'] for x in data.get_free_devices(
-                         environment='bar', device_name='device3')]),
-                         sorted(['device3']))
-
-    def testDeviceHardwareType(self):
-        new_hw_id = add_hardware_type('google', 'nexus-one')
-        add_device('phonedevice', server='server1', hardware_type_id=new_hw_id)
-        self.assertEqual(data.device_hardware_type('device1'),
-                         {'type': 'htyp', 'model': 'hmod'})
-        self.assertEqual(data.device_hardware_type('phonedevice'),
-                         {'type': 'google', 'model': 'nexus-one'})
-
 
 class TestDeviceList(ConfigMixin, unittest.TestCase):
     def setUp(self):
@@ -348,7 +165,7 @@ class TestRequests(ConfigMixin, unittest.TestCase):
         add_device("device2", server="server1", state="free")
         add_device("device3", server="server1", state="ready")
         add_request("server2", device="device3", state="ready")
-        mozpool.mozpool.driver = requestmachine.MozpoolDriver()
+        mozpool.mozpool.driver = requestmachine.MozpoolDriver(self.db)
 
     def testRequestDevice(self):
         # asserts related to IDs are mostly to identify them for debugging
@@ -472,8 +289,8 @@ class TestDevicePowerCycle(ConfigMixin, unittest.TestCase):
         open(os.path.join(config.get('paths', 'image_store'), self.pxefile), "w").write("abc")
         add_pxe_config("image1")
 
-    @patch("mozpool.bmm.api.start_powercycle")
-    @patch("mozpool.bmm.api.set_pxe")
+    @patch("mozpool.bmm.api.API.start_powercycle")
+    @patch("mozpool.bmm.api.API.set_pxe")
     def testDevicePowerCycle(self, set_pxe, start_powercycle):
         body = {"pxe_config":"image1", "boot_config":"abcd"}
         r = self.app.post("/api/device/device1/power-cycle/",
@@ -497,7 +314,7 @@ class TestDevicePing(ConfigMixin, unittest.TestCase):
         open(os.path.join(config.get('paths', 'image_store'), self.pxefile), "w").write("abc")
         add_pxe_config("image1")
 
-    @patch("mozpool.bmm.api.ping")
+    @patch("mozpool.bmm.api.API.ping")
     def testDevicePing(self, ping):
         ping.return_value = True
         r = self.app.get("/api/device/device1/ping/")
@@ -507,11 +324,12 @@ class TestDevicePing(ConfigMixin, unittest.TestCase):
 class TestDeviceStateChange(ConfigMixin, unittest.TestCase):
     def setUp(self):
         super(TestDeviceStateChange, self).setUp()
-        mozpool.lifeguard.driver = devicemachine.LifeguardDriver()
+        add_server('server1')
         add_device("device1", server="server1", state="ready",
                   relayinfo="relay-1:bank1:relay1")
+        mozpool.lifeguard.driver = devicemachine.LifeguardDriver(self.db)
 
-    @patch('mozpool.bmm.api.clear_pxe')
+    @patch('mozpool.bmm.api.API.clear_pxe')
     @patch('mozpool.statemachine.StateMachine.goto_state')
     def testStateChange(self, goto_state, clear_pxe):
         r = self.app.post("/api/device/device1/state-change/ready/to/new/",
@@ -521,7 +339,7 @@ class TestDeviceStateChange(ConfigMixin, unittest.TestCase):
         # doesn't change the PXE config anymore
         clear_pxe.assert_not_called()
 
-    @patch('mozpool.bmm.api.set_pxe')
+    @patch('mozpool.bmm.api.API.set_pxe')
     @patch('mozpool.statemachine.StateMachine.goto_state')
     def testStateChangeWithPxe(self, goto_state, set_pxe):
         r = self.app.post("/api/device/device1/state-change/ready/to/new/",
@@ -728,13 +546,13 @@ class TestInvSyncGet(unittest.TestCase):
             mock.call('https://inv/path2', auth=('me', 'pass')),
         ])
 
-@patch('mozpool.db.data.dump_devices')
-@patch('mozpool.db.data.insert_device')
-@patch('mozpool.db.data.update_device')
-@patch('mozpool.db.data.delete_device')
+@patch('mozpool.db.inventorysync.Methods.dump_devices')
+@patch('mozpool.db.inventorysync.Methods.insert_device')
+@patch('mozpool.db.inventorysync.Methods.update_device')
+@patch('mozpool.db.inventorysync.Methods.delete_device')
 @patch('mozpool.lifeguard.inventorysync.get_devices')
 @patch('mozpool.lifeguard.inventorysync.merge_devices')
-class TestInvSyncSync(unittest.TestCase):
+class TestInvSyncSync(ConfigMixin, unittest.TestCase):
 
     def test_sync(self, merge_devices, get_devices, delete_device,
                         update_device, insert_device, dump_devices):
@@ -750,7 +568,7 @@ class TestInvSyncSync(unittest.TestCase):
             ('delete', 10, dict(delete=2)),
             ('update', 11, dict(update=3)),
         ]
-        inventorysync.sync()
+        inventorysync.sync(self.db)
         dump_devices.assert_called_with()
         get_devices.assert_called_with('http://foo/', 'hostname__startswith=panda-', 'u', 'p', None,
                 verbose=False)
@@ -774,7 +592,7 @@ class TestInvSyncSync(unittest.TestCase):
             ('delete', 10, dict(delete=2)),
             ('update', 11, dict(update=3)),
         ]
-        inventorysync.sync()
+        inventorysync.sync(self.db)
         dump_devices.assert_called_with()
         get_devices.assert_called_with('http://foo/', 'hostname__startswith=panda-', 'u', 'p', 're',
                 verbose=False)
@@ -855,7 +673,8 @@ class Namespace: # so 'state1' doesn't get replaced in the module dict
 class TestStateSubclasses(unittest.TestCase):
 
     def setUp(self):
-        self.machine = StateMachineSubclass('test', 'machine')
+        self.db = db.setup('sqlite://')
+        self.machine = StateMachineSubclass('test', 'machine', self.db)
 
     def test_event(self):
         state1.called_on_poke = False
@@ -939,7 +758,7 @@ class TestLocksByName(unittest.TestCase):
         self.assertEqual(events,
             [ 'this locked', 'other started', 'unlocking this', 'other locked', 'other unlocked' ])
 
-class TestBmmApi(unittest.TestCase):
+class TestBmmApi(ConfigMixin, unittest.TestCase):
 
     def wait_for_async(self, start_fn):
         done_cond = threading.Condition()
@@ -959,59 +778,61 @@ class TestBmmApi(unittest.TestCase):
         return cb_result[0]
 
     def do_call_start_powercycle(self, device_name, max_time):
+        a = mozpool.bmm.api.API(self.db)
         return self.wait_for_async(lambda cb :
-            mozpool.bmm.api.start_powercycle(device_name, cb, max_time))
+            a.start_powercycle(device_name, cb, max_time))
 
-    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.db.base.ObjectLogsMethodsMixin.log_message')
     @patch('mozpool.bmm.relay.powercycle')
-    @patch('mozpool.db.data.device_relay_info')
-    def test_good(self, device_relay_info, powercycle, logs_add):
+    @patch('mozpool.db.devices.Methods.get_relay_info')
+    def test_good(self, device_relay_info, powercycle, log_message):
         device_relay_info.return_value = ('relay1', 1, 3)
         powercycle.return_value = True
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=30), True)
         device_relay_info.assert_called_with('dev1')
         powercycle.assert_called_with('relay1', 1, 3, 30)
-        logs_add.assert_called()
+        log_message.assert_called()
 
-    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.db.base.ObjectLogsMethodsMixin.log_message')
     @patch('mozpool.bmm.relay.powercycle')
-    @patch('mozpool.db.data.device_relay_info')
-    def test_bad(self, device_relay_info, powercycle, logs_add):
+    @patch('mozpool.db.devices.Methods.get_relay_info')
+    def test_bad(self, device_relay_info, powercycle, log_message):
         device_relay_info.return_value = ('relay1', 1, 3)
         powercycle.return_value = False
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=30), False)
-        logs_add.assert_called()
+        log_message.assert_called()
 
-    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.db.base.ObjectLogsMethodsMixin.log_message')
     @patch('mozpool.bmm.relay.powercycle')
-    @patch('mozpool.db.data.device_relay_info')
-    def test_exceptions(self, device_relay_info, powercycle, logs_add):
+    @patch('mozpool.db.devices.Methods.get_relay_info')
+    def test_exceptions(self, device_relay_info, powercycle, log_message):
         device_relay_info.return_value = ('relay1', 1, 3)
         powercycle.return_value = False
         powercycle.side_effect = lambda *args : 11/0 # ZeroDivisionError
         self.assertEqual(self.do_call_start_powercycle('dev1', max_time=0.01), False)
-        logs_add.assert_called()
+        log_message.assert_called()
 
-    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.db.base.ObjectLogsMethodsMixin.log_message')
     @patch('mozpool.bmm.pxe.set_pxe')
-    def test_set_pxe(self, pxe_set_pxe, logs_add):
+    def test_set_pxe(self, pxe_set_pxe, log_message):
         mozpool.bmm.pxe.set_pxe('device1', 'img1', 'cfg')
         pxe_set_pxe.assert_called_with('device1', 'img1', 'cfg')
-        logs_add.assert_called()
+        log_message.assert_called()
 
-    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.db.base.ObjectLogsMethodsMixin.log_message')
     @patch('mozpool.bmm.pxe.clear_pxe')
-    def test_clear_pxe(self, pxe_clear_pxe, logs_add):
+    def test_clear_pxe(self, pxe_clear_pxe, log_message):
         mozpool.bmm.pxe.clear_pxe('device1')
         pxe_clear_pxe.assert_called_with('device1')
-        logs_add.assert_called()
+        log_message.assert_called()
 
     def do_call_start_ping(self, device_name):
+        a = mozpool.bmm.api.API(self.db)
         return self.wait_for_async(lambda cb :
-            mozpool.bmm.api.start_ping(device_name, cb))
+            a.start_ping(device_name, cb))
 
-    @patch('mozpool.db.data.device_fqdn')
-    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.db.devices.Methods.get_fqdn')
+    @patch('mozpool.db.base.ObjectLogsMethodsMixin.log_message')
     @patch('mozpool.bmm.ping.ping')
     def test_start_ping(self, ping, log_add, device_fqdn):
         ping.return_value = True
@@ -1021,15 +842,16 @@ class TestBmmApi(unittest.TestCase):
         log_add.assert_called()
         ping.assert_called_with('abcd')
 
-    @patch('mozpool.db.data.device_fqdn')
-    @patch('mozpool.db.logs.Logs.add')
+    @patch('mozpool.db.devices.Methods.get_fqdn')
+    @patch('mozpool.db.base.ObjectLogsMethodsMixin.log_message')
     @patch('mozpool.bmm.ping.ping')
-    def test_ping(self, ping, log_add, device_fqdn):
+    def test_ping(self, ping, log_message, device_fqdn):
         ping.return_value = True
         device_fqdn.return_value = 'abcd'
-        mozpool.bmm.api.ping('xyz')
+        a = mozpool.bmm.api.API(self.db)
+        a.ping('xyz')
         device_fqdn.assert_called_with('xyz')
-        log_add.assert_called()
+        log_message.assert_called()
         ping.assert_called_with('abcd')
 
 
@@ -1078,16 +900,9 @@ class TestBmmRelay(unittest.TestCase):
 
 class TestBmmPxe(ConfigMixin, unittest.TestCase):
 
-    def setUp(self):
-        super(TestBmmPxe, self).setUp()
-        config.set('server', 'ipaddress', '1.2.3.4')
-        add_server("server1")
-        add_device("device1", server="server1", relayinfo="relay-1:bank1:relay1",
-                            mac_address='aabbccddeeff')
-        add_pxe_config('img1', contents='IMG1 ip=%IPADDRESS%')
-
     def test_set_pxe(self):
-        pxe.set_pxe('device1', 'img1', 'config')
+        config.set('server', 'ipaddress', '1.2.3.4')
+        pxe.set_pxe('aabbccddeeff', 'IMG1 ip=%IPADDRESS%')
         cfg_filename = os.path.join(os.path.join(self.tempdir, 'tftp', 'pxelinux.cfg'), '01-aa-bb-cc-dd-ee-ff')
         self.assertEqual(open(cfg_filename).read(), 'IMG1 ip=1.2.3.4')
 
@@ -1096,7 +911,7 @@ class TestBmmPxe(ConfigMixin, unittest.TestCase):
         cfg_filename = os.path.join(cfg_dir, '01-aa-bb-cc-dd-ee-ff')
         os.makedirs(cfg_dir)
         open(cfg_filename, "w").write("IMG2")
-        pxe.clear_pxe('device1')
+        pxe.clear_pxe('aabbccddeeff')
         self.assertFalse(os.path.exists(cfg_filename))
 
     def test_clear_pxe_nonexistent(self):
@@ -1162,18 +977,18 @@ class TestPxeConfigScript(ConfigMixin, unittest.TestCase):
     def test_add(self):
         self.write_config('this is my config')
         scripts.pxe_config_script(['add', 'testy', '-m' 'TEST', '-c', 'test-config'])
-        self.assertEqual(data.pxe_config_details('testy'),
-                {'details':{'description':'TEST', 'contents':'this is my config',
-                            'active':True, 'name':'testy'}})
+        self.assertEqual(self.db.pxe_configs.get('testy'),
+                {'description':'TEST', 'contents':'this is my config',
+                            'active':True, 'name':'testy'})
         self.assertStdout('this is my')
 
     def test_modify(self):
         self.write_config('this is my config')
         add_pxe_config('testy')
         scripts.pxe_config_script(['modify', 'testy', '-m' 'TEST', '-c', 'test-config', '--inactive'])
-        self.assertEqual(data.pxe_config_details('testy'),
-                {'details':{'description':'TEST', 'contents':'this is my config',
-                            'active':False, 'name':'testy'}})
+        self.assertEqual(self.db.pxe_configs.get('testy'),
+                {'description':'TEST', 'contents':'this is my config',
+                            'active':False, 'name':'testy'})
         self.assertStdout('this is my')
 
     def test_show(self):

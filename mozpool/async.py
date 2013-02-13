@@ -2,8 +2,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import logging
 import threading
 import time
+
+logger = logging.getLogger('async')
 
 def wait_for_async(start_fn):
     done_cond = threading.Condition()
@@ -22,7 +25,7 @@ def wait_for_async(start_fn):
 
     return cb_result[0]
 
-def run_async(callback_before, callback, operation, logger):
+def run_async(callback_before, callback, operation):
     def try_operation():
         res = False
         try:

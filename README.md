@@ -121,7 +121,7 @@ successful.
 ## Requests ##
 
 The entire lifetime of each request is handled by MozPool as a formal state
-machine.  The state is stored in the database. 
+machine.  The state is stored in the database.
 
 All state transitions and actions are handled on the server where the request
 was originally made.  Timeouts are handled by polling the database for requests
@@ -246,6 +246,9 @@ To run the tests:
 
 Release Notes
 =============
+
+ * The documentation for ``/api/image/list`` was updated to match its behavior.
+ * The database interface layer was completely rewritten for better hackability and testability.
 
 2.0.2
 =====

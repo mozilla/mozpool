@@ -87,7 +87,7 @@ Note that a request will be automatically terminated once it expires.  The
 
 /api/request/{id}/details/
 * GET returns a JSON response body whose "request" key contains an object
-  representing the given request with the keys id, device_id, assignee, 
+  representing the given request with the keys id, device_id, assignee,
   expires, and status.  The expires field is given as an ISO-formatted time.
 
 /api/request/{id}/renew/
@@ -195,7 +195,10 @@ results, since lifeguard expects to be controlling the devices.
   Returns an object with an 'environments' key.
 
 /api/image/list/
-* GET to get a list of all acceptable image names.
+* GET to get details on all images.  Returns an object with an 'images'
+  key, whose value is a list of image objects.  Each image object has
+  keys 'id', 'name', 'boot_config_keys', 'can_reuse', 'hidden', and
+  'has_sut_agent'.
 
 == PXE Configs ==
 

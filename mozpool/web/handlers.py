@@ -4,13 +4,22 @@
 
 """Utilities common to all handlers."""
 
+import json
 import time
 import threading
+import datetime
 import web.webapi
 from mozpool import config
-from mozpool.db import data
+from mozpool.db import exceptions
 
 nocontent = NoContent = web.webapi._status_code("204 No Content")
+
+class DateTimeJSONEncoder(json.JSONEncoder):
+    """Encodes datetime objects as ISO strings."""
+    def default(self, o):
+        if isinstance(o, datetime.datetime):
+            return o.isoformat()
+        return json.JSONEncoder.default(self, o)
 
 def deviceredirect(function):
     """
@@ -19,8 +28,8 @@ def deviceredirect(function):
     """
     def wrapped(self, id, *args):
         try:
-            server = data.get_server_for_device(id)
-        except data.NotFound:
+            server = self.db.devices.get_imaging_server(id)
+        except exceptions.NotFound:
             raise web.notfound()
         if server != config.get('server', 'fqdn'):
             raise web.found("http://%s%s" % (server, web.ctx.path))
@@ -28,7 +37,7 @@ def deviceredirect(function):
         origin = web.ctx.environ.get('HTTP_ORIGIN')
         if origin and origin.startswith('http://'):
             origin_hostname = origin[7:]
-            fqdns = data.all_imaging_servers()
+            fqdns = self.db.imaging_servers.list()
             if origin_hostname not in fqdns:
                 raise web.Forbidden
             web.header('Access-Control-Allow-Origin', origin)
@@ -36,7 +45,32 @@ def deviceredirect(function):
     return wrapped
 
 
-class InMemCache:
+def requestredirect(function):
+    """
+    Generate a redirect when a request is made for a device that is not
+    managed by this instance of the service.
+    """
+    def wrapped(self, id, *args):
+        try:
+            server = self.db.requests.get_imaging_server(id)
+        except exceptions.NotFound:
+            raise web.notfound()
+        if server != config.get('server', 'fqdn'):
+            raise web.found("http://%s%s" % (server, web.ctx.path))
+        return function(self, id, *args)
+    return wrapped
+
+
+class Handler(object):
+    """
+    Parent class for all handler classes in Mozpool.  This makes 'self.db'
+    accessible -- it is set in get_app.
+    """
+
+    db = None
+
+
+class InMemCacheMixin(object):
     """
     Mixin for handler classes that want an in-memory cache for their data.
     This is a simple one-variable cache.
@@ -58,7 +92,6 @@ class InMemCache:
             return cls
 
     def update_cache(self):
-        print "FETCH"
         raise NotImplementedError
 
     def cache_get(self):
@@ -67,5 +100,17 @@ class InMemCache:
             if cls.cache_expires > time.time():
                 return cls.cache_data
             cls.cache_data = self.update_cache()
-            cls.cache_expires = time.time() + cls.CACHE_TTL 
+            cls.cache_expires = time.time() + cls.CACHE_TTL
             return cls.cache_data
+
+
+class ConflictJSON(web.HTTPError):
+    """`409 Conflict` error with JSON body."""
+    def __init__(self, o):
+        status = "409 Conflict"
+        body = json.dumps(o, cls=DateTimeJSONEncoder)
+        headers = {'Content-Length': len(body),
+                   'Content-Type': 'application/json; charset=utf-8'}
+        web.HTTPError.__init__(self, status, headers, body)
+
+

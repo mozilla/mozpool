@@ -3,45 +3,36 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import os
-import logging
 from mozpool import config
-from mozpool.db import data
+from mozpool import util
 
-logger = logging.getLogger('bmm.pxe')
-
-def _get_device_config_path(device_name):
+def _get_device_config_path(mac_address):
     """
     Get the path where the PXE boot symlink should be placed
     for a specific device.
     """
-    mac_address = data.mac_with_dashes(data.device_mac_address(device_name))
+    mac_address = util.mac_with_dashes(mac_address)
     symlink_dir = os.path.join(config.get('paths', 'tftp_root'), "pxelinux.cfg")
     return os.path.join(symlink_dir, "01-" + mac_address)
 
-def set_pxe(device_name, pxe_config_name, boot_config):
+def set_pxe(mac_address, pxe_config):
     """
-    Set up the PXE configuration for the device as directed.  Note that this does *not*
-    reboot the device.
+    Set up the PXE configuration for the device as directed, substituting the
+    server's IP address.  Note that this does *not* reboot the device.
     """
-    logger.info('setting pxe config for %s to %s%s' % (device_name, pxe_config_name,
-        ' with boot config' if boot_config else ''))
-    image_details = data.pxe_config_details(pxe_config_name)['details']
-    pxe_config_contents = image_details['contents']
-
     # Write out the config file
-    device_config_path = _get_device_config_path(device_name)
+    device_config_path = _get_device_config_path(mac_address)
     device_config_dir = os.path.dirname(device_config_path)
     if not os.path.exists(device_config_dir):
         os.makedirs(device_config_dir)
 
     # apply ipaddress substitution to the config contents
-    pxe_config_contents = pxe_config_contents.replace('%IPADDRESS%', config.get('server', 'ipaddress'))
+    pxe_config_contents = pxe_config.replace('%IPADDRESS%', config.get('server', 'ipaddress'))
 
     open(device_config_path, "w").write(pxe_config_contents)
 
-def clear_pxe(device_name):
+def clear_pxe(mac_address):
     """Remove config for this device's MAC address from TFTP."""
-    logger.info('clearing pxe config for %s' % (device_name,))
-    tftp_symlink = _get_device_config_path(device_name)
+    tftp_symlink = _get_device_config_path(mac_address)
     if os.path.exists(tftp_symlink):
         os.unlink(tftp_symlink)

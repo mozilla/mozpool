@@ -35,8 +35,9 @@ class StateMachine(object):
 
     # external interface
 
-    def __init__(self, machine_type, machine_name):
+    def __init__(self, machine_type, machine_name, db):
         self.machine_name = machine_name
+        self.db = db
         self.state = None
         self.logger = logging.getLogger('%s.%s' % (machine_type, self.machine_name))
 
@@ -63,7 +64,7 @@ class StateMachine(object):
     def conditional_goto_state(self, old_state, new_state):
         """
         Transition to NEW_STATE only if the device is in OLD_STATE.  Returns
-        True on success, False on failure. 
+        True on success, False on failure.
         """
         self.lock()
         self.state = self._make_state_instance()
@@ -179,6 +180,7 @@ class State(object):
 
     def __init__(self, machine):
         self.machine = machine
+        self.db = machine.db
         self.logger = machine.logger
 
     def handle_event(self, event, args):

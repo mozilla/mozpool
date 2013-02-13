@@ -9,18 +9,21 @@ import sys
 import templeton.handlers
 import templeton.middleware
 import web
-import mozpool
 import mozpool.lifeguard
 import mozpool.mozpool
+from mozpool.web import handlers as web_handlers
 from mozpool.lifeguard import devicemachine, handlers as lifeguard_handlers
 from mozpool.bmm import handlers as bmm_handlers
-from mozpool import config
 from mozpool.mozpool import requestmachine, handlers as mozpool_handlers
+from mozpool import config
+from mozpool.db import setup as db_setup
 
 templeton.middleware.patch_middleware()
 
-def get_app():
+def get_app(db):
+    # set some global config
     web.config.debug = False
+    web_handlers.Handler.db = db
 
     # merge handlers and URLs from all layers
     urls = ()
@@ -49,22 +52,25 @@ def main():
     logger = logging.getLogger('')
     logger.info('Mozpool-%s server starting' % mozpool.version)
 
+    # set up the DB layer's facade
+    db = db_setup()
+
     # if we're running fake boards, start those up
     if config.get('testing', 'run_fakes'):
         from mozpool.test import fakedevices
-        rack = fakedevices.Rack()
+        rack = fakedevices.Rack(db)
         rack.start()
 
     # start up the lifeguard driver
     # TODO: make this configurable, as well as poll freq
-    mozpool.lifeguard.driver = devicemachine.LifeguardDriver()
+    mozpool.lifeguard.driver = devicemachine.LifeguardDriver(db)
     mozpool.lifeguard.driver.start()
 
     # start up the mozpool driver
-    mozpool.mozpool.driver = requestmachine.MozpoolDriver()
+    mozpool.mozpool.driver = requestmachine.MozpoolDriver(db)
     mozpool.mozpool.driver.start()
 
-    app = get_app()
+    app = get_app(db)
     app.run()
 
 if __name__ == '__main__':

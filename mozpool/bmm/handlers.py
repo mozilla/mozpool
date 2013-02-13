@@ -5,8 +5,7 @@
 import datetime
 import web
 import templeton
-from mozpool.db import data, logs
-from mozpool.web.handlers import deviceredirect
+from mozpool.web.handlers import deviceredirect, Handler
 from mozpool.bmm import api
 
 # URLs go here. "/api/" will be automatically prepended to each.
@@ -15,7 +14,7 @@ urls = (
   "/device/([^/]+)/power-off/?", "power_off",
   "/device/([^/]+)/ping/?", "ping",
   "/device/([^/]+)/clear-pxe/?", "clear_pxe",
-  "/device/([^/]+)/log/?", "log",
+  "/device/([^/]+)/log/?", "device_log",
   "/device/([^/]+)/bootconfig/?", "device_bootconfig",
   "/device/([^/]+)/set-comments/?", "device_set_comments",
   "/device/([^/]+)/set-environment/?", "device_set_environment",
@@ -24,42 +23,46 @@ urls = (
   "/bmm/pxe_config/([^/]+)/details/?", "pxe_config_details",
 )
 
-class power_cycle:
+class power_cycle(Handler):
     @deviceredirect
     @templeton.handlers.json_response
     def POST(self, device_name):
         args, body = templeton.handlers.get_request_parms()
+        a = api.API(self.db)
         if 'pxe_config' in body:
-            api.set_pxe(device_name, body['pxe_config'],
+            a.set_pxe(device_name, body['pxe_config'],
                     body.get('boot_config', ''))
         else:
-            api.clear_pxe(device_name)
+            a.clear_pxe(device_name)
         # start the power cycle and ignore the result
-        api.start_powercycle(device_name, lambda *args : None)
+        a.start_powercycle(device_name, lambda *args : None)
         return {}
 
-class power_off:
+class power_off(Handler):
     @deviceredirect
     @templeton.handlers.json_response
     def GET(self, device_name):
         # start the power off and ignore the result
-        api.start_poweroff(device_name, lambda *args : None)
+        a = api.API(self.db)
+        a.start_poweroff(device_name, lambda *args : None)
         return {}
 
-class ping:
+class ping(Handler):
     @deviceredirect
     @templeton.handlers.json_response
     def GET(self, device_name):
-        return { 'success' : api.ping(device_name) }
+        a = api.API(self.db)
+        return { 'success' : a.ping(device_name) }
 
-class clear_pxe:
+class clear_pxe(Handler):
     @deviceredirect
     @templeton.handlers.json_response
     def POST(self, device_name):
-        api.clear_pxe(device_name)
+        a = api.API(self.db)
+        a.clear_pxe(device_name)
         return {}
 
-class log:
+class device_log(Handler):
     @templeton.handlers.json_response
     def GET(self, device_name):
         args, _ = templeton.handlers.get_request_parms()
@@ -72,47 +75,46 @@ class log:
             limit = int(args['limit'][0])
         else:
             limit = None
-        return {'log':logs.device_logs.get(device_name,
+        return {'log':self.db.devices.get_logs(device_name,
                 timeperiod=timeperiod, limit=limit)}
 
-class environment_list:
+class environment_list(Handler):
     @templeton.handlers.json_response
     def GET(self):
-        return data.list_environments()
+        return { 'environments' : self.db.environments.list() }
 
-class pxe_config_list:
+class pxe_config_list(Handler):
     @templeton.handlers.json_response
     def GET(self):
         args, _ = templeton.handlers.get_request_parms()
-        if 'active_only' in args:
-            return data.list_pxe_configs(active_only=True)
-        else:
-            return data.list_pxe_configs()
+        return { 'pxe_configs' : self.db.pxe_configs.list(
+            active_only=('active_only' in args)) }
 
-class pxe_config_details:
+class pxe_config_details(Handler):
     @templeton.handlers.json_response
-    def GET(self, id):
-        return data.pxe_config_details(id)
+    def GET(self, name):
+        return { 'details' : self.db.pxe_configs.get(name) }
 
-class device_set_comments:
+class device_set_comments(Handler):
     @deviceredirect
     @templeton.handlers.json_response
-    def POST(self, id):
+    def POST(self, device_name):
         args, body = templeton.handlers.get_request_parms()
-        data.set_device_comments(id, body['comments'])
+        self.db.devices.set_comments(device_name, body['comments'])
 
-class device_set_environment:
+class device_set_environment(Handler):
     @deviceredirect
     @templeton.handlers.json_response
-    def POST(self, id):
+    def POST(self, device_name):
         args, body = templeton.handlers.get_request_parms()
-        data.set_device_environment(id, body['environment'])
+        self.db.devices.set_environment(device_name, body['environment'])
 
-class device_bootconfig:
-    def GET(self, id):
+class device_bootconfig(Handler):
+    def GET(self, device_name):
         try:
-            dev_cfg = data.device_config(id)
+            img = self.db.devices.get_image(device_name)
+            # this is JSON, but we're returning it as a string..
             web.header('Content-Type', 'application/json; charset=utf-8')
-            return dev_cfg['boot_config']
+            return img['boot_config']
         except KeyError:
             raise web.notfound()

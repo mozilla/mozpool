@@ -7,8 +7,7 @@ import web
 import datetime
 import time
 import mozpool.lifeguard
-from mozpool.db import data
-from mozpool.web.handlers import deviceredirect, InMemCache
+from mozpool.web.handlers import deviceredirect, InMemCacheMixin, Handler
 
 # URLs go here. "/api/" will be automatically prepended to each.
 urls = (
@@ -20,7 +19,7 @@ urls = (
 
 # device handlers
 
-class state_change:
+class state_change(Handler):
     @deviceredirect
     @templeton.handlers.json_response
     def POST(self, device_name, from_state, to_state):
@@ -30,7 +29,7 @@ class state_change:
             raise web.conflict()
         return {}
 
-class event:
+class event(Handler):
     @deviceredirect
     @templeton.handlers.json_response
     def POST(self, device_name, event):
@@ -44,20 +43,22 @@ class event:
         mozpool.lifeguard.driver.handle_event(device_name, event, {})
         return {}
 
-class device_status:
+class device_status(Handler):
     @templeton.handlers.json_response
-    def GET(self, id):
-        return data.device_status(id)
+    def GET(self, device_name):
+        state = self.db.devices.get_machine_state(device_name)
+        logs = self.db.devices.get_logs(device_name, limit=100)
+        return {'state': state, 'log': logs}
 
-class device_state(InMemCache):
+class device_state(Handler, InMemCacheMixin):
     CACHE_TTL = 5
 
     def update_cache(self):
-        return data.all_device_states()
+        return self.db.devices.list_states()
 
     @templeton.handlers.json_response
-    def GET(self, id):
-        state = self.cache_get()[id]
+    def GET(self, device_name):
+        state = self.cache_get()[device_name]
         ttl = self.cache_expires - time.time()
         web.expires(datetime.timedelta(seconds=ttl))
         web.header('Cache-Control', 'public, max-age=%d' % int(ttl+1))

@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import sys
-from mozpool.db import sql
+from mozpool.db import setup
 from mozpool.db import model
 
 def db_script():
@@ -15,11 +15,11 @@ def db_script():
     if len(sys.argv) < 2:
         usage()
     if sys.argv[1] == 'create-schema':
-        engine = sql.get_engine()
-        model.metadata.create_all(bind=engine)
+        db = setup()
+        model.metadata.create_all(bind=db.pool.engine)
     elif sys.argv[1] == 'run':
-        conn = sql.get_conn()
-        execfile(sys.argv[2], dict(conn=conn, args=sys.argv[3:]))
+        db = setup()
+        execfile(sys.argv[2], dict(conn=db.pool.engine.connect(), args=sys.argv[3:]))
     else:
         usage()
     sys.exit(0)

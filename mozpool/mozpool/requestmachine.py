@@ -8,8 +8,7 @@ import random
 import requests
 import urllib
 
-from mozpool import config, statemachine, statedriver
-from mozpool.db import data, logs
+from mozpool import config, statemachine, statedriver, util
 
 ####
 # State machine
@@ -18,13 +17,12 @@ from mozpool.db import data, logs
 
 class RequestStateMachine(statemachine.StateMachine):
 
-    def __init__(self, request_id):
-        statemachine.StateMachine.__init__(self, 'request', request_id)
+    def __init__(self, request_id, db):
+        statemachine.StateMachine.__init__(self, 'request', request_id, db)
         self.request_id = request_id
 
     def read_state(self):
-        state, timeout, counters = data.get_request_state(self.request_id)
-        return state
+        return self.db.requests.get_machine_state(self.request_id)
 
     def write_state(self, new_state, timeout_duration):
         if timeout_duration:
@@ -32,14 +30,14 @@ class RequestStateMachine(statemachine.StateMachine):
                              datetime.timedelta(seconds=timeout_duration))
         else:
             state_timeout = None
-        data.set_request_state(self.request_id, new_state, state_timeout)
+        self.db.requests.set_machine_state(self.request_id,
+                                           new_state, state_timeout)
 
     def read_counters(self):
-        state, timeout, counters = data.get_request_state(self.request_id)
-        return counters
+        return self.db.requests.get_counters(self.request_id)
 
     def write_counters(self, counters):
-        data.set_request_counters(self.request_id, counters)
+        self.db.requests.set_counters(self.request_id, counters)
 
 
 ####
@@ -47,8 +45,7 @@ class RequestStateMachine(statemachine.StateMachine):
 
 class RequestLogDBHandler(statedriver.DBHandler):
 
-    object_name = 'request'
-    log_object = logs.request_logs
+    object_type = 'request'
 
 
 class MozpoolDriver(statedriver.StateDriver):
@@ -62,16 +59,16 @@ class MozpoolDriver(statedriver.StateDriver):
     thread_name = 'MozpoolDriver'
     log_db_handler = RequestLogDBHandler
 
-    def __init__(self, poll_frequency=statedriver.POLL_FREQUENCY):
-        statedriver.StateDriver.__init__(self, poll_frequency)
-        self.imaging_server_id = data.find_imaging_server_id(
+    def __init__(self, db, poll_frequency=statedriver.POLL_FREQUENCY):
+        statedriver.StateDriver.__init__(self, db, poll_frequency)
+        self.imaging_server_id = self.db.imaging_servers.get_id(
             config.get('server', 'fqdn'))
 
     def _get_timed_out_machine_names(self):
-        return data.get_timed_out_requests(self.imaging_server_id)
+        return self.db.requests.list_timed_out(self.imaging_server_id)
 
     def poll_others(self):
-        for request_id in data.get_expired_requests(self.imaging_server_id):
+        for request_id in self.db.requests.list_expired(self.imaging_server_id):
             self.handle_event(request_id, 'expire', None)
 
 
@@ -121,10 +118,12 @@ class ClearDeviceRequests(object):
         self.machine.goto_state(self.state_name)
 
     def free_device(self):
-        assigned_device = data.get_assigned_device(self.machine.request_id)
+        assigned_device = self.db.requests.get_assigned_device(
+                                            self.machine.request_id)
         if assigned_device:
             device_url = 'http://%s/api/device/%s/event/free/' % (
-                data.get_server_for_device(assigned_device), assigned_device)
+                self.db.devices.get_imaging_server(assigned_device),
+                assigned_device)
             # FIXME: make this asynchronous so slow/missing servers don't halt
             # the state machine.
             try:
@@ -171,10 +170,10 @@ class finding_device(Closable, Expirable, statemachine.State):
         self.logger.info('Finding device.')
         device_name = None
         count = self.machine.increment_counter(self.state_name)
-        request = data.request_config(self.machine.request_id)
-        image_is_reusable = data.image_is_reusable(request['image'])
+        request = self.db.requests.get_info(self.machine.request_id)
+        image_is_reusable = self.db.images.is_reusable(request['image'])
 
-        free_devices = data.get_free_devices(
+        free_devices = self.db.devices.list_free(
                 environment=request['environment'],
                 device_name=request['requested_device'])
 
@@ -182,15 +181,15 @@ class finding_device(Closable, Expirable, statemachine.State):
             if image_is_reusable:
                 devices_with_image = [x for x in free_devices
                                       if x['image'] == request['image'] and
-                                         data.from_json(x['boot_config']) ==
-                                         data.from_json(request['boot_config'])]
+                                         util.from_json(x['boot_config']) ==
+                                         util.from_json(request['boot_config'])]
                 if devices_with_image:
                     free_devices = devices_with_image
 
             # pick a device at random from the returned list
             device_name = random.choice(free_devices)['name']
             self.logger.info('Assigning device %s.' % device_name)
-            if data.reserve_device(self.machine.request_id,
+            if self.db.device_requests.add(self.machine.request_id,
                                                 device_name):
                 self.logger.info('Request succeeded.')
                 self.machine.goto_state(contacting_lifeguard)
@@ -216,9 +215,9 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
     PERMANENT_FAILURE_COUNT = 5
 
     def on_entry(self):
-        request_config = data.request_config(self.machine.request_id)
-        device_name = request_config['assigned_device']
-        device_state = data.device_status(device_name)['state']
+        req = self.db.requests.get_info(self.machine.request_id)
+        device_name = req['assigned_device']
+        device_state = self.db.devices.get_machine_state(device_name)
         if device_state != 'free':
             self.logger.error('Assigned device %s is in unexpected state %s '
                               'when about to contact lifeguard.' %
@@ -226,7 +225,7 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
             self.machine.goto_state(device_busy)
             return
 
-        if self.contact_lifeguard(request_config):
+        if self.contact_lifeguard(req):
             self.machine.goto_state(pending)
             return
         counters = self.machine.read_counters()
@@ -237,31 +236,31 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
         self.machine.increment_counter(self.state_name)
         self.machine.goto_state(contacting_lifeguard)
 
-    def contact_lifeguard(self, request_config):
+    def contact_lifeguard(self, req):
         # If the requested image is reusable and we got a device with that
         # image and the requested bootconfig, just power cycle it.
         # Otherwise, image it.  Note that there will be a failure if the
         # image is not installed and the device is not imageable.
         event = ''
         device_request_data = {}
-        assigned_device_name = request_config['assigned_device']
+        assigned_device_name = req['assigned_device']
 
-        if data.image_is_reusable(request_config['image']):
-            device_config = data.device_config(request_config['assigned_device'])
-            if (device_config['image'] == request_config['image'] and
-                data.from_json(device_config['boot_config']) ==
-                data.from_json(request_config['boot_config'])):
+        if self.db.images.is_reusable(req['image']):
+            dev = self.db.devices.get_image(req['assigned_device'])
+            if (dev['image'] == req['image'] and
+                util.from_json(dev['boot_config']) ==
+                util.from_json(req['boot_config'])):
                 event = 'please_power_cycle'
 
         if not event:
             # Use the device's hardware type and requested image to find the
             # pxe config, if any.
             event = 'please_image'
-            device_request_data['boot_config'] = request_config['boot_config']
-            device_request_data['image'] = request_config['image']
+            device_request_data['boot_config'] = req['boot_config']
+            device_request_data['image'] = req['image']
 
         device_url = 'http://%s/api/device/%s/event/%s/' % (
-            data.get_server_for_device(assigned_device_name),
+            self.db.devices.get_imaging_server(assigned_device_name),
             assigned_device_name, event)
 
         # FIXME: make this asynchronous so slow/missing servers don't halt
@@ -285,9 +284,9 @@ class pending(Closable, Expirable, statemachine.State):
     def on_timeout(self):
         # FIXME: go back to earlier state if request failed
         counter = self.machine.increment_counter(self.state_name)
-        request_config = data.request_config(self.machine.request_id)
-        device_name = request_config['assigned_device']
-        device_state = data.device_status(device_name)['state']
+        req = self.db.requests.get_info(self.machine.request_id)
+        device_name = req['assigned_device']
+        device_state = self.db.devices.get_machine_state(device_name)
         if device_state == 'ready':
             self.machine.goto_state(ready)
         elif counter > self.PERMANENT_FAILURE_COUNT:
@@ -326,4 +325,4 @@ class closed(statemachine.State):
     "Device was returned and request has been closed."
 
     def on_entry(self):
-        data.clear_device_request(self.machine.request_id)
+        self.db.device_requests.clear(self.machine.request_id)

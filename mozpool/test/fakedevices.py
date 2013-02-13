@@ -9,10 +9,8 @@ import random
 import logging
 import threading
 import requests
-from mozpool.db import data
-from mozpool import config
-from mozpool.bmm import ping
-from mozpool.sut import cli as sut_cli
+from mozpool import config, util
+from mozpool.bmm import ping, sut
 from mozpool.test import fakerelay
 
 class Relay(fakerelay.Relay):
@@ -37,6 +35,7 @@ class Device(object):
 
     def __init__(self, rack, name, dev_dict):
         self.rack = rack
+        self.db = rack.db
         self.name = name
         self.logger = logging.getLogger('fakedevices.%s' % name)
 
@@ -116,7 +115,8 @@ class Device(object):
         self.state = state
 
     def _get_second_stage(self):
-        mac_address = data.mac_with_dashes(data.device_mac_address(self.name))
+        mac_address = util.mac_with_dashes(
+                self.db.devices.get_mac_address(self.name))
         dir = os.path.join(config.get('paths', 'tftp_root'), "pxelinux.cfg")
         filename = os.path.join(dir, "01-" + mac_address)
         if os.path.exists(filename):
@@ -292,6 +292,7 @@ class Chassis(object):
 
     def __init__(self, rack, relayboard_fqdn):
         self.rack = rack
+        self.db = rack.db
         self.relayboard_fqdn = relayboard_fqdn
         host, port = relayboard_fqdn.split(':')
         self.relayboard = fakerelay.RelayBoard(relayboard_fqdn, ('', int(port)))
@@ -316,7 +317,9 @@ class Rack(object):
     Represents a rack of chassis full of fake devices
     """
 
-    def __init__(self):
+    def __init__(self, db):
+        self.db = db
+
         # chassis are keyed by relay fqdn:port
         self.chassis = {}
 
@@ -356,18 +359,18 @@ class Rack(object):
                 return getattr(dev, fn_name)()
             setattr(module, fn_name, patched_fn)
         patch(ping, 'ping')
-        patch(sut_cli, 'sut_verify')
-        patch(sut_cli, 'check_sdcard')
-        patch(sut_cli, 'reboot')
+        patch(sut, 'sut_verify')
+        patch(sut, 'check_sdcard')
+        patch(sut, 'reboot')
 
     def _populate(self):
         fqdn = config.get('server', 'fqdn')
-        for dev_dict in data.list_devices(detail=True)['devices']:
+        for dev_dict in self.db.devices.list(detail=True):
             # only emulate devices managed by this imaging sever
             if dev_dict['imaging_server'] != fqdn:
                 continue
 
-            # only emulate devices with relay info starting with 'localhost' 
+            # only emulate devices with relay info starting with 'localhost'
             hostname, bank, relay = dev_dict['relay_info'].rsplit(":", 2)
             if not hostname.startswith('localhost:'):
                 continue

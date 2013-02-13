@@ -2,14 +2,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import json
 import templeton
 import web
 
 import mozpool.mozpool
 from mozpool import config
-from mozpool.db import data, logs
-from mozpool.web import handlers as mozpool_handlers
+from mozpool.db import exceptions
+from mozpool.web.handlers import Handler, requestredirect, nocontent, ConflictJSON
 
 urls = (
     "/device/list/?", "device_list",
@@ -25,32 +24,7 @@ urls = (
     "/image/list/?", "image_list",
 )
 
-class ConflictJSON(web.HTTPError):
-    """`409 Conflict` error with JSON body."""
-    def __init__(self, o):
-        status = "409 Conflict"
-        body = json.dumps(o)
-        headers = {'Content-Length': len(body),
-                   'Content-Type': 'application/json; charset=utf-8'}
-        web.HTTPError.__init__(self, status, headers, body)
-
-
-def requestredirect(function):
-    """
-    Generate a redirect when a request is made for a device that is not
-    managed by this instance of the service.
-    """
-    def wrapped(self, id, *args):
-        try:
-            server = data.get_server_for_request(id)
-        except data.NotFound:
-            raise web.notfound()
-        if server != config.get('server', 'fqdn'):
-            raise web.found("http://%s%s" % (server, web.ctx.path))
-        return function(self, id, *args)
-    return wrapped
-
-class device_request:
+class device_request(Handler):
     @templeton.handlers.json_response
     def POST(self, device_name):
         args, body = templeton.handlers.get_request_parms()
@@ -62,62 +36,67 @@ class device_request:
         except (KeyError, ValueError):
             raise web.badrequest()
 
-        images = data.dump_images(image_name)
-        if not images:
-            raise web.badrequest()
+        try:
+            image = self.db.images.get(image_name)
+        except exceptions.NotFound:
+            raise web.notfound()
 
         boot_config = {}
-        for k in images[0]['boot_config_keys']:
+        for k in image['boot_config_keys']:
             try:
                 boot_config[k] = body[k]
             except KeyError:
                 raise web.badrequest()
 
-        request_id = data.create_request(device_name, environment, assignee,
-                                         duration, images[0]['id'], boot_config)
+        request_id = self.db.requests.add(device_name, environment, assignee,
+                duration, image['id'], boot_config)
         mozpool.mozpool.driver.handle_event(request_id, 'find_device', None)
-        response_data = {'request': data.request_config(request_id)}
-        if data.request_status(request_id)['state'] == 'closed':
+        info = self.db.requests.get_info(request_id)
+        info['url'] = "http://%s/api/request/%d/" % ((config.get('server', 'fqdn'), request_id))
+        response_data = {'request': info}
+        if self.db.requests.get_machine_state(request_id) == 'closed':
             raise ConflictJSON(response_data)
         return response_data
 
-class device_list:
+class device_list(Handler):
     @templeton.handlers.json_response
     def GET(self):
         args, _ = templeton.handlers.get_request_parms()
-        return data.list_devices(detail='details' in args)
+        return {'devices': self.db.devices.list(detail='details' in args)}
 
-class request_list:
+class request_list(Handler):
     @templeton.handlers.json_response
     def GET(self):
         args, _ = templeton.handlers.get_request_parms()
         include_closed = args.get('include_closed', False)
-        return dict(requests=data.dump_requests(include_closed=include_closed))
+        return dict(requests=self.db.requests.list(include_closed=include_closed))
 
-class request_details:
+class request_details(Handler):
     @templeton.handlers.json_response
     def GET(self, request_id):
         try:
-            return data.request_config(int(request_id))
+            request_id = int(request_id)
+            info = self.db.requests.get_info(request_id)
+            info['url'] = "http://%s/api/request/%d/" % ((config.get('server', 'fqdn'), request_id))
+            return info
         except ValueError:
             raise web.badrequest()
-        except data.NotFound:
+        except exceptions.NotFound:
             raise web.notfound()
 
-class request_status:
+class request_status(Handler):
     @templeton.handlers.json_response
     def GET(self, request_id):
-        try:
-            return data.request_status(request_id)
-        except IndexError:
-            raise web.notfound()
+        state = self.db.requests.get_machine_state(request_id)
+        logs = self.db.requests.get_logs(request_id, limit=100)
+        return {'state': state, 'log': logs}
 
-class request_log:
+class request_log(Handler):
     @templeton.handlers.json_response
     def GET(self, request_id):
-        return {'log': logs.request_logs.get(request_id)}
+        return {'log':self.db.requests.get_logs(request_id)}
 
-class request_renew:
+class request_renew(Handler):
     @requestredirect
     def POST(self, request_id):
         _, body = templeton.handlers.get_request_parms()
@@ -125,16 +104,16 @@ class request_renew:
             new_duration = int(body["duration"])
         except (KeyError, ValueError):
             raise web.badrequest()
-        data.renew_request(request_id, new_duration)
-        raise mozpool_handlers.nocontent()
+        self.db.requests.renew(request_id, new_duration)
+        raise nocontent()
 
-class request_return:
+class request_return(Handler):
     @requestredirect
     def POST(self, request_id):
         mozpool.mozpool.driver.handle_event(request_id, 'close', None)
-        raise mozpool_handlers.nocontent()
+        raise nocontent()
 
-class image_list:
+class image_list(Handler):
     @templeton.handlers.json_response
     def GET(self):
-        return {'images': data.dump_images()}
+        return {'images': self.db.images.list()}

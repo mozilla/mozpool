@@ -6,7 +6,7 @@
 import re
 import argparse
 import requests
-from mozpool.db import data
+from mozpool.db import setup
 from mozpool import config
 
 # systems are represented as a dict with keys:
@@ -96,7 +96,7 @@ def merge_devices(from_db, from_inv):
         if db_row != inv_row:
             yield ('update', id, inv_row)
 
-def sync(verbose=False):
+def sync(db, verbose=False):
     ignore_devices_on_servers_re = None
     if config.has_option('inventory', 'ignore_devices_on_servers_re'):
         ignore_devices_on_servers_re = config.get('inventory', 'ignore_devices_on_servers_re')
@@ -109,18 +109,18 @@ def sync(verbose=False):
             verbose=verbose)
     # dump the db second, since otherwise the mysql server can go away while
     # get_devices is still running, which is no fun
-    from_db = data.dump_devices()
+    from_db = db.inventorysync.dump_devices()
 
     for task in merge_devices(from_db, from_inv):
         if task[0] == 'insert':
             if verbose: print "insert device", task[1]['fqdn']
-            data.insert_device(task[1])
+            db.inventorysync.insert_device(task[1])
         elif task[0] == 'delete':
             if verbose: print "delete device", task[2]
-            data.delete_device(task[1])
+            db.inventorysync.delete_device(task[1])
         elif task[0] == 'update':
             if verbose: print "update device", task[2]
-            data.update_device(task[1], task[2])
+            db.inventorysync.update_device(task[1], task[2])
         else:
             raise AssertionError('%s is not a task' % task[0])
 
@@ -131,4 +131,5 @@ def main():
                         help='verbose output')
     args = parser.parse_args()
 
-    sync(verbose=args.verbose)
+    db = setup()
+    sync(db, verbose=args.verbose)
