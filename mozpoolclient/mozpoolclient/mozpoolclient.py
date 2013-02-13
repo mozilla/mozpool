@@ -215,7 +215,6 @@ class MozpoolHandler:
         """
         if not assignee:
             assignee = "%s-%s" % (self.user, self.hostname)
-            assignee = "foopy11"
         if image == 'b2g':
             assert b2gbase is not None, "b2gbase must be supplied when image=='b2gbase'"
         assert duration == int(duration)

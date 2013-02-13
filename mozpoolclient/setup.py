@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='mozpoolclient',
-    version='0.1.2',
+    version='0.1.3',
     author='Zambrano, Armen',
     author_email='armenzg@mozilla.com',
     packages=['mozpoolclient'],
