@@ -13,9 +13,9 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
     driver_class = devicemachine.LifeguardDriver
 
     auto_patch = [
-        ('start_ping', 'mozpool.bmm.api.API.start_ping'),
+        ('ping', 'mozpool.bmm.api.API.ping'),
         ('set_pxe', 'mozpool.bmm.api.API.set_pxe'),
-        ('start_powercycle', 'mozpool.bmm.api.API.start_powercycle'),
+        ('powercycle', 'mozpool.bmm.api.API.powercycle'),
     ]
 
     def setUp(self):
@@ -33,12 +33,31 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
     def assert_state(self, state):
         self.assertEqual(self.db.devices.get_machine_state('dev1'), state)
 
+    def invoke_callback(self, start_mock, result):
+        "call the callback passed to a mock async operation start"
+        start_mock.assert_called()
+        start_mock.call_args[0][0](result)
+
     def test_free_ping_ok(self):
         self.set_state('free')
         self.driver.handle_timeout('dev1')
-        self.start_ping.assert_called_with('dev1', mock.ANY)
-        self.start_ping.call_args[0][1](True)
+        self.ping.start.assert_called_with(mock.ANY, 'dev1')
+        self.invoke_callback(self.ping.start, True)
         self.assert_state('free')
+
+    def test_free_ping_selftest(self):
+        # add a self-test image and pxe_config for this device and hardware type
+        self.add_image('self-test')
+        self.add_pxe_config('selftest', contents='SELF TEST')
+        self.add_image_pxe_config('self-test', 'selftest', 'test', 'test')
+
+        self.set_state('free')
+        self.driver.handle_timeout('dev1')
+        self.ping.start.assert_called_with(mock.ANY, 'dev1')
+        self.invoke_callback(self.ping.start, False) # ping fails
+        self.set_pxe.run.assert_called_with('dev1', 'selftest')
+        self.powercycle.start.assert_called_with(mock.ANY, 'dev1')
+        self.assert_state('pxe_power_cycling')
 
     def test_ready_no_next_image(self):
         "entering ready does not change the image if there's no next_image"

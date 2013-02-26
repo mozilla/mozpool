@@ -207,13 +207,16 @@ class DBMixin(DirMixin):
                         state_counters='{}')
         request_id = res.lastrowid
         if device and state != 'closed' and not no_assign:
-            device_id = self.db.execute(select(
-                    [model.devices.c.id],
-                    model.devices.c.name==device)).fetchone()[0]
-            self.db.execute(model.device_requests.insert(),
-                        request_id=request_id,
-                        device_id=device_id)
+            self.add_device_request(request_id, device)
         return request_id
+
+    def add_device_request(self, request_id, device):
+        device_id = self.db.execute(select(
+                [model.devices.c.id],
+                model.devices.c.name==device)).fetchone()[0]
+        self.db.execute(model.device_requests.insert(),
+                    request_id=request_id,
+                    device_id=device_id)
 
     def add_device_log(self, id, message, source, ts):
         self.db.execute(model.device_logs.insert(),

@@ -34,11 +34,12 @@ class power_cycle(Handler):
             img_info = self.db.devices.get_next_image(device_name)
             self.db.devices.set_next_image(device_name,
                     img_info['image'], body.get('boot_config', ''))
-            a.set_pxe(device_name, body['pxe_config'])
+            # and the pxe config on disk
+            a.set_pxe.run(device_name, body['pxe_config'])
         else:
-            a.clear_pxe(device_name)
+            a.clear_pxe.run(device_name)
         # start the power cycle and ignore the result
-        a.start_powercycle(device_name, lambda *args : None)
+        a.powercycle.start(lambda res : None, device_name)
         return {}
 
 class power_off(Handler):
@@ -47,7 +48,7 @@ class power_off(Handler):
     def GET(self, device_name):
         # start the power off and ignore the result
         a = api.API(self.db)
-        a.start_poweroff(device_name, lambda *args : None)
+        a.poweroff.start(lambda res : None, device_name)
         return {}
 
 class ping(Handler):
@@ -55,14 +56,15 @@ class ping(Handler):
     @templeton.handlers.json_response
     def GET(self, device_name):
         a = api.API(self.db)
-        return { 'success' : a.ping(device_name) }
+        # perform a synchronous ping
+        return { 'success' : a.ping.run(device_name) }
 
 class clear_pxe(Handler):
     @deviceredirect
     @templeton.handlers.json_response
     def POST(self, device_name):
         a = api.API(self.db)
-        a.clear_pxe(device_name)
+        a.clear_pxe.run(device_name)
         return {}
 
 class device_log(Handler):

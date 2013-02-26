@@ -139,7 +139,7 @@ class PowerCycleMixin(object):
 
     def setup_pxe(self):
         # hook for subclasses
-        self.machine.api.clear_pxe(self.machine.device_name)
+        self.machine.api.clear_pxe.run(self.machine.device_name)
 
     def on_entry(self):
         has_sut_agent = self.db.devices.has_sut_agent(self.machine.device_name)
@@ -171,7 +171,7 @@ class PowerCycleMixin(object):
                                                       'power_cycle_failed', {})
         self.setup_pxe()
         self.logger.info("starting SUT reboot")
-        self.machine.api.start_reboot(self.machine.device_name, reboot_initiated)
+        self.machine.api.sut_reboot.start(reboot_initiated, self.machine.device_name)
 
     def relay_powercycle(self):
         # kick off a power cycle on entry
@@ -181,7 +181,7 @@ class PowerCycleMixin(object):
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'power_cycle_ok', {})
         self.setup_pxe()
         self.logger.info("initiating power cycle")
-        self.machine.api.start_powercycle(self.machine.device_name, powercycle_done)
+        self.machine.api.powercycle.start(powercycle_done, self.machine.device_name)
 
     def on_timeout(self):
         self.on_power_cycle_failed({})
@@ -236,7 +236,7 @@ class free(AcceptPleaseRequests, statemachine.State):
         def ping_complete(success):
             if not success:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_failed', {})
-        self.machine.api.start_ping(self.machine.device_name, ping_complete)
+        self.machine.api.ping.start(ping_complete, self.machine.device_name)
 
     def on_timeout(self):
         self.machine.goto_state(free)
@@ -332,7 +332,7 @@ class pc_pinging(statemachine.State):
             # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
             if success:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
-        self.machine.api.start_ping(self.machine.device_name, ping_complete)
+        self.machine.api.ping.start(ping_complete, self.machine.device_name)
 
     def on_timeout(self):
         if self.machine.increment_counter('pc_pinging') > self.PERMANENT_FAILURE_COUNT:
@@ -376,7 +376,7 @@ class sut_verifying(statemachine.State):
              # if not, wait for the timeout to occur, rather than immediately
              # re-checking
         self.logger.info("Verifying via SUT")
-        self.machine.api.start_sut_verify(self.machine.device_name, sut_verified)
+        self.machine.api.sut_verify.start(sut_verified, self.machine.device_name)
 
     def on_timeout(self):
         if (self.machine.increment_counter(self.state_name) >
@@ -413,7 +413,7 @@ class sut_sdcard_verifying(statemachine.State):
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name,
                                                       'sut_sdcard_failed', {})
         self.logger.info("Checking sdcard via SUT")
-        self.machine.api.start_check_sdcard(self.machine.device_name, sdcard_verified)
+        self.machine.api.check_sdcard.start(sdcard_verified, self.machine.device_name)
 
     def on_timeout(self):
         self.on_sut_sdcard_failed({})
@@ -512,7 +512,7 @@ class pxe_power_cycling(PowerCycleMixin, statemachine.State):
             self.machine.goto_state(failed_pxe_booting)
             return
         self.logger.info("setting PXE config to %s" % (pxe_config,))
-        self.machine.api.set_pxe(self.machine.device_name, pxe_config)
+        self.machine.api.set_pxe.run(self.machine.device_name, pxe_config)
 
 
 @DeviceStateMachine.state_class
@@ -531,7 +531,7 @@ class pxe_booting(statemachine.State):
 
     def on_mobile_init_started(self, args):
         self.machine.clear_counter(self.state_name)
-        self.machine.api.clear_pxe(self.machine.device_name)
+        self.machine.api.clear_pxe.run(self.machine.device_name)
         self.machine.goto_state(mobile_init_started)
 
     def on_timeout(self):
@@ -556,12 +556,12 @@ class mobile_init_started(statemachine.State):
 
     def on_android_downloading(self, args):
         self.machine.clear_counter(self.state_name)
-        self.machine.api.clear_pxe(self.machine.device_name)
+        self.machine.api.clear_pxe.run(self.machine.device_name)
         self.machine.goto_state(android_downloading)
 
     def on_b2g_downloading(self, args):
         self.machine.clear_counter(self.state_name)
-        self.machine.api.clear_pxe(self.machine.device_name)
+        self.machine.api.clear_pxe.run(self.machine.device_name)
         self.machine.goto_state(b2g_downloading)
 
     def on_maint_mode(self, args):
@@ -574,7 +574,7 @@ class mobile_init_started(statemachine.State):
 
     def on_self_test_running(self, args):
         self.machine.clear_counter(self.state_name)
-        self.machine.api.clear_pxe(self.machine.device_name)
+        self.machine.api.clear_pxe.run(self.machine.device_name)
         # assume that the self test has clobbered the image
         self.db.devices.set_image(self.machine.device_name, None, None)
         self.db.devices.set_next_image(self.machine.device_name, None, None)
@@ -677,7 +677,7 @@ class android_pinging(statemachine.State):
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
             else:
                 self.logger.warning("ping failed")
-        self.machine.api.start_ping(self.machine.device_name, ping_complete)
+        self.machine.api.ping.start(ping_complete, self.machine.device_name)
 
     def on_timeout(self):
         # this is a little tricky - android_pinging tracks a few tries to ping this device, so
@@ -792,7 +792,7 @@ class b2g_pinging(statemachine.State):
             # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
             if success:
                 mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
-        self.machine.api.start_ping(self.machine.device_name, ping_complete)
+        self.machine.api.ping.start(ping_complete, self.machine.device_name)
 
     def on_timeout(self):
         # this is a little tricky - b2g_pinging tracks a few tries to ping this device, so

@@ -12,8 +12,8 @@ class Tests(AppMixin, DBMixin, ConfigMixin, PatchMixin, TestCase):
     auto_patch = [
         ('set_pxe', 'mozpool.bmm.api.API.set_pxe'),
         ('clear_pxe', 'mozpool.bmm.api.API.clear_pxe'),
-        ('start_powercycle', 'mozpool.bmm.api.API.start_powercycle'),
-        ('start_poweroff', 'mozpool.bmm.api.API.start_poweroff'),
+        ('powercycle', 'mozpool.bmm.api.API.powercycle'),
+        ('poweroff', 'mozpool.bmm.api.API.poweroff'),
         ('ping', 'mozpool.bmm.api.API.ping'),
         ('get_logs', 'mozpool.db.base.ObjectLogsMethodsMixin.get_logs'),
     ]
@@ -27,43 +27,44 @@ class Tests(AppMixin, DBMixin, ConfigMixin, PatchMixin, TestCase):
 
     def test_device_power_cycle(self):
         self.check_json_result(self.post_json('/api/device/dev1/power-cycle/', {}))
-        self.set_pxe.assert_not_called()
-        self.clear_pxe.assert_called_with('dev1')
-        self.start_powercycle.assert_called_with('dev1', mock.ANY)
+        self.set_pxe.run.assert_not_called()
+        self.clear_pxe.run.assert_called_with('dev1')
+        self.powercycle.start.assert_called_with(mock.ANY, 'dev1')
 
     def test_device_power_cycle_pxe(self):
         self.check_json_result(self.post_json('/api/device/dev1/power-cycle/',
             {'pxe_config': '123'}))
-        self.set_pxe.assert_called_with('dev1', '123')
+        self.set_pxe.run.assert_called_with('dev1', '123')
         self.clear_pxe.assert_not_called()
-        self.start_powercycle.assert_called_with('dev1', mock.ANY)
+        self.powercycle.start.assert_called_with(mock.ANY, 'dev1')
 
     def test_device_power_cycle_pxe_boot_config(self):
         self.check_json_result(self.post_json('/api/device/dev1/power-cycle/',
             {'pxe_config': '123', 'boot_config': 'abc'}))
-        self.set_pxe.assert_called_with('dev1', '123')
+        self.set_pxe.run.assert_called_with('dev1', '123')
         self.clear_pxe.assert_not_called()
-        self.start_powercycle.assert_called_with('dev1', mock.ANY)
+        self.powercycle.start.assert_called_with(mock.ANY, 'dev1')
         self.assertEqual(self.db.devices.get_next_image('dev1')['boot_config'], 'abc')
 
     def test_device_power_off(self):
         self.check_json_result(self.app.get('/api/device/dev1/power-off/'))
-        self.start_poweroff.assert_called_with('dev1', mock.ANY)
+        self.poweroff.start.assert_called_with(mock.ANY, 'dev1')
 
     def test_device_ping(self):
-        self.ping.return_value = True
+        self.ping.run.return_value = True
         body = self.check_json_result(self.app.get('/api/device/dev1/ping/'))
-        self.ping.assert_called_with('dev1')
+        # note that this runs the ping synchronously
+        self.ping.run.assert_called_with('dev1')
         self.assertEqual(body, {'success': True})
 
     def test_device_ping_fails(self):
-        self.ping.return_value = False
+        self.ping.run.return_value = False
         body = self.check_json_result(self.app.get('/api/device/dev1/ping/'))
         self.assertEqual(body, {'success': False})
 
     def test_device_clear_pxe(self):
         self.check_json_result(self.post_json('/api/device/dev1/clear-pxe/', {}))
-        self.clear_pxe.assert_called_with('dev1')
+        self.clear_pxe.run.assert_called_with('dev1')
 
     def test_device_log(self):
         # NOTE: datetime can't be patched, so we patch get_logs instead

@@ -5,10 +5,8 @@
 import datetime
 import json
 import random
-import requests
-import urllib
 
-from mozpool import config, statemachine, statedriver, util
+from mozpool import config, statemachine, statedriver, util, async, mozpool
 
 ####
 # State machine
@@ -101,39 +99,37 @@ class ClearDeviceRequests(object):
     device does indeed belong to a request and, if not, moves it back to 'free'.
     """
 
-    TIMEOUT = 60
+    TIMEOUT = 30
     PERMANENT_FAILURE_COUNT = 10
 
     def on_entry(self):
-        if self.free_device():
-            self.machine.goto_state(closed)
-        else:
-            count = self.machine.increment_counter(self.state_name)
-            if count < self.PERMANENT_FAILURE_COUNT:
-                self.logger.warn('Too many failed attempts to free device; '
-                                 'just clearing request and giving up.')
-                self.machine.goto_state(closed)
-
-    def on_timeout(self):
-        self.machine.goto_state(self.state_name)
-
-    def free_device(self):
         assigned_device = self.db.requests.get_assigned_device(
                                             self.machine.request_id)
         if assigned_device:
             device_url = 'http://%s/api/device/%s/event/free/' % (
                 self.db.devices.get_imaging_server(assigned_device),
                 assigned_device)
-            # FIXME: make this asynchronous so slow/missing servers don't halt
-            # the state machine.
-            try:
-                requests.post(device_url)
-            except (requests.ConnectionError, requests.Timeout,
-                    requests.HTTPError):
-                self.logger.warn('Could not contact lifeguard server at %s to '
-                                 'free device.' % device_url)
-                return False
-        return True
+            def posted(result):
+                if result.status_code != 200:
+                    self.logger.warn("got %d from Lifeguard" % result.status_code)
+                    return
+                mozpool.driver.handle_event(self.machine.request_id, 'device_freed', {})
+            async.requests.get.start(posted, device_url)
+        else:
+            self.db.device_requests.clear(self.machine.request_id)
+            self.machine.goto_state(closed)
+
+    def on_device_freed(self, args):
+        self.machine.goto_state(closed)
+
+    def on_timeout(self):
+        count = self.machine.increment_counter(self.state_name)
+        if count >= self.PERMANENT_FAILURE_COUNT:
+            self.logger.warn('Too many failed attempts to free device; '
+                                'just clearing request and giving up.')
+            self.machine.goto_state(closed)
+        else:
+            self.machine.goto_state(self.state_name)
 
 
 @RequestStateMachine.state_class
@@ -211,7 +207,7 @@ class finding_device(Closable, Expirable, statemachine.State):
 class contacting_lifeguard(Closable, Expirable, statemachine.State):
     "Contacting device's lifeguard server to request reimage/reboot."
 
-    TIMEOUT = 60
+    TIMEOUT = 30
     PERMANENT_FAILURE_COUNT = 5
 
     def on_entry(self):
@@ -225,18 +221,6 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
             self.machine.goto_state(device_busy)
             return
 
-        if self.contact_lifeguard(req):
-            self.machine.goto_state(pending)
-            return
-        counters = self.machine.read_counters()
-        if counters.get(self.state_name, 0) > self.PERMANENT_FAILURE_COUNT:
-            self.machine.goto_state(device_not_found)
-
-    def on_timeout(self):
-        self.machine.increment_counter(self.state_name)
-        self.machine.goto_state(contacting_lifeguard)
-
-    def contact_lifeguard(self, req):
         # If the requested image is reusable and we got a device with that
         # image and the requested bootconfig, just power cycle it.
         # Otherwise, image it.  Note that there will be a failure if the
@@ -259,19 +243,28 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
             device_request_data['boot_config'] = req['boot_config']
             device_request_data['image'] = req['image']
 
+        # try to ask lifeguard to start imaging or power cycling
         device_url = 'http://%s/api/device/%s/event/%s/' % (
             self.db.devices.get_imaging_server(assigned_device_name),
             assigned_device_name, event)
+        def posted(result):
+            if result.status_code != 200:
+                self.logger.warn("got %d from Lifeguard" % result.status_code)
+                return
+            mozpool.driver.handle_event(self.machine.request_id, 'lifeguard_contacted', {})
+        async.requests.post.start(posted, device_url,
+                data=json.dumps(device_request_data))
 
-        # FIXME: make this asynchronous so slow/missing servers don't halt
-        # the state machine.
-        try:
-            urllib.urlopen(device_url, json.dumps(device_request_data))
-        except IOError:
-            self.logger.warn('Could not contact lifeguard server at %s' %
-                             device_url)
-            return False
-        return True
+    def on_lifeguard_contacted(self, args):
+        self.machine.goto_state(pending)
+
+    def on_timeout(self):
+        if self.machine.increment_counter(self.state_name) >= self.PERMANENT_FAILURE_COUNT:
+            self.machine.clear_counter(self.state_name)
+            self.machine.goto_state(device_not_found)
+        else:
+            self.machine.goto_state(contacting_lifeguard)
+
 
 
 @RequestStateMachine.state_class
