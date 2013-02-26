@@ -59,14 +59,16 @@ class Tests(DBMixin, TestCase):
             {u'state': u'new', u'state_counters': u'{}', u'state_timeout': now,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device2',
              u'fqdn': u'device2.fqdn', u'inventory_id': 23,
-             u'imaging_server_id': 2, u'boot_config': None,
-             u'mac_address': u'aabbccddeeff', u'id': 1, u'last_image_id': None,
+             u'imaging_server_id': 2, u'mac_address': u'aabbccddeeff', u'id': 1,
+             u'image_id': None, u'boot_config': None,
+             u'next_image_id': None, u'next_boot_config': None,
              u'comments': None, u'environment': None, u'hardware_type_id': 1},
             {u'state': u'new',u'state_counters': u'{}', u'state_timeout': now,
              u'relay_info': u'relay-2:bank2:relay2', u'name': u'device3',
              u'fqdn': u'device3.fqdn', u'inventory_id': 24,
-             u'imaging_server_id': 1, u'boot_config': None,
-             u'mac_address': u'aabbccddeeff', u'id': 2, u'last_image_id': None,
+             u'imaging_server_id': 1, u'mac_address': u'aabbccddeeff', u'id': 2,
+             u'image_id': None, u'boot_config': None,
+             u'next_image_id': None, u'next_boot_config': None,
              u'comments': None, u'environment': None, u'hardware_type_id': 2},
             ]))
 
@@ -92,13 +94,12 @@ class Tests(DBMixin, TestCase):
         self.add_hardware_type("htyp", "hmod")
         self.add_device("device1", server="server1", relayinfo="relay-1:bank1:relay1")
         self.db.inventorysync.update_device(1, dict(fqdn='device1.fqdn', imaging_server='server9', mac_address='aabbccddeeff'))
-        res = self.db.execute(model.devices.select())
+        tbl = model.devices
+        res = self.db.execute(sa.select([tbl.c.state, tbl.c.relay_info, tbl.c.fqdn, tbl.c.inventory_id,
+                                         tbl.c.mac_address, tbl.c.imaging_server_id, tbl.c.hardware_type_id]))
         self.assertEquals([ dict(r) for r in res.fetchall() ], [
-            {u'state': u'offline', u'state_counters': u'{}', u'state_timeout': None,
-             u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
-             u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
-             u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1,
-             u'last_image_id': None, u'comments': None, u'environment': None,
+            {u'state': u'offline', u'relay_info': u'relay-1:bank1:relay1', u'fqdn': u'device1.fqdn',
+             u'inventory_id': 1, u'mac_address': u'aabbccddeeff', u'imaging_server_id': 2,
              u'hardware_type_id': 1},
         ])
 
@@ -109,12 +110,8 @@ class Tests(DBMixin, TestCase):
         self.db.inventorysync.update_device(1, dict(fqdn='device1.fqdn', imaging_server='server9',
             mac_address='aabbccddeeff', hardware_type='samsung', hardware_model='galaxy',
             id=999)) # note id is ignored
-        res = self.db.execute(model.devices.select())
+        tbl = model.devices
+        res = self.db.execute(sa.select([tbl.c.relay_info, tbl.c.hardware_type_id]))
         self.assertEquals([dict(r) for r in res.fetchall()], [
-            {u'state': u'offline', u'state_counters': u'{}', u'state_timeout': None,
-             u'relay_info': u'relay-1:bank1:relay1', u'name': u'device1',
-             u'fqdn': u'device1.fqdn', u'inventory_id': 1, u'imaging_server_id': 2,
-             u'boot_config': u'{}', u'mac_address': u'aabbccddeeff', u'id': 1,
-             u'last_image_id': None, u'comments': None, u'environment': None,
-             u'hardware_type_id': 2},
+            {u'relay_info': u'relay-1:bank1:relay1', u'hardware_type_id': 2},
         ])

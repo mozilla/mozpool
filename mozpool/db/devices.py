@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import types
 from sqlalchemy.sql import and_, select
 from mozpool.db import model, base, exceptions
 
@@ -26,7 +27,8 @@ class Methods(base.MethodsBase,
 
         If `detail` is True, then each device is represented by a dictionary
         with keys id, name, fqdn, inventory_id, mac_address, imaging_server,
-        relay_info, state, last_image, boot_config, environment, and comments.
+        relay_info, state, image, boot_config, environment, and
+        comments.
         """
         if detail:
             devices = model.devices
@@ -36,9 +38,9 @@ class Methods(base.MethodsBase,
                 [devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id,
                 devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
                 devices.c.relay_info, devices.c.state, devices.c.comments,
-                images.c.name.label('last_image'), devices.c.boot_config,
+                images.c.name.label('image'), devices.c.boot_config,
                 devices.c.environment],
-                from_obj=[devices.join(img_svrs).outerjoin(images)])
+                from_obj=[devices.join(img_svrs).outerjoin(images, images.c.id==devices.c.image_id)])
             res = self.db.execute(stmt)
             return self.dict_list(res)
         else:
@@ -55,7 +57,7 @@ class Methods(base.MethodsBase,
         'boot_config'.
         """
         f = model.devices.outerjoin(model.device_requests).outerjoin(
-            model.images, model.devices.c.last_image_id==model.images.c.id)
+            model.images, model.devices.c.image_id==model.images.c.id)
         q = select([model.devices.c.name, model.devices.c.boot_config,
                     model.images.c.name.label('image')], from_obj=[f])
         # make sure it's free
@@ -109,13 +111,13 @@ class Methods(base.MethodsBase,
     def get_pxe_config(self, device, image=None):
         """
         Get the name of the PXE config to use for this device's hardware type
-        and either the specified image or the device's current image.  Raises
+        and either the specified image or the device's *next* image.  Raises
         NotFound if the device or image is not found, or if no PXE config for
-        the hardware type and image combination.
+        the hardware type and image combination exists.
         """
         res = self.db.execute(select(
                 [model.devices.c.hardware_type_id,
-                model.devices.c.last_image_id]).where(
+                model.devices.c.next_image_id]).where(
                 model.devices.c.name==device))
         row = res.fetchone()
         if row is None:
@@ -140,13 +142,13 @@ class Methods(base.MethodsBase,
 
     def has_sut_agent(self, device_name):
         """
-        Determine, from the last known image on the device, if it has a SUT
+        Determine, from the current image on the device, if it has a SUT
         agent.  Raises NotFound if the device is not found.
         """
         res = self.db.execute(select([model.images.c.has_sut_agent],
                 from_obj=[model.devices.outerjoin(
                             model.images,
-                            model.devices.c.last_image_id==model.images.c.id)],
+                            model.devices.c.image_id==model.images.c.id)],
                 whereclause=(model.devices.c.name==device_name)))
         return self.singleton(res)
 
@@ -166,24 +168,41 @@ class Methods(base.MethodsBase,
         assert bank.startswith("bank") and relay.startswith("relay")
         return hostname, int(bank[4:]), int(relay[5:])
 
-    def get_image(self, device_name):
-        """
-        Get the boot config and last image for this device.  The return value
-        is a dictionary with keys 'image' and 'boot_config'.  The boot_config
-        is a JSON string.
-
-        Returns an empty dictionary if the device is not found.
-        """
+    def _get_image(self, image_id_col, boot_config_col, device_name):
         res = self.db.execute(select(
-            [model.devices.c.boot_config, model.images.c.name.label('image')],
+            [boot_config_col.label('boot_config'), model.images.c.name.label('image')],
             from_obj=model.devices.outerjoin(model.images,
-                    model.devices.c.last_image_id==model.images.c.id),
+                    image_id_col==model.images.c.id),
             whereclause=(model.devices.c.name==device_name)))
         row = res.first()
         if row:
             return dict(row)
         else:
             return {}
+
+    def _set_image(self, image_id_col, boot_config_col, device_name, image_name, boot_config):
+        assert isinstance(boot_config, (str, unicode, types.NoneType))
+        if image_name:
+            res = self.db.execute(select([model.images.c.id]).
+                    where(model.images.c.name==image_name))
+            image_id = self.singleton(res)
+        else:
+            image_id = None
+        vals = {image_id_col.name: image_id, boot_config_col.name: boot_config}
+        self.db.execute(model.devices.update().
+                    where(model.devices.c.name==device_name).
+                    values(**vals))
+
+    def get_image(self, device_name):
+        """
+        Get the boot config and current image for this device.  The return value
+        is a dictionary with keys 'image' and 'boot_config'.  The boot_config
+        is a JSON string.  Both can be None if no known image is installed on this
+        device.
+
+        Returns an empty dictionary if the device is not found.
+        """
+        return self._get_image(model.devices.c.image_id, model.devices.c.boot_config, device_name)
 
     def set_image(self, device_name, image_name, boot_config):
         """
@@ -192,14 +211,21 @@ class Methods(base.MethodsBase,
 
         Raises NotFound if there is no such image
         """
-        assert isinstance(boot_config, (str, unicode))
-        res = self.db.execute(select([model.images.c.id]).
-                where(model.images.c.name==image_name))
-        image_id = self.singleton(res)
-        self.db.execute(model.devices.update().
-                    where(model.devices.c.name==device_name).
-                    values(last_image_id=image_id,
-                            boot_config=boot_config))
+        return self._set_image(model.devices.c.image_id, model.devices.c.boot_config,
+                device_name, image_name, boot_config)
+
+    def get_next_image(self, device_name):
+        """
+        Like `get_image`, but get the boot config and next image for this device.
+        """
+        return self._get_image(model.devices.c.next_image_id, model.devices.c.next_boot_config, device_name)
+
+    def set_next_image(self, device_name, image_name, boot_config):
+        """
+        Like `set_image`, but set the next image for this device.
+        """
+        return self._set_image(model.devices.c.next_image_id, model.devices.c.next_boot_config,
+                device_name, image_name, boot_config)
 
     def set_comments(self, device_name, comments):
         """

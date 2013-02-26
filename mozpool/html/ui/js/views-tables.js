@@ -245,14 +245,14 @@ var LifeguardTableView = DeviceTableView.extend({
             sClass: 'rowcheckbox', renderFn: "renderSelected" },
         { id: "name", title: "Name" },
         { id: "state", title: "State" },
-        { id: "last_image", title: "Image" , renderFn: "renderImage"},
+        { id: "image", title: "Image" , renderFn: "renderImage"},
         { id: "comments", title: "Comments" },
         { id: "links", title: "Links",
             renderFn: "renderLinks" },
     ],
 
     renderImage: function(model) {
-        var image = model.get('last_image');
+        var image = model.get('image');
         var bootConfig = model.get('boot_config');
         if (bootConfig) {
             bootConfig = JSON.parse(bootConfig);

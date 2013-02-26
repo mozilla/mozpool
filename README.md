@@ -248,9 +248,12 @@ Release Notes
 =============
 
  * The documentation for ``/api/image/list`` was updated to match its behavior.
- * The database interface layer was completely rewritten for better hackability and testability.
+ * Bug 826065: The database interface layer was completely rewritten for better hackability and testability.
  * Bug 848561: Log entries and devices are now sorted properly in the web UI
  * Bug 844363: The test suite was completely rewritten for easier maintenance and much better coverage.
+ * Bug 846542: Devices now store information about their current and next images separately.
+   This represents a schema change; see UPGRADING.md for details.
+   The API has changed to correspond: the `/api/device/list?details=1` resource now includes an `image` key for every device, rather than `last_image` (which was accidentally undocumented).
 
 2.0.3
 =====

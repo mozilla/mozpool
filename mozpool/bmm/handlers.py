@@ -31,8 +31,8 @@ class power_cycle(Handler):
         a = api.API(self.db)
         if 'pxe_config' in body:
             # update the boot config in the db
-            img_info = self.db.devices.get_image(device_name)
-            self.db.devices.set_image(device_name,
+            img_info = self.db.devices.get_next_image(device_name)
+            self.db.devices.set_next_image(device_name,
                     img_info['image'], body.get('boot_config', ''))
             a.set_pxe(device_name, body['pxe_config'])
         else:
@@ -97,7 +97,7 @@ class device_set_environment(Handler):
 
 class device_bootconfig(Handler):
     def GET(self, device_name):
-        img = self.db.devices.get_image(device_name)
+        img = self.db.devices.get_next_image(device_name)
         # this is JSON, but we're returning it as a string..
         web.header('Content-Type', 'application/json; charset=utf-8')
         return img['boot_config']

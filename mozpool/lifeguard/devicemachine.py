@@ -89,15 +89,18 @@ class AcceptPleaseRequests(AcceptBasicPleaseRequests):
     "Mixin to also accept requests that assume a working device"
 
     def on_please_power_cycle(self, args):
+        # clear out any "next image" so we don't accidentally reimage
+        self.db.devices.set_next_image(self.machine.device_name, None, None)
         self.machine.goto_state(pc_power_cycling)
 
     def on_please_image(self, args):
         try:
+            # verify it's possible (this raises an exception if not)
             self.db.devices.get_pxe_config(self.machine.device_name,
                                            args['image'])
-            self.logger.info('writing image %s, boot config %s to db' %
+            self.logger.info('setting next image to %s, boot config to %s' %
                              (args['image'], args['boot_config']))
-            self.db.devices.set_image(self.machine.device_name,
+            self.db.devices.set_next_image(self.machine.device_name,
                                    args['image'],
                                    args['boot_config'])
             self.machine.goto_state(start_pxe_boot)
@@ -214,7 +217,6 @@ class unknown(AcceptPleaseRequests, statemachine.State):
     "This device is in an unknown state.  Await instructions."
 
 
-
 @DeviceStateMachine.state_class
 class locked_out(statemachine.State):
     """This device is handled outside of mozpool, and mozpool should not touch it.
@@ -256,6 +258,16 @@ class ready(AcceptPleaseRequests, statemachine.State):
     # At one point, this state pinged devices in this state and power-cycled
     # them when they failed.  This resulted in a lot of unnecessary power cycles
     # for devices running "flaky" images, with no real benefit.
+
+    def on_entry(self):
+        # if there's a next_image, then the imaging is now complete, so set the
+        # image and blank out the next image
+        device_name = self.machine.device_name
+        new_img = self.db.devices.get_next_image(device_name)
+        if new_img['image']:
+            self.db.devices.set_image(device_name,
+                    new_img['image'], new_img['boot_config'])
+            self.db.devices.set_next_image(device_name, None, None)
 
     def on_free(self, args):
         self.machine.goto_state(free)
@@ -462,9 +474,10 @@ class start_self_test(statemachine.State):
             self.db.devices.get_pxe_config(self.machine.device_name,
                                            'self-test')
         except exceptions.NotFound:
+            # can't self-test this device..
             self.machine.goto_state(pc_power_cycling)
         else:
-            self.db.devices.set_image(self.machine.device_name, 'self-test', '')
+            self.db.devices.set_next_image(self.machine.device_name, 'self-test', '')
             self.machine.goto_state(pxe_power_cycling)
 
 
@@ -477,7 +490,7 @@ class start_maintenance(statemachine.State):
 
     def on_entry(self):
         self.machine.clear_counter()
-        self.db.devices.set_image(self.machine.device_name, 'maintenance', '')
+        self.db.devices.set_next_image(self.machine.device_name, 'maintenance', '')
         self.machine.goto_state(pxe_power_cycling)
 
 
@@ -491,8 +504,7 @@ class pxe_power_cycling(PowerCycleMixin, statemachine.State):
     power_cycle_complete_state = 'pxe_booting'
 
     def setup_pxe(self):
-        # set the pxe config based on what's in the DB
-        self.db.devices.get_image(self.machine.device_name)
+        # set the pxe config based on the next image
         try:
             pxe_config = self.db.devices.get_pxe_config(self.machine.device_name)
         except exceptions.NotFound:
@@ -554,13 +566,18 @@ class mobile_init_started(statemachine.State):
 
     def on_maint_mode(self, args):
         # note we do not clear the PXE config here, so it will
-        # continue to boot into maintenance mode
+        # continue to boot into maintenance mode on subsequent reboots
         self.machine.clear_counter(self.state_name)
+        # assume that maintenance has clobbered the image
+        self.db.devices.set_image(self.machine.device_name, None, None)
         self.machine.goto_state(maintenance_mode)
 
     def on_self_test_running(self, args):
         self.machine.clear_counter(self.state_name)
         self.machine.api.clear_pxe(self.machine.device_name)
+        # assume that the self test has clobbered the image
+        self.db.devices.set_image(self.machine.device_name, None, None)
+        self.db.devices.set_next_image(self.machine.device_name, None, None)
         self.machine.goto_state(self_test_running)
 
     def on_timeout(self):
@@ -588,6 +605,7 @@ class android_downloading(statemachine.State):
 
     def on_android_extracting(self, args):
         self.machine.clear_counter(self.state_name)
+        self.db.devices.set_image(self.machine.device_name, None, None)
         self.machine.goto_state(android_extracting)
 
     def on_timeout(self):
@@ -677,6 +695,10 @@ class android_pinging(statemachine.State):
     def on_ping_ok(self, args):
         self.machine.clear_counter(self.state_name)
         self.machine.clear_counter('ping')
+        # whatever image was "next" is now current
+        img_info = self.db.devices.get_next_image(self.machine.device_name)
+        self.db.devices.set_image(self.machine.device_name,
+                img_info.get('image'), img_info.get('boot_config'))
         self.machine.goto_state(sut_verifying)
 
 
@@ -698,6 +720,7 @@ class b2g_downloading(statemachine.State):
 
     def on_b2g_extracting(self, args):
         self.machine.clear_counter(self.state_name)
+        self.db.devices.set_image(self.machine.device_name, None, None)
         self.machine.goto_state(b2g_extracting)
 
     def on_timeout(self):
@@ -787,11 +810,15 @@ class b2g_pinging(statemachine.State):
     def on_ping_ok(self, args):
         self.machine.clear_counter(self.state_name)
         self.machine.clear_counter('ping')
+        # whatever image was "next" is now current
+        img_info = self.db.devices.get_next_image(self.machine.device_name)
+        self.db.devices.set_image(self.machine.device_name,
+                img_info.get('image'), img_info.get('boot_config'))
         self.machine.goto_state(sut_verifying)
 
 
 ####
-# PXE Booting :: Self-Test
+# PXE Booting :: Maintenance mode
 
 @DeviceStateMachine.state_class
 class maintenance_mode(AcceptBasicPleaseRequests, statemachine.State):
@@ -803,7 +830,7 @@ class maintenance_mode(AcceptBasicPleaseRequests, statemachine.State):
 
 
 ####
-# PXE Booting :: Maintenance Mode
+# PXE Booting :: Self-Test
 
 @DeviceStateMachine.state_class
 class self_test_running(AcceptBasicPleaseRequests, statemachine.State):

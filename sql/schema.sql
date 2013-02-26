@@ -215,11 +215,14 @@ CREATE TABLE devices (
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
   -- path to the device's power relay; format TBD; NULL=no control
   relay_info text,
-  -- last image installed on this device
-  last_image_id integer unsigned,
-  foreign key (last_image_id) references images(id) on delete restrict,
-  -- config the device will use (and then clear) on its next boot (JSON blob)
+  -- current image installed on this device, plus boot config (JSON blob)
+  image_id integer unsigned,
+  foreign key (image_id) references images(id) on delete restrict,
   boot_config text,
+  -- current image installed on this device, plus boot config (JSON blob)
+  next_image_id integer unsigned,
+  foreign key (next_image_id) references images(id) on delete restrict,
+  next_boot_config text,
   -- free-form comments about the device (for BMM + Lifeguard)
   comments text,
   -- fields for filtering devices when requesting
@@ -301,7 +304,7 @@ BEGIN
         -- note that we ignore the time specified by the device and just use the current time
         INSERT INTO device_logs (device_id, ts, source, message) values (deviceid, NOW(), source, ltrim(message));
     END;
-    END IF; 
+    END IF;
 END $$
 
 DELIMITER ;

@@ -50,7 +50,7 @@ class Device(object):
         self.power_cond = threading.Condition()
 
         # the image on the sdcard
-        self.sdcard_image = dev_dict['last_image']
+        self.sdcard_image = dev_dict['image']
 
         # current pingability status
         self.pingable = False

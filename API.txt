@@ -18,7 +18,7 @@ devices.
 * GET returns a JSON response body whose "devices" key
   contains an array of objects, each representing a single device.
   The objects have keys id, name, fqdn, inventory_id, mac_address,
-  imaging_server, relay_info, comments, environment, and last_pxe_config.
+  imaging_server, relay_info, comments, environment, image, and last_pxe_config.
 
 /api/device/{id}/request/
 * POST requests the given device.  {id} may be "any" to let MozPool choose an

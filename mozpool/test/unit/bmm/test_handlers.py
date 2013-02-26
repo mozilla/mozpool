@@ -23,7 +23,7 @@ class Tests(AppMixin, DBMixin, ConfigMixin, PatchMixin, TestCase):
         config.set('server', 'fqdn', 'server')
         self.add_server('server')
         img_id = self.add_image('img1')
-        self.dev_id = self.add_device('dev1', environment='abc', last_image_id=img_id)
+        self.dev_id = self.add_device('dev1', environment='abc', next_image_id=img_id)
 
     def test_device_power_cycle(self):
         self.check_json_result(self.post_json('/api/device/dev1/power-cycle/', {}))
@@ -44,7 +44,7 @@ class Tests(AppMixin, DBMixin, ConfigMixin, PatchMixin, TestCase):
         self.set_pxe.assert_called_with('dev1', '123')
         self.clear_pxe.assert_not_called()
         self.start_powercycle.assert_called_with('dev1', mock.ANY)
-        self.assertEqual(self.db.devices.get_image('dev1')['boot_config'], 'abc')
+        self.assertEqual(self.db.devices.get_next_image('dev1')['boot_config'], 'abc')
 
     def test_device_power_off(self):
         self.check_json_result(self.app.get('/api/device/dev1/power-off/'))
@@ -97,7 +97,7 @@ class Tests(AppMixin, DBMixin, ConfigMixin, PatchMixin, TestCase):
         set_environment.assert_called_with('dev1', 'hi')
 
     def test_device_bootconfig(self):
-        self.add_device('dev2', boot_config='{"a": "b"}')
+        self.add_device('dev2', next_boot_config='{"a": "b"}')
         body = self.check_json_result(self.app.get('/api/device/dev2/bootconfig/'))
         self.assertEqual(body, {'a': 'b'})
 

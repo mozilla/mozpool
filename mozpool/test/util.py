@@ -117,8 +117,9 @@ class DBMixin(DirMixin):
 
     def add_device(self, device, server="server", state="offline",
                 mac_address="000000000000",
-                boot_config='{}', relayinfo="",
-                last_image_id=None, hardware_type_id=1,
+                image_id=None, boot_config=u'{}',
+                next_image_id=None, next_boot_config=None,
+                relayinfo="", hardware_type_id=1,
                 environment=None, state_timeout=None,
                 state_counters='{}'):
         id = self.db.execute(select([model.imaging_servers.c.id],
@@ -135,8 +136,10 @@ class DBMixin(DirMixin):
                     mac_address=mac_address,
                     imaging_server_id=id,
                     relay_info=relayinfo,
+                    image_id=image_id,
                     boot_config=boot_config,
-                    last_image_id=last_image_id,
+                    next_image_id=next_image_id,
+                    next_boot_config=next_boot_config,
                     hardware_type_id=hardware_type_id,
                     environment=environment)
         device_id = res.lastrowid

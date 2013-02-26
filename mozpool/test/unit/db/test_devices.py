@@ -18,7 +18,7 @@ class Tests(DBMixin, TestCase):
             u'state': u'occupied',
             u'imaging_server': u'server',
             u'mac_address': u'111111222222',
-            u'last_image': None,
+            u'image': None,
             u'id': 1,
             u'boot_config': u'{}'}
     dev2 = {u'environment': None,
@@ -30,17 +30,18 @@ class Tests(DBMixin, TestCase):
             u'state': u'denial',
             u'imaging_server': u'server',
             u'mac_address': u'000000000000',
-            u'last_image': None,
+            u'image': 'img1',
             u'id': 2,
             u'boot_config': u'{}'}
 
     def setUp(self):
         super(Tests, self).setUp()
         self.add_hardware_type('tester', 'premium')
-        self.img_id = self.add_image('img1')
+        self.img1_id = self.add_image('img1')
+        self.img2_id = self.add_image('img2')
         self.server_id = self.add_server('server')
         self.add_device('dev1', state='occupied', mac_address='111111222222')
-        self.add_device('dev2', state='denial')
+        self.add_device('dev2', state='denial', image_id=self.img1_id, next_image_id=self.img2_id)
 
     def test_list(self):
         self.assertEqual(sorted(self.db.devices.list()), sorted(['dev1', 'dev2']))
@@ -53,7 +54,7 @@ class Tests(DBMixin, TestCase):
         # dev1 and dev2 shouldn't show up, because they're not free
 
         self.add_device('dev10', environment='staging', state='free',
-                last_image_id=self.img_id, boot_config=u'{"a": "b"}')
+                image_id=self.img1_id, boot_config=u'{"a": "b"}')
         dev10 = {'image': 'img1', 'name': u'dev10', 'boot_config': u'{"a": "b"}'}
 
         self.add_device('dev11', environment='production', state='free')
@@ -100,11 +101,11 @@ class Tests(DBMixin, TestCase):
         self.assertRaises(exceptions.NotFound, lambda :
                 self.db.devices.get_mac_address('dev99'))
 
-    def test_get_pxe_config_current_image(self):
+    def test_get_pxe_config_device_next_image(self):
         # set up a pxe_config and link for img1
         self.add_pxe_config('pxe-me')
         self.add_image_pxe_config('img1', 'pxe-me', 'tester', 'premium')
-        self.add_device('dev10', last_image_id=self.img_id)
+        self.add_device('dev10', next_image_id=self.img1_id)
 
         self.assertEqual(self.db.devices.get_pxe_config('dev10'), 'pxe-me')
 
@@ -123,7 +124,7 @@ class Tests(DBMixin, TestCase):
                 self.db.devices.get_pxe_config('dev99'))
 
     def test_get_pxe_config_missing_image(self):
-        self.add_device('dev10', last_image_id=self.img_id)
+        self.add_device('dev10', image_id=self.img1_id)
         self.assertRaises(exceptions.NotFound, lambda :
                 self.db.devices.get_pxe_config('dev10', image='img99'))
 
@@ -132,7 +133,7 @@ class Tests(DBMixin, TestCase):
         # pxe config are not connected to one another
         self.add_pxe_config('pxe-me')
         self.add_device('dev10', environment='staging', state='free',
-                last_image_id=self.img_id)
+                image_id=self.img1_id)
         self.assertRaises(exceptions.NotFound, lambda :
                 self.db.devices.get_pxe_config('dev10'))
 
@@ -140,13 +141,13 @@ class Tests(DBMixin, TestCase):
         self.assertFalse(self.db.devices.has_sut_agent('dev1'))
 
     def test_has_sut_agent_yes(self):
-        img_id = self.add_image('img2', has_sut_agent=True)
-        self.add_device('dev10', last_image_id=img_id)
+        img3_id = self.add_image('img3', has_sut_agent=True)
+        self.add_device('dev10', image_id=img3_id)
         self.assertTrue(self.db.devices.has_sut_agent('dev10'))
 
     def test_has_sut_agent_no(self):
-        img_id = self.add_image('img2', has_sut_agent=False)
-        self.add_device('dev10', last_image_id=img_id)
+        img3_id = self.add_image('img3', has_sut_agent=False)
+        self.add_device('dev10', image_id=img3_id)
         self.assertFalse(self.db.devices.has_sut_agent('dev10'))
 
     def test_has_sut_agent_missing_device(self):
@@ -166,7 +167,7 @@ class Tests(DBMixin, TestCase):
                 self.db.devices.get_relay_info('dev99'))
 
     def test_get_image(self):
-        self.add_device('dev10', last_image_id=self.img_id, boot_config='{"a": "b"}')
+        self.add_device('dev10', image_id=self.img1_id, boot_config='{"a": "b"}')
         self.assertEqual(self.db.devices.get_image('dev10'),
                 {'image': 'img1', 'boot_config': '{"a": "b"}'})
 
@@ -178,14 +179,41 @@ class Tests(DBMixin, TestCase):
         self.assertEqual(self.db.devices.get_image('dev99'), {})
 
     def test_set_image(self):
-        self.add_image('img2')
-        self.db.devices.set_image('dev1', 'img2', 'bc')
+        self.add_image('img3')
+        self.db.devices.set_image('dev1', 'img3', 'bc')
         self.assertEqual(self.db.devices.get_image('dev1'),
-                {'image': 'img2', 'boot_config': 'bc'})
+                {'image': 'img3', 'boot_config': 'bc'})
+
+    def test_set_image_none(self):
+        self.db.devices.set_image('dev1', None, None)
+        self.assertEqual(self.db.devices.get_image('dev1'),
+                {'image': None, 'boot_config': None})
 
     def test_set_image_no_such(self):
         self.assertRaises(exceptions.NotFound, lambda :
-            self.db.devices.set_image('dev1', 'img2', 'bc'))
+            self.db.devices.set_image('dev1', 'img99', 'bc'))
+
+    def test_get_next_image(self):
+        self.add_device('dev10', next_image_id=self.img1_id, next_boot_config='{"a": "b"}')
+        self.assertEqual(self.db.devices.get_next_image('dev10'),
+                {'image': 'img1', 'boot_config': '{"a": "b"}'})
+
+    def test_get_next_image_no_image(self):
+        self.assertEqual(self.db.devices.get_next_image('dev1'),
+                {'image': None, 'boot_config': None})
+
+    def test_get_next_image_no_device(self):
+        self.assertEqual(self.db.devices.get_next_image('dev99'), {})
+
+    def test_set_next_image(self):
+        self.add_image('img3')
+        self.db.devices.set_next_image('dev1', 'img3', 'bc')
+        self.assertEqual(self.db.devices.get_next_image('dev1'),
+                {'image': 'img3', 'boot_config': 'bc'})
+
+    def test_set_next_image_no_such(self):
+        self.assertRaises(exceptions.NotFound, lambda :
+            self.db.devices.set_next_image('dev1', 'img99', 'bc'))
 
     def test_set_comments(self):
         self.db.devices.set_comments('dev1', 'howdy')
@@ -205,7 +233,7 @@ class TestStateMachineMethods(DBMixin, TestCase):
 
     def setUp(self):
         super(TestStateMachineMethods, self).setUp()
-        self.img_id = self.add_image('img1')
+        self.img1_id = self.add_image('img1')
         self.server_id = self.add_server('server')
         self.add_device('dev1', state='occupied', mac_address='111111222222')
         self.add_device('dev2', state='denial')

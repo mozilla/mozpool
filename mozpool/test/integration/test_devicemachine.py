@@ -39,3 +39,26 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.start_ping.assert_called_with('dev1', mock.ANY)
         self.start_ping.call_args[0][1](True)
         self.assert_state('free')
+
+    def test_ready_no_next_image(self):
+        "entering ready does not change the image if there's no next_image"
+        self.add_image('old_img')
+        self.db.devices.set_image('dev1', 'old_img', '{bc}')
+        self.set_state('sut_sdcard_verifying')
+        self.driver.handle_event('dev1', 'sut_sdcard_ok', {})
+        self.assert_state('ready')
+        self.assertEqual(self.db.devices.get_image('dev1'),
+                {'image': 'old_img', 'boot_config': '{bc}'})
+
+    def test_ready_set_image(self):
+        "entering ready changes the image if there is a next_image"
+        self.add_image('old_img')
+        self.add_image('new_img')
+        self.db.devices.set_image('dev1', 'old_img', '{bc}')
+        self.db.devices.set_next_image('dev1', 'new_img', '{bc2}')
+        self.set_state('sut_sdcard_verifying')
+        self.driver.handle_event('dev1', 'sut_sdcard_ok', {})
+        self.assert_state('ready')
+        self.assertEqual(self.db.devices.get_image('dev1'),
+                {'image': 'new_img', 'boot_config': '{bc2}'})
+

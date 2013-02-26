@@ -60,7 +60,6 @@ class Tests(DBMixin, ConfigMixin, TestCase):
         self.assertRaises(exceptions.NotFound, lambda :
                 self.db.requests.get_imaging_server(99))
 
-    maxDiff = None
     def test_list(self):
         open_req = {
             u'assigned_device': '',
