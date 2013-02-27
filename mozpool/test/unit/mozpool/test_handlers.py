@@ -148,6 +148,16 @@ class Tests(AppMixin, DBMixin, ConfigMixin, TestCase):
         mozpool.mozpool.driver.handle_event.assert_called_with(req_id, 'close', None)
         self.assertEqual(r.status, 204)
 
+    def test_event_GET(self):
+        req_id = self.add_request(image='img1', server='server', no_assign=True)
+        self.check_json_result(self.app.get('/api/request/%s/event/shorted/' % req_id))
+        mozpool.mozpool.driver.handle_event.assert_called_with(req_id, 'shorted', {})
+
+    def test_event_POST(self):
+        req_id = self.add_request(image='img1', server='server', no_assign=True)
+        self.check_json_result(self.post_json('/api/request/%s/event/shorted/' % req_id, {'a': 'b'}))
+        mozpool.mozpool.driver.handle_event.assert_called_with(req_id, 'shorted', {'a': 'b'})
+
     def test_image_list(self):
         body = self.check_json_result(self.app.get('/api/image/list/'))
         body['images'].sort()

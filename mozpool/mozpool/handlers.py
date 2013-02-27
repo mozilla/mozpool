@@ -22,6 +22,7 @@ urls = (
     "/request/([^/]+)/log/?", "request_log",
     "/request/([^/]+)/renew/?", "request_renew",
     "/request/([^/]+)/return/?", "request_return",
+    "/request/([^/]+)/event/([^/]+)/?", "request_event",
 
     "/image/list/?", "image_list",
 )
@@ -115,6 +116,20 @@ class request_return(Handler):
     def POST(self, request_id):
         mozpool.mozpool.driver.handle_event(int(request_id), 'close', None)
         raise nocontent()
+
+class request_event(Handler):
+    @requestredirect
+    @templeton.handlers.json_response
+    def POST(self, request_id, event):
+        args, body = templeton.handlers.get_request_parms()
+        mozpool.mozpool.driver.handle_event(int(request_id), event, body)
+        return {}
+
+    @requestredirect
+    @templeton.handlers.json_response
+    def GET(self, request_id, event):
+        mozpool.mozpool.driver.handle_event(int(request_id), event, {})
+        return {}
 
 class image_list(Handler):
     @templeton.handlers.json_response

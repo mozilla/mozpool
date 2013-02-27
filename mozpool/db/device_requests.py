@@ -22,7 +22,9 @@ class Methods(base.MethodsBase):
 
         try:
             self.db.execute(model.device_requests.insert(),
-                        {'request_id': request_id, 'device_id': device_id})
+                        {'request_id': request_id,
+                         'device_id': device_id,
+                         'imaging_result': None})
         except sqlalchemy.exc.IntegrityError:
             return False
         return True
@@ -46,3 +48,27 @@ class Methods(base.MethodsBase):
                 model.devices.c.name==device_name))
         return self.singleton(res, missing_ok=True)
 
+    def set_result(self, device_name, result):
+        """
+        Set the imaging result string for the device request attached to the
+        given device.  Raises NotFound if no such device exists, but does
+        nothing if the device is not assigned.
+        """
+        res = self.db.execute(select(
+            [model.devices.c.id],
+            whereclause=(model.devices.c.name==device_name)))
+        device_id = self.singleton(res)
+
+        q = model.device_requests.update(
+                whereclause=model.device_requests.c.device_id==device_id)
+        self.db.execute(q, imaging_result=result)
+
+    def get_result(self, request_id):
+        """
+        Return the imaging results for the device request attached to the given
+        request, or None if there is no attached device request.
+        """
+        res = self.db.execute(select(
+                [model.device_requests.c.imaging_result],
+                whereclause=(model.device_requests.c.request_id==request_id)))
+        return self.singleton(res, missing_ok=True)

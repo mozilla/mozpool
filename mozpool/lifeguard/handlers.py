@@ -11,7 +11,7 @@ from mozpool.web.handlers import deviceredirect, InMemCacheMixin, Handler
 
 # URLs go here. "/api/" will be automatically prepended to each.
 urls = (
-  "/device/([^/]+)/event/([^/]+)/?", "event",
+  "/device/([^/]+)/event/([^/]+)/?", "device_event",
   "/device/([^/]+)/state-change/([^/]+)/to/([^/]+)/?", "state_change",
   "/device/([^/]+)/status/?", "device_status",
   "/device/([^/]+)/state/?", "device_state",
@@ -29,7 +29,7 @@ class state_change(Handler):
             raise web.conflict()
         return {}
 
-class event(Handler):
+class device_event(Handler):
     @deviceredirect
     @templeton.handlers.json_response
     def POST(self, device_name, event):

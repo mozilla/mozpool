@@ -91,3 +91,69 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
             self.reset_all_mocks()
             self.driver.handle_timeout(self.req_id)
         self.assert_state('closed')
+
+    def test_pending_result_complete(self):
+        self.set_state('pending')
+        self.add_device_request(self.req_id, 'dev1')
+        self.driver.handle_event(self.req_id, 'lifeguard_finished',
+                {'imaging_result': 'complete'})
+        self.assert_state('ready')
+
+    def test_pending_result_complete_timeout(self):
+        self.set_state('pending')
+        self.add_device_request(self.req_id, 'dev1')
+        self.db.device_requests.set_result('dev1', 'complete')
+        self.driver.handle_timeout(self.req_id)
+        self.assert_state('ready')
+
+    def test_pending_result_bad_image(self):
+        self.set_state('new')
+        num_tries = 2
+
+        # add enough devices to satisfy the retries
+        for i in range(2, num_tries+1):
+            self.add_device('dev%d' % i, state='free')
+
+        # retry NUM_RETRIES times
+        self.driver.handle_event(self.req_id, 'find_device', {})
+        for _ in range(num_tries):
+            assigned_dev = self.db.requests.get_assigned_device(self.req_id)
+            self.assert_state('contacting_lifeguard')
+            self.db.devices.set_machine_state(assigned_dev, 'busy', None)
+            self.requests_result(self.requests_post, 200)
+            self.assert_state('pending')
+            self.driver.handle_event(self.req_id, 'lifeguard_finished',
+                    {'imaging_result': 'failed-bad-image'})
+
+        # finally it fails..
+        self.assert_state('bad_image')
+
+    def test_pending_result_bad_device(self):
+        self.set_state('pending')
+        self.add_device_request(self.req_id, 'dev1')
+        self.db.devices.set_machine_state('dev1', 'busy', None)
+        self.add_device('dev2', state='free')
+
+        self.driver.handle_event(self.req_id, 'lifeguard_finished',
+                {'imaging_result': 'failed-bad-device'})
+
+        # device is released and we're back to looking for a device and contacting
+        # lifeguard.  This is contacting lifegaurd about dev2, since it's free.
+        self.assert_state('contacting_lifeguard')
+        self.assertEqual(self.db.device_requests.get_by_device('dev1'), None)
+
+    def test_pending_result_timeout_failed(self):
+        self.set_state('pending')
+        self.add_device_request(self.req_id, 'dev1')
+        self.db.devices.set_machine_state('dev1', 'busy', None)
+        self.add_device('dev2', state='free')
+
+        # time out 10 times before finally heading back to try a new device
+        for _ in range(10):
+            self.assert_state('pending')
+            self.driver.handle_timeout(self.req_id)
+
+        # device is released and we're back to looking for a device and contacting
+        # lifeguard.  This is contacting lifegaurd about dev2, since it's free.
+        self.assert_state('contacting_lifeguard')
+        self.assertEqual(self.db.device_requests.get_by_device('dev1'), None)

@@ -166,6 +166,7 @@ class finding_device(Closable, Expirable, statemachine.State):
         self.logger.info('Finding device.')
         device_name = None
         count = self.machine.increment_counter(self.state_name)
+        self.db.device_requests.clear(self.machine.request_id)
         request = self.db.requests.get_info(self.machine.request_id)
         image_is_reusable = self.db.images.is_reusable(request['image'])
 
@@ -271,21 +272,51 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
 class pending(Closable, Expirable, statemachine.State):
     "Request is pending while a device is located and prepared."
 
-    TIMEOUT = 10
-    PERMANENT_FAILURE_COUNT = 60
+    # wait a total of 10m for the device to be prepared.  This may be a little
+    # tight!
+    TIMEOUT = 60
+    PERMANENT_FAILURE_COUNT = 10
+
+    # retry bad images this many times, just to be sure
+    BAD_IMAGE_FAILURE_COUNT = 2
 
     def on_timeout(self):
-        # FIXME: go back to earlier state if request failed
-        counter = self.machine.increment_counter(self.state_name)
-        req = self.db.requests.get_info(self.machine.request_id)
-        device_name = req['assigned_device']
-        device_state = self.db.devices.get_machine_state(device_name)
-        if device_state == 'ready':
-            self.machine.goto_state(ready)
-        elif counter > self.PERMANENT_FAILURE_COUNT:
-            self.machine.goto_state(device_not_found)
-        else:
+        # poll first, and if that works, nothing more to do
+        if self.check_imaging_result():
+            return
+        if self.machine.increment_counter(self.state_name) < self.PERMANENT_FAILURE_COUNT:
             self.machine.goto_state(pending)
+        else:
+            # lifeguard appears to have forgotten about us..
+            self.machine.goto_state(finding_device)
+
+    def on_lifeguard_finished(self, args):
+        imaging_result = args.get('imaging_result')
+        self.check_imaging_result(imaging_result)
+
+    def check_imaging_result(self, imaging_result=None):
+        if not imaging_result:
+            imaging_result = self.db.device_requests.get_result(self.machine.request_id)
+        if not imaging_result:
+            # no result yet
+            return False
+        # the remaining result strings form a tiny little code shared with lifeguard
+        elif imaging_result == 'complete':
+            self.machine.goto_state(ready)
+        elif imaging_result == 'failed-bad-image':
+            # if the image was responsible for the failure, and we've
+            # exceeded the allowable bad images, give up
+            if self.machine.increment_counter('bad-images') < self.BAD_IMAGE_FAILURE_COUNT:
+                self.machine.goto_state(finding_device)
+            else:
+                self.machine.goto_state(bad_image)
+        elif imaging_result == 'failed-bad-device':
+            # if the device was responsible for the failure, try another one.
+            self.machine.goto_state(finding_device)
+        else:
+            self.logger.warn('unknown imaging result %s' % imaging_result)
+            self.machine.goto_state(finding_device)
+        return True
 
 
 @RequestStateMachine.state_class
@@ -306,6 +337,10 @@ class expired(ClearDeviceRequests, statemachine.State):
 @RequestStateMachine.state_class
 class device_not_found(ClearDeviceRequests, statemachine.State):
     "No working unassigned device could be found."
+
+@RequestStateMachine.state_class
+class bad_image(ClearDeviceRequests, statemachine.State):
+    "Installing the image on the device failed in such a way that it is likely a bad image."
 
 
 @RequestStateMachine.state_class

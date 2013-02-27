@@ -99,6 +99,17 @@ Note that a request will be automatically terminated once it expires.  The
 * POST returns the device to the pool and deletes the request.  Returns
   204 No Content.
 
+/api/request/{id}/event/{event}/
+* POST to communicate a state-machine event to this request.  This is only
+  used for internal communication in the current version of Mozpool.  The
+  request body contains a JSON object which is transmitted to the state
+  machine's event method.  Most methods ignore their arguments.
+
+* GET is identical to a POST with an empty request body.
+
+  200 OK is returned.
+
+
 = LifeGuard =
 
 These are requests to a particular LifeGuard server to start low-level BMM

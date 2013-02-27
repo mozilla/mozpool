@@ -262,6 +262,8 @@ CREATE TABLE requests (
 CREATE TABLE device_requests (
   request_id bigint not null references requests.id on delete restrict,
   device_id integer not null references devices.id on delete restrict,
+  -- the state of the requested device, as filled in by the lifeguard layer.
+  imaging_result varchar(32),
   unique index request_id_idx (request_id),
   unique index device_id_idx (device_id)
 );

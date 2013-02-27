@@ -2,8 +2,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import json
 import datetime
-from mozpool import config, statemachine, statedriver
+from mozpool import config, statemachine, statedriver, async
 from mozpool.bmm import api
 from mozpool.db import exceptions
 import mozpool.lifeguard
@@ -199,6 +200,40 @@ class PowerCycleMixin(object):
         self.machine.goto_state(self.power_cycle_complete_state)
 
 
+class ImagingResultMixin(object):
+
+    def send_imaging_result(self, imaging_result):
+        """
+        Send the given imaging result to Mozpool.  This both inserts the result
+        into the db and POSTs it to the Mozpool server, but does nothing if
+        there is no attached request.
+        """
+        device_name = self.machine.device_name
+        self.db.device_requests.set_result(device_name, imaging_result)
+
+        # find out if this device was requested
+        req_id = self.db.device_requests.get_by_device(device_name)
+        if req_id is None:
+            return
+
+        # next, who do we talk to about this request?
+        try:
+            imaging_svr = self.db.requests.get_imaging_server(req_id)
+        except exceptions.NotFound:
+            return
+
+        # tell mozpool we're finished.  This is a notification, so we really
+        # don't care if it succeeds or not
+        self.logger.info("sending imaging result '%s' to Mozpool" % imaging_result)
+        mozpool_url = 'http://%s/api/request/%d/event/lifeguard_finished/' % (
+                imaging_svr, req_id)
+        def posted(result):
+            if result.status_code != 200:
+                self.logger.warn("got %d from Mozpool" % result.status_code)
+        async.requests.post.start(posted, mozpool_url,
+                data=json.dumps({'imaging_result': imaging_result}))
+
+
 ####
 # Initial and steady states
 
@@ -247,7 +282,7 @@ class free(AcceptPleaseRequests, statemachine.State):
 
 
 @DeviceStateMachine.state_class
-class ready(AcceptPleaseRequests, statemachine.State):
+class ready(AcceptPleaseRequests, ImagingResultMixin, statemachine.State):
     """
     This device has been assigned via mozpool and is ready for use by the
     client.
@@ -268,6 +303,9 @@ class ready(AcceptPleaseRequests, statemachine.State):
             self.db.devices.set_image(device_name,
                     new_img['image'], new_img['boot_config'])
             self.db.devices.set_next_image(device_name, None, None)
+
+        # inform mozpool, if it cares
+        self.send_imaging_result('complete')
 
     def on_free(self, args):
         self.machine.goto_state(free)
@@ -853,12 +891,17 @@ class self_test_running(AcceptBasicPleaseRequests, statemachine.State):
 ####
 # Failure states
 
-class failed(AcceptBasicPleaseRequests, statemachine.State):
+class failed(AcceptBasicPleaseRequests, ImagingResultMixin, statemachine.State):
     """Parent class for failed_.. classes.  The only way out is a self-test or
     maintenance mode."""
 
+    # by default, a failure will be indicated to mozpool with this imaging result.
+    # subclasses can set this for other results
+    imaging_result = 'failed-bad-device'
+
     def on_entry(self):
         self.logger.error("device has failed: %s" % self.state_name)
+        self.send_imaging_result(self.imaging_result)
 
 
 @DeviceStateMachine.state_class

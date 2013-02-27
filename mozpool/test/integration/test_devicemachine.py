@@ -16,6 +16,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         ('ping', 'mozpool.bmm.api.API.ping'),
         ('set_pxe', 'mozpool.bmm.api.API.set_pxe'),
         ('powercycle', 'mozpool.bmm.api.API.powercycle'),
+        ('requests_post', 'mozpool.async.AsyncRequests.post'),
     ]
 
     def setUp(self):
@@ -37,6 +38,11 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         "call the callback passed to a mock async operation start"
         start_mock.assert_called()
         start_mock.call_args[0][0](result)
+
+    def requests_result(self, mock, status_code):
+        r = mock.Mock()
+        r.status_code = status_code
+        self.invoke_callback(mock.start, r)
 
     def test_free_ping_ok(self):
         self.set_state('free')
@@ -81,3 +87,39 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.assertEqual(self.db.devices.get_image('dev1'),
                 {'image': 'new_img', 'boot_config': '{bc2}'})
 
+    def test_ready_no_request(self):
+        "entering the ready state doesn't notify mozpool if there's no request"
+        self.set_state('sut_sdcard_verifying')
+        self.driver.handle_event('dev1', 'sut_sdcard_ok', {})
+        self.requests_post.start.assert_not_called()
+        self.assert_state('ready')
+
+    def test_ready_notifies_mozpool(self):
+        "entering the ready state notifies mozpool if there's an attached request"
+        self.add_image('img1')
+        req_id = self.add_request(device='dev1', image='img1')
+
+        self.set_state('sut_sdcard_verifying')
+        self.driver.handle_event('dev1', 'sut_sdcard_ok', {})
+        self.requests_post.start.assert_called_with(mock.ANY,
+                'http://server/api/request/%d/event/lifeguard_finished/' % req_id,
+                data='{"imaging_result": "complete"}')
+        self.assert_state('ready')
+        self.requests_result(self.requests_post, 500) # just to test the logging
+
+    def test_failed_b2g_downloading_notifies_mozpool(self):
+        """
+        failed_b2g_downloading (and by extension other failed_* states notify
+        mozpool if there's an attached request
+        """
+        self.add_image('img1')
+        req_id = self.add_request(device='dev1', image='img1')
+
+        self.set_state('b2g_downloading')
+        self.db.devices.set_counters('dev1', {"b2g_downloading": 10000})
+        self.driver.handle_timeout('dev1')
+        self.requests_post.start.assert_called_with(mock.ANY,
+                'http://server/api/request/%d/event/lifeguard_finished/' % req_id,
+                data='{"imaging_result": "failed-bad-device"}')
+        self.assert_state('failed_b2g_downloading')
+        self.requests_result(self.requests_post, 200)

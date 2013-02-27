@@ -49,3 +49,15 @@ class Tests(DBMixin, TestCase):
 
     def test_get_by_device_none(self):
         self.assertEqual(self.db.device_requests.get_by_device('dev2'), None)
+
+    def test_get_result_none(self):
+        self.assertEqual(self.db.device_requests.get_result(self.request_id), None)
+        self.assertEqual(self.db.device_requests.get_result(99), None)
+
+    def test_set_get_result(self):
+        self.db.device_requests.set_result('dev1', 'in prog')
+        self.assertEqual(self.db.device_requests.get_result(self.request_id), 'in prog')
+
+    def test_set_result_notfound(self):
+        self.assertRaises(exceptions.NotFound, lambda :
+                self.db.device_requests.set_result('dev99', 'in prog'))

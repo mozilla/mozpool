@@ -14,3 +14,4 @@ using `show create table devices`.  In the example below, that's
     alter table devices add column next_image_id int(10) unsigned;
     alter table devices add foreign key(next_image_id) references images(id);
     alter table devices add column next_boot_config text;
+    alter table device_requests add column imaging_result varchar(32);

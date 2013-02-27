@@ -65,6 +65,7 @@ device_requests = sa.Table('device_requests', metadata,
     sa.Column('device_id', sa.Integer(unsigned=True),
         sa.ForeignKey('devices.id', ondelete='RESTRICT'),
         unique=True, nullable=False),
+    sa.Column('imaging_result', sa.String(32)),
 )
 
 imaging_servers = sa.Table('imaging_servers', metadata,
