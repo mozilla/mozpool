@@ -255,6 +255,7 @@ Release Notes
    This represents a schema change; see UPGRADING.md for details.
    The API has changed to correspond: the `/api/device/list?details=1` resource now includes an `image` key for every device, rather than `last_image` (which was accidentally undocumented).
  * Bug 826746: Lifeguard now notifies Mozpool explicitly when an operation for a request is complete.
+ * Bug 837241: Lifeguard prefers SUT over relays and ping when it is available, falling back where necessary.
 
 2.0.3
 =====

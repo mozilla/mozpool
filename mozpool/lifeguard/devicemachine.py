@@ -197,6 +197,13 @@ class PowerCycleMixin(object):
     def on_power_cycle_ok(self, args):
         self.machine.clear_counter('power_cycling')
         self.machine.clear_counter('sut_attempts')
+        self.power_cycle_complete()
+
+    def power_cycle_complete(self):
+        """
+        Subclasses can override this to do something more complex than going to
+        power_cycle_complete_state
+        """
         self.machine.goto_state(self.power_cycle_complete_state)
 
 
@@ -263,21 +270,38 @@ class free(AcceptPleaseRequests, statemachine.State):
     """This device is not in use and available for mozpool requests.  While in this state,
     Mozpool monitors the device periodically and takes corrective action if it fails."""
 
+    # this must be greater than both the ping timeout (10s) and the sut_verify
+    # timeout (195s).  It should be large, too, to keep load on the imaging server
+    # to a reasonable level
     TIMEOUT = 600
 
     def on_entry(self):
-        # TODO: when SUT support is in place, determine whether to use a SUT check or a
-        # ping, or nothing, based on the current image as recorded in the db.
+        # either sut_verify, or ping, depending on the image capabilities
+        if self.db.devices.has_sut_agent(self.machine.device_name):
+            self.start_sut_verify()
+        else:
+            self.start_ping()
+
+    def start_sut_verify(self):
+        def sut_verified(success):
+            if not success:
+                self.logger.warning("device failed SUT verification")
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'failed', {})
+        self.machine.api.sut_verify.start(sut_verified, self.machine.device_name)
+
+    def start_ping(self):
         def ping_complete(success):
             if not success:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_failed', {})
+                self.logger.warning("device failed ping check")
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'failed', {})
         self.machine.api.ping.start(ping_complete, self.machine.device_name)
 
     def on_timeout(self):
         self.machine.goto_state(free)
 
-    def on_ping_failed(self, args):
-        self.logger.warning('device stopped pinging while free; running self-test')
+    def on_failed(self, args):
         self.machine.goto_state(start_self_test)
 
 
@@ -330,10 +354,16 @@ class ready(AcceptPleaseRequests, ImagingResultMixin, statemachine.State):
 class pc_power_cycling(PowerCycleMixin, statemachine.State):
     """
     A reboot has been requested, and the device is being power-cycled.  Once
-    the power cycle is successful, go to state 'pc_pinging'.
+    the power cycle is successful, go to state 'sut_verifying'.
     """
 
-    power_cycle_complete_state = 'pc_rebooting'
+    def power_cycle_complete(self):
+        # verify SUT if this device has it; otherwise wait for it to
+        # reboot and then ping it
+        if self.db.devices.has_sut_agent(self.machine.device_name):
+            self.machine.goto_state(sut_verifying)
+        else:
+            self.machine.goto_state(pc_rebooting)
 
 
 @DeviceStateMachine.state_class
@@ -383,89 +413,7 @@ class pc_pinging(statemachine.State):
 
     def on_ping_ok(self, args):
         self.machine.clear_counter('pc_pinging')
-        self.machine.goto_state(sut_verifying)
-
-
-####
-# SUT Verifying
-
-# These states access the device's SUT agent via mozdevice.
-
-@DeviceStateMachine.state_class
-class sut_verifying(statemachine.State):
-    """
-    If the image has a SUT agent, verify that we can establish a connection.
-    If no SUT agent, just proceed to next state.
-    """
-
-    # wait about 10m for the device to come up
-    PERMANENT_FAILURE_COUNT = 13
-    # the SUT check can take up to 45s, so don't reduce this further
-    TIMEOUT = 45
-
-    def on_entry(self):
-        if not self.db.devices.has_sut_agent(self.machine.device_name):
-            self.on_sut_verify_ok({})
-            return
-        def sut_verified(success):
-            if success:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
-                                                      'sut_verify_ok', {})
-             # if not, wait for the timeout to occur, rather than immediately
-             # re-checking
-        self.logger.info("Verifying via SUT")
-        self.machine.api.sut_verify.start(sut_verified, self.machine.device_name)
-
-    def on_timeout(self):
-        if (self.machine.increment_counter(self.state_name) >
-            self.PERMANENT_FAILURE_COUNT):
-            self.machine.goto_state(failed_sut_verifying)
-        else:
-            self.machine.goto_state(self.state_name)
-
-    def on_sut_verify_ok(self, args):
-        self.machine.clear_counter(self.state_name)
-        self.machine.goto_state(sut_sdcard_verifying)
-
-
-@DeviceStateMachine.state_class
-class sut_sdcard_verifying(statemachine.State):
-    """
-    If the image has a SUT agent, verify that we can write a test file to the
-    device's SD card.
-    If no SUT agent, just proceed to next state.
-    """
-
-    PERMANENT_FAILURE_COUNT = 2
-    TIMEOUT = 210
-
-    def on_entry(self):
-        if not self.db.devices.has_sut_agent(self.machine.device_name):
-            self.on_sut_sdcard_ok({})
-            return
-        def sdcard_verified(success):
-            if success:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
-                                                      'sut_sdcard_ok', {})
-            else:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
-                                                      'sut_sdcard_failed', {})
-        self.logger.info("Checking sdcard via SUT")
-        self.machine.api.check_sdcard.start(sdcard_verified, self.machine.device_name)
-
-    def on_timeout(self):
-        self.on_sut_sdcard_failed({})
-
-    def on_sut_sdcard_failed(self, args):
-        if (self.machine.increment_counter(self.state_name) >
-            self.PERMANENT_FAILURE_COUNT):
-            self.machine.goto_state(failed_sut_sdcard_verifying)
-        else:
-            self.machine.goto_state(self.state_name)
-
-    def on_sut_sdcard_ok(self, args):
-        self.machine.clear_counter(self.state_name)
-        self.machine.goto_state(ready)
+        self.machine.goto_state(free)
 
 
 ####
@@ -658,7 +606,7 @@ class android_extracting(statemachine.State):
     """
     The second-stage script is extracting the Android artifacts onto the
     sdcard.  When this is complete, the script will send an event and go into
-    the 'android_rebooting' state.
+    the 'sut_verifying' state where it will wait for SUT to come up.
     """
 
     # Extracting takes 2m on a good day.  Give it plenty of leeway.  Funky
@@ -669,75 +617,13 @@ class android_extracting(statemachine.State):
 
     def on_android_rebooting(self, args):
         self.machine.clear_counter(self.state_name)
-        self.machine.goto_state(android_rebooting)
+        self.machine.goto_state(sut_verifying)
 
     def on_timeout(self):
         if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
             self.machine.goto_state(failed_android_extracting)
         else:
             self.machine.goto_state(pxe_power_cycling)
-
-
-@DeviceStateMachine.state_class
-class android_rebooting(statemachine.State):
-    """
-    The second-stage script has rebooted the device.  This state waits a short
-    time, then begins pinging the device.  The wait is to avoid a false positive
-    ping from the board *before* it has rebooted.
-    """
-
-    # The u-boot loader is also pingable, so we want to be very sure we don't get
-    # a false positive from it.  So, this is quite a bit longer than strictly
-    # necessary, but gives enough time to reboot, run u-boot, and then start Android
-    TIMEOUT = 120
-
-    def on_timeout(self):
-        self.machine.goto_state(android_pinging)
-
-
-@DeviceStateMachine.state_class
-class android_pinging(statemachine.State):
-    """
-    A reboot has been requested, and the power cycle is complete.  Ping until
-    successful, then go to state 'ready'
-    """
-
-    # ping every 10s, failing 12 times (2 minutes total).  If the whole process fails here
-    # a few times, then most likely the image is bogus, so that's a permanent failure.
-    TIMEOUT = 10
-    PING_FAILURES = 12
-    PERMANENT_FAILURE_COUNT = 4
-
-    def on_entry(self):
-        def ping_complete(success):
-            # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
-            if success:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
-            else:
-                self.logger.warning("ping failed")
-        self.machine.api.ping.start(ping_complete, self.machine.device_name)
-
-    def on_timeout(self):
-        # this is a little tricky - android_pinging tracks a few tries to ping this device, so
-        # when that counter expires, then we assume the device has not imaged correctly and
-        # retry; *that* failure is counted against PERMANENT_FAILURE_COUNT.
-        if self.machine.increment_counter('ping') > self.PERMANENT_FAILURE_COUNT:
-            self.machine.clear_counter('ping')
-            if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
-                self.machine.goto_state(failed_android_pinging)
-            else:
-                self.machine.goto_state(pxe_power_cycling)
-        else:
-            self.machine.goto_state(android_pinging)
-
-    def on_ping_ok(self, args):
-        self.machine.clear_counter(self.state_name)
-        self.machine.clear_counter('ping')
-        # whatever image was "next" is now current
-        img_info = self.db.devices.get_next_image(self.machine.device_name)
-        self.db.devices.set_image(self.machine.device_name,
-                img_info.get('image'), img_info.get('boot_config'))
-        self.machine.goto_state(sut_verifying)
 
 
 ####
@@ -773,7 +659,7 @@ class b2g_extracting(statemachine.State):
     """
     The second-stage script is extracting the B2G artifacts onto the
     sdcard.  When this is complete, the script will send an event and go into
-    the 'b2g_rebooting' state.
+    the 'sut_verifying' state to make sure the image comes up.
     """
 
     # Extracting takes 1m on a good day.  Give it plenty of leeway.  Funky
@@ -784,7 +670,7 @@ class b2g_extracting(statemachine.State):
 
     def on_b2g_rebooting(self, args):
         self.machine.clear_counter(self.state_name)
-        self.machine.goto_state(b2g_rebooting)
+        self.machine.goto_state(sut_verifying)
 
     def on_timeout(self):
         if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
@@ -793,66 +679,79 @@ class b2g_extracting(statemachine.State):
             self.machine.goto_state(pxe_power_cycling)
 
 
-@DeviceStateMachine.state_class
-class b2g_rebooting(statemachine.State):
-    """
-    The second-stage script has rebooted the device.  This state waits a short
-    time, then begins pinging the device.  The wait is to avoid a false positive
-    ping from the board *before* it has rebooted.
-    """
+####
+# SUT Verifying
 
-    # The u-boot loader is also pingable, so we want to be very sure we don't get
-    # a false positive from it.  So, this is quite a bit longer than strictly
-    # necessary, but gives enough time to reboot, run u-boot, and then start b2g.
-    TIMEOUT = 120
-
-    def on_timeout(self):
-        self.machine.goto_state(b2g_pinging)
-
+# This sequence of states checks the device using SUT.  It forms the final set
+# of operations for several sequences above, and goes to the 'ready' state when
+# it is finished.
 
 @DeviceStateMachine.state_class
-class b2g_pinging(statemachine.State):
+class sut_verifying(statemachine.State):
     """
-    A reboot has been requested, and the power cycle is complete.  Ping until
-    successful, then go to state 'ready'
+    Verify that we can establish a connection to the device's SUT agent.
+    This assumes that the device has a SUT agent on it.
     """
 
-    # TODO: factor out into a mixin to combine with android_pinging
-
-    # ping every 10s, failing 12 times (2 minutes total).  If the whole process fails here
-    # a few times, then most likely the image is bogus, so that's a permanent failure.
-    TIMEOUT = 10
-    PING_FAILURES = 12
-    PERMANENT_FAILURE_COUNT = 4
+    # wait about 10m for the device to reboot and come up
+    PERMANENT_FAILURE_COUNT = 13
+    # the SUT check can take up to 45s, so don't reduce this further
+    TIMEOUT = 45
 
     def on_entry(self):
-        def ping_complete(success):
-            # send the machine a power-cycle-ok event on success, and do nothing on failure (timeout)
+        def sut_verified(success):
             if success:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name, 'ping_ok', {})
-        self.machine.api.ping.start(ping_complete, self.machine.device_name)
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'sut_verify_ok', {})
+             # if not, wait for the timeout to occur, rather than immediately
+             # re-checking
+        self.machine.api.sut_verify.start(sut_verified, self.machine.device_name)
 
     def on_timeout(self):
-        # this is a little tricky - b2g_pinging tracks a few tries to ping this device, so
-        # when that counter expires, then we assume the device has not imaged correctly and
-        # retry; *that* failure is counted against PERMANENT_FAILURE_COUNT.
-        if self.machine.increment_counter('ping') > self.PERMANENT_FAILURE_COUNT:
-            self.machine.clear_counter('ping')
-            if self.machine.increment_counter(self.state_name) > self.PERMANENT_FAILURE_COUNT:
-                self.machine.goto_state(failed_b2g_pinging)
-            else:
-                self.machine.goto_state(pxe_power_cycling)
+        if (self.machine.increment_counter(self.state_name) >
+            self.PERMANENT_FAILURE_COUNT):
+            self.machine.goto_state(failed_sut_verifying)
         else:
-            self.machine.goto_state(b2g_pinging)
+            self.machine.goto_state(self.state_name)
 
-    def on_ping_ok(self, args):
+    def on_sut_verify_ok(self, args):
         self.machine.clear_counter(self.state_name)
-        self.machine.clear_counter('ping')
-        # whatever image was "next" is now current
-        img_info = self.db.devices.get_next_image(self.machine.device_name)
-        self.db.devices.set_image(self.machine.device_name,
-                img_info.get('image'), img_info.get('boot_config'))
-        self.machine.goto_state(sut_verifying)
+        self.machine.goto_state(sut_sdcard_verifying)
+
+
+@DeviceStateMachine.state_class
+class sut_sdcard_verifying(statemachine.State):
+    """
+    Verify that we can write a test file to the device's SD card.
+    """
+
+    PERMANENT_FAILURE_COUNT = 2
+    # this should be greater than the sdcard timeout (30s)
+    TIMEOUT = 60
+
+    def on_entry(self):
+        def sdcard_verified(success):
+            if success:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'sut_sdcard_ok', {})
+            else:
+                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
+                                                      'sut_sdcard_failed', {})
+        self.machine.api.check_sdcard.start(sdcard_verified, self.machine.device_name)
+
+    def on_timeout(self):
+        self.on_sut_sdcard_failed({})
+
+    def on_sut_sdcard_failed(self, args):
+        if (self.machine.increment_counter(self.state_name) >
+            self.PERMANENT_FAILURE_COUNT):
+            self.machine.goto_state(failed_sut_sdcard_verifying)
+        else:
+            self.machine.goto_state(self.state_name)
+
+    def on_sut_sdcard_ok(self, args):
+        self.machine.clear_counter(self.state_name)
+        self.machine.goto_state(ready)
 
 
 ####
