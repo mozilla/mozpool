@@ -30,9 +30,7 @@ def _pymysql_connect_listener(dbapi_con, connection_record):
     logger.debug("setting SO_KEEPALIVE on MySQL socket %d" % sock.fileno())
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
-def _mysqldb_connect_listener(dbapi_con, connection_record):
-    logger.warning("Cannot set SO_KEEPALIVE on MySQL sockets with MySQLdb; expect hung DB connections")
-
+# NOTE: the mysqldb driver sets SO_KEEPALIVE itself; no need to do so here
 
 class DBPool(object):
 
