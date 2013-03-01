@@ -2,7 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import socket
 import sqlalchemy
+import logging
+
+logger = logging.getLogger('db.pool')
+
+# checkout listener, to make sure each connection is still
+# good when it's checked out
 
 def _checkout_listener(dbapi_con, con_record, con_proxy):
     try:
@@ -12,6 +19,20 @@ def _checkout_listener(dbapi_con, con_record, con_proxy):
         if ex.args[0] in (2006, 2013, 2014, 2045, 2055):
             raise sqlalchemy.exc.DisconnectionError()
         raise
+
+# mysql connect listeners
+
+def _pymysql_connect_listener(dbapi_con, connection_record):
+    # apply SO_KEEPALIVE to the socket.
+    # see https://github.com/petehunt/PyMySQL/issues/139
+    # and https://bugzilla.mozilla.org/show_bug.cgi?id=817762
+    sock = dbapi_con.socket
+    logger.debug("setting SO_KEEPALIVE on MySQL socket %d" % sock.fileno())
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+
+def _mysqldb_connect_listener(dbapi_con, connection_record):
+    logger.warning("Cannot set SO_KEEPALIVE on MySQL sockets with MySQLdb; expect hung DB connections")
+
 
 class DBPool(object):
 
@@ -29,6 +50,12 @@ class DBPool(object):
                 engine.execute("pragma journal_mode = wal")
             except:
                 pass # oh well..
+
+        if engine.dialect.name == 'mysql':
+            driver = self.engine.driver
+            listener = globals().get("_%s_connect_listener" % driver)
+            if listener:
+                sqlalchemy.event.listen(engine.pool, 'connect', listener)
 
     def execute(self, statement, *args, **kwargs):
         """
