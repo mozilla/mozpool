@@ -244,7 +244,7 @@ var LifeguardTableView = DeviceTableView.extend({
         { id: "selected", title: '', bSortable: false,
             sClass: 'rowcheckbox', renderFn: "renderSelected" },
         { id: "name", title: "Name" },
-        { id: "state", title: "State" },
+        { id: "state", title: "State", renderFn: "renderState"},
         { id: "image", title: "Image" , renderFn: "renderImage"},
         { id: "comments", title: "Comments" },
         { id: "links", title: "Links",
@@ -261,6 +261,14 @@ var LifeguardTableView = DeviceTableView.extend({
             image += '&dagger;';
         }
         return image;
+    },
+    renderState: function(model) {
+        var str = model.get('state');
+        var req_id = model.get('request_id');
+        if (req_id) {
+            str = str + ' (<a target="_blank" href="log.html?request=' + req_id + '">request ' + req_id + '</a>)';
+        }
+        return str;
     }
 });
 
@@ -323,7 +331,7 @@ var RequestTableView = TableView.extend({
 
     renderDeviceLink: function(deviceName)
     {
-        return '<a href="lifeguard.html">' + deviceName + '</a>';
+        return '<a target="_blank" href="log.html?device=' + deviceName + '">' + deviceName + '</a>';
     },
 
     renderAssigned: function(model)

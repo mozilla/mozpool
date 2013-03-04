@@ -33,6 +33,12 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
     def set_state(self, state):
         self.db.devices.set_machine_state('dev1', state, None)
 
+    def stub_out_state_class(self, state):
+        "patch this state to not do anything"
+        p = mock.patch('mozpool.lifeguard.devicemachine.%s.on_entry' % state)
+        p.start()
+        self.addCleanup(p.stop)
+
     def assert_state(self, state):
         self.assertEqual(self.db.devices.get_machine_state('dev1'), state)
 
@@ -46,22 +52,22 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         r.status_code = status_code
         self.invoke_callback(mock.start, r)
 
-    def test_free_ping_ok(self):
-        "A free device without SUT will be pinged, but not change states if the ping succeeds."
-        self.set_state('free')
+    def test_ready_ping_ok(self):
+        "A ready device without SUT will be pinged, but not change states if the ping succeeds."
+        self.set_state('ready')
         self.driver.handle_timeout('dev1')
         self.ping.start.assert_called_with(mock.ANY, 'dev1')
         self.invoke_callback(self.ping.start, True)
-        self.assert_state('free')
+        self.assert_state('ready')
 
-    def test_free_ping_selftest(self):
-        "A free device without SUT will be pinged, and if that fails, will be self-tested."
+    def test_ready_ping_selftest(self):
+        "A ready device without SUT will be pinged, and if that fails, will be self-tested."
         # add a self-test image and pxe_config for this device and hardware type
         self.add_image('self-test')
         self.add_pxe_config('selftest', contents='SELF TEST')
         self.add_image_pxe_config('self-test', 'selftest', 'test', 'test')
 
-        self.set_state('free')
+        self.set_state('ready')
         self.driver.handle_timeout('dev1')
         self.ping.start.assert_called_with(mock.ANY, 'dev1')
         self.invoke_callback(self.ping.start, False) # ping fails
@@ -69,8 +75,8 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.powercycle.start.assert_called_with(mock.ANY, 'dev1')
         self.assert_state('pxe_power_cycling')
 
-    def test_free_sut_verify(self):
-        "A free device with SUT will be verified, and if that fails, will be self-tested using sut_reboot."
+    def test_ready_sut_verify(self):
+        "A ready device with SUT will be verified, and if that fails, will be self-tested using sut_reboot."
         # add a self-test image and pxe_config for this device and hardware type,
         # and a current image that has SUT
         self.add_image('b2g', has_sut_agent=True)
@@ -79,7 +85,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.add_image_pxe_config('self-test', 'selftest', 'test', 'test')
         self.db.devices.set_image('dev1', 'b2g', None)
 
-        self.set_state('free')
+        self.set_state('ready')
         self.driver.handle_timeout('dev1')
         self.sut_verify.start.assert_called_with(mock.ANY, 'dev1')
         self.invoke_callback(self.sut_verify.start, False) # sut fails
@@ -133,6 +139,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         "failed_b2g_downloading state notifies mozpool if there's an attached request"
         self.add_image('img1')
         req_id = self.add_request(device='dev1', image='img1')
+        self.stub_out_state_class('start_self_test')
 
         self.set_state('b2g_downloading')
         self.db.devices.set_counters('dev1', {"b2g_downloading": 10000})
@@ -140,7 +147,8 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.requests_post.start.assert_called_with(mock.ANY,
                 'http://server/api/request/%d/event/lifeguard_finished/' % req_id,
                 data='{"imaging_result": "failed-bad-device"}')
-        self.assert_state('failed_b2g_downloading')
+        # failed_b2g_downloading goes straight to start_self_test
+        self.assert_state('start_self_test')
         self.requests_result(self.requests_post, 200)
 
     def test_android_imaging(self):
@@ -151,7 +159,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.add_pxe_config('android-pxe', contents='ANDROID')
         self.add_image_pxe_config('android', 'android-pxe', 'test', 'test')
 
-        self.set_state('free')
+        self.set_state('ready')
         self.driver.handle_event('dev1', 'please_image', {'image': 'android', 'boot_config': ''})
         self.set_pxe.run.assert_called_with('dev1', 'android-pxe')
         self.powercycle.start.assert_called_with(mock.ANY, 'dev1')
@@ -175,7 +183,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.add_pxe_config('b2g-pxe', contents='ANDROID')
         self.add_image_pxe_config('b2g', 'b2g-pxe', 'test', 'test')
 
-        self.set_state('free')
+        self.set_state('ready')
         self.driver.handle_event('dev1', 'please_image', {'image': 'b2g', 'boot_config': ''})
         self.set_pxe.run.assert_called_with('dev1', 'b2g-pxe')
         self.powercycle.start.assert_called_with(mock.ANY, 'dev1')
@@ -191,3 +199,30 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.driver.handle_event('dev1', 'b2g_rebooting', {})
         self.assert_state('sut_verifying')
 
+    def test_failures_self_test(self):
+        "When android_downloading fails, the device ends up self-testing"
+        self.stub_out_state_class('start_self_test')
+        self.set_state('android_downloading')
+        self.db.devices.set_counters('dev1', {'android_downloading': 99999})
+        self.driver.handle_timeout('dev1')
+        self.assert_state('start_self_test')
+
+    def test_sut_verify_power_cycles(self):
+        "When SUT verifying post-image, the device should be power-cycled periodically"
+        self.stub_out_state_class('failed_sut_verifying')
+        self.set_state('sut_verifying')
+        for i in range(30):
+            self.driver.handle_timeout('dev1')
+            if (i+1) % 10 == 0:
+                self.assert_state('sut_verify_power_cycle')
+                self.powercycle.start.assert_called()
+                # ..and the power-cycle fails..
+                self.invoke_callback(self.powercycle.start, False)
+                self.reset_all_mocks()
+                self.driver.handle_timeout('dev1')
+                self.powercycle.start.assert_called()
+                self.invoke_callback(self.powercycle.start, True)
+                self.reset_all_mocks()
+            self.assert_state('sut_verifying')
+        self.driver.handle_timeout('dev1')
+        self.assert_state('failed_sut_verifying')

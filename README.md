@@ -247,7 +247,7 @@ To run the tests:
 Release Notes
 =============
 
- * The documentation for ``/api/image/list`` was updated to match its behavior.
+ * The ``/api/image/list?details=1`` endpoint now returns a `request_id` column for each device.
  * Bug 826065: The database interface layer was completely rewritten for better hackability and testability.
  * Bug 848561: Log entries and devices are now sorted properly in the web UI
  * Bug 844363: The test suite was completely rewritten for easier maintenance and much better coverage.
@@ -256,6 +256,9 @@ Release Notes
    The API has changed to correspond: the `/api/device/list?details=1` resource now includes an `image` key for every device, rather than `last_image` (which was accidentally undocumented).
  * Bug 826746: Lifeguard now notifies Mozpool explicitly when an operation for a request is complete.
  * Bug 837241: Lifeguard prefers SUT over relays and ping when it is available, falling back where necessary.
+ * Bug 834568: The lifeguard 'free' state has been dropped in favor of the 'ready' state.
+   Devices in the ready state may or may not be attached to a request.
+ * The lifeguard UI now displays a link to the attached request for a device, if any.
 
 2.0.3
 =====

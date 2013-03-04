@@ -256,6 +256,7 @@ class Device(object):
 
     def boot_android_second_stage(self):
         self._send_event('android_downloading')
+        self.fail()
         self._wait(60, splay=30)
         self._send_event('android_extracting')
         self.sdcard_image = 'corrupt'

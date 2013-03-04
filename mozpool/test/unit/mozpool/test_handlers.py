@@ -24,6 +24,24 @@ class Tests(AppMixin, DBMixin, ConfigMixin, TestCase):
         body = self.check_json_result(self.app.get('/api/device/list/'))
         self.assertEqual(body, {'devices': ['dev1']})
 
+    def test_device_list_details(self):
+        req_id = self.add_request(device='dev1', image='img2')
+        body = self.check_json_result(self.app.get('/api/device/list/?details=1'))
+        self.assertEqual(body, {u'devices': [
+            {u'boot_config': u'{}',
+             u'comments': None,
+             u'environment': u'abc',
+             u'fqdn': u'dev1.example.com',
+             u'id': 1,
+             u'image': None,
+             u'imaging_server': u'server',
+             u'inventory_id': 1,
+             u'mac_address': u'000000000000',
+             u'name': u'dev1',
+             u'relay_info': u'',
+             u'request_id': req_id,
+             u'state': u'offline'}]})
+
     def test_device_request_fails(self):
         r = self.post_json('/api/device/dev1/request/', {}, expect_errors=True)
         self.assertEqual(r.status, 400)

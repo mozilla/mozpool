@@ -20,7 +20,8 @@ class Tests(DBMixin, TestCase):
             u'mac_address': u'111111222222',
             u'image': None,
             u'id': 1,
-            u'boot_config': u'{}'}
+            u'boot_config': u'{}',
+            u'request_id' : None}
     dev2 = {u'environment': None,
             u'relay_info': u'',
             u'name': u'dev2',
@@ -32,7 +33,8 @@ class Tests(DBMixin, TestCase):
             u'mac_address': u'000000000000',
             u'image': 'img1',
             u'id': 2,
-            u'boot_config': u'{}'}
+            u'boot_config': u'{}',
+            u'request_id' : None}
 
     def setUp(self):
         super(Tests, self).setUp()
@@ -50,32 +52,38 @@ class Tests(DBMixin, TestCase):
         self.assertEqual(sorted(self.db.devices.list(detail=True)),
                 sorted([self.dev1, self.dev2]))
 
-    def test_list_free(self):
-        # dev1 and dev2 shouldn't show up, because they're not free
+    def test_list_detail_request(self):
+        dev2 = self.dev2.copy()
+        dev2['request_id'] = self.add_request(device='dev2', image='img1')
+        self.assertEqual(sorted(self.db.devices.list(detail=True)),
+                sorted([self.dev1, dev2]))
 
-        self.add_device('dev10', environment='staging', state='free',
+    def test_list_available(self):
+        # dev1 and dev2 shouldn't show up, because they're not ready
+
+        self.add_device('dev10', environment='staging', state='ready',
                 image_id=self.img1_id, boot_config=u'{"a": "b"}')
         dev10 = {'image': 'img1', 'name': u'dev10', 'boot_config': u'{"a": "b"}'}
 
-        self.add_device('dev11', environment='production', state='free')
+        self.add_device('dev11', environment='production', state='ready')
         dev11 = {'image': None, 'name': u'dev11', 'boot_config': u'{}'}
 
-        self.add_device('dev12', environment='production', state='free')
+        self.add_device('dev12', environment='production', state='ready')
         dev12 = {'image': None, 'name': u'dev12', 'boot_config': u'{}'}
 
-        # distractor that is in state 'free' but associated with a request, so
+        # distractor that is in state 'ready' but associated with a request, so
         # it should not be seen below
-        self.add_device('dev13', state='free', environment='production')
+        self.add_device('dev13', state='ready', environment='production')
         self.add_request(device='dev13', image='img1')
 
-        self.assertEqual(sorted(self.db.devices.list_free(environment='staging')),
+        self.assertEqual(sorted(self.db.devices.list_available(environment='staging')),
                 sorted([dev10]))
-        self.assertEqual(sorted(self.db.devices.list_free(environment='production')),
+        self.assertEqual(sorted(self.db.devices.list_available(environment='production')),
                 sorted([dev11, dev12]))
-        self.assertEqual(self.db.devices.list_free(device_name='dev11'), [dev11])
-        self.assertEqual(self.db.devices.list_free(device_name='dev10', environment='production'),
+        self.assertEqual(self.db.devices.list_available(device_name='dev11'), [dev11])
+        self.assertEqual(self.db.devices.list_available(device_name='dev10', environment='production'),
                 [])
-        self.assertEqual(self.db.devices.list_free(device_name='dev1'), [])
+        self.assertEqual(self.db.devices.list_available(device_name='dev1'), [])
 
     def test_list_states(self):
         self.assertEqual(self.db.devices.list_states(), {u'dev2': u'denial', u'dev1': u'occupied'})

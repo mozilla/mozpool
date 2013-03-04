@@ -19,7 +19,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         super(Tests, self).setUp()
         self.add_image('img1', can_reuse=False)
         self.req_id = self.add_request(image='img1', no_assign=True)
-        self.add_device('dev1', state='free')
+        self.add_device('dev1', state='ready')
 
     def tearDown(self):
         super(Tests, self).tearDown()
@@ -70,28 +70,6 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         # and finally the machine ends up in the device_not_found state
         self.assert_state('device_not_found')
 
-    def test_closing(self):
-        self.set_state('ready')
-        self.add_device_request(self.req_id, 'dev1')
-        self.driver.handle_event(self.req_id, 'close', {})
-        self.assert_state('closing')
-        self.requests_get.start.assert_called_with(mock.ANY,
-                'http://server/api/device/dev1/event/free/')
-        self.requests_result(self.requests_get, 200)
-        self.assert_state('closed')
-
-    def test_closing_lifeguard_fails(self):
-        self.set_state('ready')
-        self.add_device_request(self.req_id, 'dev1')
-        self.driver.handle_event(self.req_id, 'close', {})
-        self.assert_state('closing')
-        for _ in range(10):
-            self.requests_get.start.assert_called_with(mock.ANY,
-                    'http://server/api/device/dev1/event/free/')
-            self.reset_all_mocks()
-            self.driver.handle_timeout(self.req_id)
-        self.assert_state('closed')
-
     def test_pending_result_complete(self):
         self.set_state('pending')
         self.add_device_request(self.req_id, 'dev1')
@@ -112,7 +90,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
 
         # add enough devices to satisfy the retries
         for i in range(2, num_tries+1):
-            self.add_device('dev%d' % i, state='free')
+            self.add_device('dev%d' % i, state='ready')
 
         # retry NUM_RETRIES times
         self.driver.handle_event(self.req_id, 'find_device', {})
@@ -132,13 +110,13 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.set_state('pending')
         self.add_device_request(self.req_id, 'dev1')
         self.db.devices.set_machine_state('dev1', 'busy', None)
-        self.add_device('dev2', state='free')
+        self.add_device('dev2', state='ready')
 
         self.driver.handle_event(self.req_id, 'lifeguard_finished',
                 {'imaging_result': 'failed-bad-device'})
 
         # device is released and we're back to looking for a device and contacting
-        # lifeguard.  This is contacting lifegaurd about dev2, since it's free.
+        # lifeguard.  This is contacting lifegaurd about dev2, since it's ready.
         self.assert_state('contacting_lifeguard')
         self.assertEqual(self.db.device_requests.get_by_device('dev1'), None)
 
@@ -146,7 +124,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.set_state('pending')
         self.add_device_request(self.req_id, 'dev1')
         self.db.devices.set_machine_state('dev1', 'busy', None)
-        self.add_device('dev2', state='free')
+        self.add_device('dev2', state='ready')
 
         # time out 10 times before finally heading back to try a new device
         for _ in range(10):
@@ -154,6 +132,6 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
             self.driver.handle_timeout(self.req_id)
 
         # device is released and we're back to looking for a device and contacting
-        # lifeguard.  This is contacting lifegaurd about dev2, since it's free.
+        # lifeguard.  This is contacting lifegaurd about dev2, since it's ready.
         self.assert_state('contacting_lifeguard')
         self.assertEqual(self.db.device_requests.get_by_device('dev1'), None)

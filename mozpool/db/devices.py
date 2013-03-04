@@ -27,31 +27,38 @@ class Methods(base.MethodsBase,
 
         If `detail` is True, then each device is represented by a dictionary
         with keys id, name, fqdn, inventory_id, mac_address, imaging_server,
-        relay_info, state, image, boot_config, environment, and
-        comments.
+        relay_info, state, image, boot_config, environment, comments, and request_id.
+
+        The `request_id` field is the request attached to the device, or None.
         """
         if detail:
             devices = model.devices
+            device_requests = model.device_requests
             img_svrs = model.imaging_servers
             images = model.images
+            from_obj = devices.join(img_svrs)
+            from_obj = from_obj.outerjoin(images, images.c.id==devices.c.image_id)
+            from_obj = from_obj.outerjoin(device_requests, device_requests.c.device_id==devices.c.id)
             stmt = select(
                 [devices.c.id, devices.c.name, devices.c.fqdn, devices.c.inventory_id,
                 devices.c.mac_address, img_svrs.c.fqdn.label('imaging_server'),
                 devices.c.relay_info, devices.c.state, devices.c.comments,
                 images.c.name.label('image'), devices.c.boot_config,
-                devices.c.environment],
-                from_obj=[devices.join(img_svrs).outerjoin(images, images.c.id==devices.c.image_id)])
+                devices.c.environment, device_requests.c.request_id],
+                from_obj=[from_obj])
             res = self.db.execute(stmt)
             return self.dict_list(res)
         else:
             res = self.db.execute(select([model.devices.c.name]))
             return self.column(res)
 
-    def list_free(self, device_name='any', environment='any'):
+    def list_available(self, device_name='any', environment='any'):
         """
         Get available devices with any other necessary characteristics.  Pass
         'any' for a wildcard.  It's up to the caller to decide if some of
         these devices are better than others (e.g. image already installed).
+        "Available" is defined as in the ready state and not attached to an
+        existing request.
 
         This returns a list of dictionaries with keys 'name', 'image', and
         'boot_config'.
@@ -61,8 +68,8 @@ class Methods(base.MethodsBase,
         q = select([model.devices.c.name, model.devices.c.boot_config,
                     model.images.c.name.label('image')], from_obj=[f])
         # make sure it's free
-        q = q.where(model.devices.c.state=="free")
-        # double-check that there's no matching requests row (using an inner
+        q = q.where(model.devices.c.state=="ready")
+        # check that there's no matching requests row (using an inner
         # join and expecting NULL)
         q = q.where(model.device_requests.c.request_id == None)
         # other characteristics

@@ -77,7 +77,7 @@ class Closable(object):
 
     def on_close(self, args):
         self.logger.info('Request closed.')
-        self.machine.goto_state(closing)
+        self.machine.goto_state(closed)
 
 
 class Expirable(object):
@@ -88,48 +88,12 @@ class Expirable(object):
 
 
 class ClearDeviceRequests(object):
-
     """
-    Represents a second-to-final stage. We attempt to return the device
-    to the 'free' state here.  If successful, or after permanent failure,
-    we move to 'closed', which deletes the request-device association from
-    the database.
-
-    Note that the 'ready' state of the device state machine verifies that the
-    device does indeed belong to a request and, if not, moves it back to 'free'.
+    Clear the device_request.  This is mixed into every "terminal" state.
     """
-
-    TIMEOUT = 30
-    PERMANENT_FAILURE_COUNT = 10
 
     def on_entry(self):
-        assigned_device = self.db.requests.get_assigned_device(
-                                            self.machine.request_id)
-        if assigned_device:
-            device_url = 'http://%s/api/device/%s/event/free/' % (
-                self.db.devices.get_imaging_server(assigned_device),
-                assigned_device)
-            def posted(result):
-                if result.status_code != 200:
-                    self.logger.warn("got %d from Lifeguard" % result.status_code)
-                    return
-                mozpool.driver.handle_event(self.machine.request_id, 'device_freed', {})
-            async.requests.get.start(posted, device_url)
-        else:
-            self.db.device_requests.clear(self.machine.request_id)
-            self.machine.goto_state(closed)
-
-    def on_device_freed(self, args):
-        self.machine.goto_state(closed)
-
-    def on_timeout(self):
-        count = self.machine.increment_counter(self.state_name)
-        if count >= self.PERMANENT_FAILURE_COUNT:
-            self.logger.warn('Too many failed attempts to free device; '
-                                'just clearing request and giving up.')
-            self.machine.goto_state(closed)
-        else:
-            self.machine.goto_state(self.state_name)
+        self.db.device_requests.clear(self.machine.request_id)
 
 
 @RequestStateMachine.state_class
@@ -170,21 +134,21 @@ class finding_device(Closable, Expirable, statemachine.State):
         request = self.db.requests.get_info(self.machine.request_id)
         image_is_reusable = self.db.images.is_reusable(request['image'])
 
-        free_devices = self.db.devices.list_free(
+        avail_devices = self.db.devices.list_available(
                 environment=request['environment'],
                 device_name=request['requested_device'])
 
-        if free_devices:
+        if avail_devices:
             if image_is_reusable:
-                devices_with_image = [x for x in free_devices
+                devices_with_image = [x for x in avail_devices
                                       if x['image'] == request['image'] and
                                          util.from_json(x['boot_config']) ==
                                          util.from_json(request['boot_config'])]
                 if devices_with_image:
-                    free_devices = devices_with_image
+                    avail_devices = devices_with_image
 
             # pick a device at random from the returned list
-            device_name = random.choice(free_devices)['name']
+            device_name = random.choice(avail_devices)['name']
             self.logger.info('Assigning device %s.' % device_name)
             if self.db.device_requests.add(self.machine.request_id,
                                                 device_name):
@@ -215,11 +179,17 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
         req = self.db.requests.get_info(self.machine.request_id)
         device_name = req['assigned_device']
         device_state = self.db.devices.get_machine_state(device_name)
-        if device_state != 'free':
+        if device_state != 'ready':
             self.logger.error('Assigned device %s is in unexpected state %s '
                               'when about to contact lifeguard.' %
                               (device_name, device_state))
-            self.machine.goto_state(device_busy)
+            self.machine.goto_state(finding_device)
+            # note that there's still a small chance of a race here between
+            # mozpool and lifeguard: lifeguard begins self-testing the device
+            # after this check and before it receives the event below; the
+            # device eventually returns to the 'ready' state, but has not sent
+            # the request.  The timeout for 'pending' will catch this rare
+            # situation.
             return
 
         # If the requested image is reusable and we got a device with that
@@ -325,8 +295,18 @@ class ready(Closable, Expirable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class closing(ClearDeviceRequests, statemachine.State):
-    "Request has received close event."
+class device_not_found(ClearDeviceRequests, Expirable, statemachine.State):
+    "No working unassigned device could be found."
+
+
+@RequestStateMachine.state_class
+class bad_image(ClearDeviceRequests, Expirable, statemachine.State):
+    "Installing the image on the device failed in such a way that it is likely a bad image."
+
+
+@RequestStateMachine.state_class
+class device_busy(ClearDeviceRequests, Expirable, statemachine.State):
+    "The requested device is already assigned."
 
 
 @RequestStateMachine.state_class
@@ -335,22 +315,5 @@ class expired(ClearDeviceRequests, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class device_not_found(ClearDeviceRequests, statemachine.State):
-    "No working unassigned device could be found."
-
-@RequestStateMachine.state_class
-class bad_image(ClearDeviceRequests, statemachine.State):
-    "Installing the image on the device failed in such a way that it is likely a bad image."
-
-
-@RequestStateMachine.state_class
-class device_busy(ClearDeviceRequests, statemachine.State):
-    "The requested device is already assigned."
-
-
-@RequestStateMachine.state_class
-class closed(statemachine.State):
+class closed(ClearDeviceRequests, statemachine.State):
     "Device was returned and request has been closed."
-
-    def on_entry(self):
-        self.db.device_requests.clear(self.machine.request_id)
