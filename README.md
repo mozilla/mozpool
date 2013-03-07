@@ -247,6 +247,9 @@ To run the tests:
 Release Notes
 =============
 
+2.0.3
+=====
+
  * Mozpool now sets `SO_KEEPALIVE` on all MySQL sockets, only when using the PyMySQL driver.
    See [bug 817762](https://bugzilla.mozilla.org/show_bug.cgi?id=817762) for details.
 
