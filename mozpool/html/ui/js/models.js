@@ -57,7 +57,7 @@ var UpdateableCollection = Backbone.Collection.extend({
         if (self.addWhenMerging) {
             _.each(_.difference(new_ids, old_ids), function (id) {
                 var attrs = response[_.indexOf(new_ids, id)];
-                self.push(new self.model(attrs));
+                self.push(new self.model(attrs), {'sort': false});
             });
         }
 
@@ -69,6 +69,11 @@ var UpdateableCollection = Backbone.Collection.extend({
                 var model = self.get(id);
                 model.set(attrs);
             });
+        }
+
+        // sort, since we added things without sorting.
+        if (self.comparator) {
+            self.sort();
         }
 
         // this just instructs the fetch/add to not anything else:
@@ -130,7 +135,11 @@ var Device = Backbone.Model.extend({
 var Devices = UpdateableCollection.extend({
     url: '/api/device/list/?details=true',
     model: Device,
-    responseAttr: 'devices'
+    responseAttr: 'devices',
+
+    comparator: function(line) {
+        return line.get('name');
+    }
 });
 
 var DeviceNames = UpdateableCollection.extend({
@@ -222,6 +231,10 @@ var Log = UpdateableCollection.extend({
         }
         return rv;
     },
+
+    comparator: function(line) {
+        return line.get('id');
+    }
 });
 
 //
