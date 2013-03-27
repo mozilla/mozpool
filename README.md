@@ -259,6 +259,7 @@ Release Notes
  * Bug 834568: The lifeguard 'free' state has been dropped in favor of the 'ready' state.
    Devices in the ready state may or may not be attached to a request.
  * The lifeguard UI now displays a link to the attached request for a device, if any.
+ * Bug 845428: Bmm now sends ProXR commands in a single sock.send to accommodate the new ProXR firmware (v3.2).  This is backwards compatible with previous firmware versions.
 
 2.0.3
 =====

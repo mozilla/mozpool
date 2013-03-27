@@ -155,9 +155,7 @@ def get_status(relay_board_name, bank, relay, timeout):
     assert(relay >= 1 and relay <= 8)
 
     with connected_socket(relay_board_name, before) as sock:
-        timed_write(sock, START_COMMAND, before)
-        timed_write(sock, READ_RELAY_N_AT_BANK(relay), before)
-        timed_write(sock, chr(bank), before)
+        timed_write(sock, START_COMMAND + READ_RELAY_N_AT_BANK(relay) + chr(bank), before)
         res = timed_read(sock, before)
         return res2status(res)
 
@@ -178,9 +176,7 @@ def set_status(relay_board_name, bank, relay, status, timeout):
 
     with connected_socket(relay_board_name, before) as sock:
         logger.info("set_status(%s) on %s bank %s relay %s initiated" % (status, relay_board_name, bank, relay))
-        timed_write(sock, START_COMMAND, before)
-        timed_write(sock, status2cmd(status, relay), before)
-        timed_write(sock, chr(bank), before)
+        timed_write(sock, START_COMMAND + status2cmd(status, relay) + chr(bank), before)
         res = timed_read(sock, before)
         if res != COMMAND_OK:
             logger.error("Command on %s did not succeed, status: %d" % (relay_board_name, ord(res)))
@@ -207,18 +203,14 @@ def powercycle(relay_board_name, bank, relay, timeout):
         logger.info("power-cycle on %s bank %s relay %s initiated" % (relay_board_name, bank, relay))
         for status in False, True:
             # set the status
-            timed_write(sock, START_COMMAND, before)
-            timed_write(sock, status2cmd(status, relay), before)
-            timed_write(sock, chr(bank), before)
+            timed_write(sock, START_COMMAND + status2cmd(status, relay) + chr(bank), before)
             res = timed_read(sock, before)
             if res != COMMAND_OK:
                 logger.info("Command on %s did not succeed, status: %d" % (relay_board_name, ord(res)))
                 return False
 
             # check the status
-            timed_write(sock, START_COMMAND, before)
-            timed_write(sock, READ_RELAY_N_AT_BANK(relay), before)
-            timed_write(sock, chr(bank), before)
+            timed_write(sock, START_COMMAND + READ_RELAY_N_AT_BANK(relay) + chr(bank), before)
             res = timed_read(sock, before)
             got_status = res2status(res)
             if (not status and got_status) or (status and not got_status):
