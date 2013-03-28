@@ -247,6 +247,11 @@ To run the tests:
 Release Notes
 =============
 
+NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
+
+3.0.0
+=====
+
  * The ``/api/image/list?details=1`` endpoint now returns a `request_id` column for each device.
  * Bug 826065: The database interface layer was completely rewritten for better hackability and testability.
  * Bug 848561: Log entries and devices are now sorted properly in the web UI
