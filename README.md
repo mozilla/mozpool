@@ -249,6 +249,9 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+
+ * Bug 836013: Devices can be forced into a 'troubleshooting' state which doesn't timeout and accepts PleaseRequests
+
 3.0.0
 =====
 

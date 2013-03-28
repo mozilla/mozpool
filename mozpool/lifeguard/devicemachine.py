@@ -264,6 +264,13 @@ class locked_out(statemachine.State):
     """This device is handled outside of mozpool, and mozpool should not touch it.
     The device must be forced out of this state."""
 
+@DeviceStateMachine.state_class
+class troubleshooting(AcceptBasicPleaseRequests, statemachine.State):
+    """
+    This device is in a troubleshooting state and will not timeout.
+    A 'please_' event or force state must be used to move the device
+    back into a 'normal' state.
+    """
 
 @DeviceStateMachine.state_class
 class ready(AcceptPleaseRequests, statemachine.State):
