@@ -3,8 +3,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import abc
+import sys
 import time
 import threading
+import traceback
 import logging
 import config
 
@@ -63,6 +65,7 @@ class StateDriver(threading.Thread):
                 while polling_thd.isAlive():
                     elapsed = time.time() - started_at
                     self.logger.warning("polling thread still running at %ds; not starting another" % elapsed)
+                    self.write_current_frames()
                     time.sleep(delay)
                     # exponential backoff up to 1m
                     delay = delay if delay > 60 else delay * 1.1
@@ -70,6 +73,13 @@ class StateDriver(threading.Thread):
             self.logger.error("run loop failed", exc_info=True)
         finally:
             self.logger.warning("run loop returned (this should not happen!)")
+
+    def write_current_frames(self):
+        filename = "/tmp/current-frames-%d" % time.time()
+        with open(filename, "w") as f:
+            for thd, frame in sys._current_frames().items():
+                f.write("%d\n%s\n\n" % (thd, "".join(traceback.format_stack(frame))))
+        self.logger.warning(" wrote %r" % (filename,))
 
     def _tick(self):
         hb_file = config.get('server', 'heartbeat_file')
