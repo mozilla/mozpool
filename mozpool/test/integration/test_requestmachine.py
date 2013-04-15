@@ -67,8 +67,15 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
                     data='{"image": "img1", "boot_config": "{}"}')
             self.reset_all_mocks()
             self.driver.handle_timeout(self.req_id)
-        # and finally the machine ends up in the device_not_found state
-        self.assert_state('device_not_found')
+        # and finally the machine ends up in the failed_device_not_found state
+        self.assert_state('failed_device_not_found')
+
+    def test_new_lifeguard_fails_bad_device(self):
+        self.req_id = self.add_request(image='img1', device='dev1')
+        self.db.devices.set_machine_state('dev1', 'failed_dead', None)
+        self.set_state('new')
+        self.driver.handle_event(self.req_id, 'find_device', {})
+        self.assert_state('failed_bad_device')
 
     def test_pending_result_complete(self):
         self.set_state('pending')
@@ -104,7 +111,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
                     {'imaging_result': 'failed-bad-image'})
 
         # finally it fails..
-        self.assert_state('bad_image')
+        self.assert_state('failed_bad_image')
 
     def test_pending_result_bad_device(self):
         self.set_state('pending')
@@ -118,6 +125,18 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         # device is released and we're back to looking for a device and contacting
         # lifeguard.  This is contacting lifegaurd about dev2, since it's ready.
         self.assert_state('contacting_lifeguard')
+        self.assertEqual(self.db.device_requests.get_by_device('dev1'), None)
+        self.assertEqual(self.db.device_requests.get_by_device('dev2'), self.req_id)
+
+    def test_pending_result_bad_device_single_device(self):
+        self.req_id = self.add_request(image='img1', device='dev1')
+        self.set_state('pending')
+        self.db.devices.set_machine_state('dev1', 'failed_dead', None)
+
+        self.driver.handle_event(self.req_id, 'lifeguard_finished',
+                {'imaging_result': 'failed-bad-device'})
+
+        self.assert_state('failed_bad_device')
         self.assertEqual(self.db.device_requests.get_by_device('dev1'), None)
 
     def test_pending_result_timeout_failed(self):

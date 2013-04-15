@@ -1,13 +1,16 @@
-BMM API documentation
+= Mozpool API Documentation =
 
-All APIs are accessed under paths starting with /api/.
+== REST API ==
 
-= MozPool =
+Mozpool exposes a simple REST API via HTTP.
+All resources are accessed under paths starting with /api/.
+
+=== MozPool ===
 
 This is the central, public interface to request, return, and operate on
 devices.
 
-== Devices ==
+==== Devices ====
 
 /api/device/list/
 * GET returns a JSON response body whose "devices" key
@@ -51,14 +54,9 @@ devices.
 
   If a 200 OK code is returned, the client should then poll for the request's
   state (using the value of request["url"] returned in the JSON object with
-  "status/" appended.  A normal request will move through the states "new",
-  "find_device", "contact_lifeguard", "pending", and "ready", in that order.
-  When, and *only* when, the device is in the "ready" state, it is safe to be
-  used by the client.  Other possible states are "expired", "closed",
-  "device_not_found", and "device_busy"; the assigned device (if any) is
-  returned to the pool when any of these states are entered.
+  "status/" appended.  See below for a description of the request states.
 
-== Requests ==
+==== Requests ====
 
 /api/request/list/[?include_closed=1]
 * GET returns a JSON response body whose "requests" key contains an array of
@@ -111,7 +109,7 @@ Note that a request will be automatically terminated once it expires.  The
   200 OK is returned.
 
 
-= LifeGuard =
+=== LifeGuard ===
 
 These are requests to a particular LifeGuard server to start low-level BMM
 operations.  These should *not* be called directly by anything other than
@@ -148,12 +146,12 @@ a MozPool server or the device itself.
   seconds) out of date due to caching.  It is intended for use by monitoring
   tools like Nagios.
 
-= Black Mobile Magic =
+=== Black Mobile Magic ===
 
 Black Mobile Magic handles the hardware directly: power control, network boot
 configuration, and pings.
 
-== Operations ==
+==== Operations ====
 
 These low-level BMM operations are useful for diagnostics and repairs, but
 using them on devices that are managed by Lifeguard may cause undesirable
@@ -181,7 +179,7 @@ results, since lifeguard expects to be controlling the devices.
   value true or false.  The ping happens synchronously, and takes around a
   half-second.
 
-== Information ==
+==== Information ====
 
 /api/device/{id}/log/
 * GET to get a list of all log lines for this device.  The return value has
@@ -212,7 +210,7 @@ results, since lifeguard expects to be controlling the devices.
   keys 'id', 'name', 'boot_config_keys', 'can_reuse', 'hidden', and
   'has_sut_agent'.
 
-== PXE Configs ==
+==== PXE Configs ====
 
 /api/bmm/pxe_config/list/
 * GET returns a JSON response body whose "pxe_configs" key
@@ -226,3 +224,89 @@ results, since lifeguard expects to be controlling the devices.
   The keys of this object are: "name", "version", "description" and
   "content".
 
+== Machine States ==
+
+Mozpool models both devices and requests as state machines and exposes their
+current state via the REST API above.  The states for each state machine are
+also considered part of the API.
+
+Machines in an unrecognized state should be treated as in an undefined state.
+These states are transient, and only relevant internally.  However, the states
+documened here can provide useful information, and any change to their meaning
+from version to version will be called out specifically and treated as a
+compatibility-breaking change.
+
+== Mozpool ==
+
+Each request is modeled as a state machine by Mozpool.  Each request will go
+through a sequence of transient states before entering either the `ready`
+state or one of the failure states.  From the `ready` state it will go to the
+`closed` state if it is explicitly returned or the `expired` state if its
+duration expires.
+
+After submitting a request, clients should poll the request status waiting for
+`ready` or `expired` (in case a request expires before it is ready) or one of
+the failed states below.
+
+=== Failed States ===
+
+`failed_device_not_found`
+* No suitable, unassigned device could be found.  This indicates that after
+  trying several devices, Mozpool could not satisfy the request.
+
+`failed_bad_image`
+* The requested image appears to be bad.  This state indicates that attempts
+  to install the image failed in a way that implicates the image, rather than
+  the device.  It is probably fruitless to attempt to continue to try to
+  install the image on other devices.
+
+`failed_bad_device`
+* The requested device appears to be bad.  This state only occurs for requests
+  for a specific device.
+
+`failed_device_busy`
+* The specific requested device is not available.  While Mozpool will retry
+  the device several times, it eventually gives up.
+
+== Lifeguard ==
+
+Each device's state is modeled separately.  The normal states below represent
+phases of normal operation, while the failed states represent permanent
+failures that must be remedied by a human.
+
+=== Normal States ===
+
+`new`
+* Newly-added devices show up in this state.  Mozpool will not allocate these.
+  They will automatically be self-tested, and either enter the 'free' state or
+  be marked failed.
+
+`ready`
+* The device is functional and not being manipulated by Lifeguard.  It may or
+  may not be assigned to a request.  The Mozpool layer selects un-assigned
+  devices in the ready state to satisfy new requests.
+
+`maintenance_mode`
+* The device is booted into maintenance mode, with an open SSH shell allowing
+  user maintenance.  Devices in this state can be re-imaged or power-cycled to
+  return to the ready state.
+
+`locked_out`
+* Lifeguard will not touch devices in this state.  It is used for devices
+  which are in Lifeguard's list, but are managed by other mechanisms.  The
+  'please' requests don't work in this state - the device must first be forced
+  back to another normal state.
+
+=== Failed States ===
+
+Sometimes devices go bad.  Bad device!  Lifeguard will generally determine this
+when a device repeatedly misbehaves.  When this occurs, it will assign the
+device to a failed state.
+
+These states can be recognized by the `failed_` prefix.  Clients should not
+attempt to interpret the remainder of the state name, as that may change from
+version to version of Mozpool.
+
+A device in a failed state will remain in that state until it is addressed by a
+human.  To detect a device recovery, poll the device's status (using a long
+timer) and wait for it to reach the `ready` state.

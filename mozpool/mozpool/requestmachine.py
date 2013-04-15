@@ -118,7 +118,7 @@ class finding_device(Closable, Expirable, statemachine.State):
 
     TIMEOUT = 10
     MAX_ANY_REQUESTS = 60
-    MAX_SPECIFIC_REQUESTS = 1
+    MAX_SPECIFIC_REQUESTS = 2
 
     def on_entry(self):
         self.find_device()
@@ -160,12 +160,18 @@ class finding_device(Closable, Expirable, statemachine.State):
                 if count >= self.MAX_ANY_REQUESTS:
                     self.logger.warn('Hit maximum number of attempts to find '
                                      'a free device; giving up.')
-                    self.machine.goto_state(device_not_found)
+                    self.machine.goto_state(failed_device_not_found)
             else:
                 if count >= self.MAX_SPECIFIC_REQUESTS:
                     self.logger.warn('Requested device %s is busy.' %
                                      device_name)
-                    self.machine.goto_state(device_busy)
+                    self.machine.goto_state(failed_device_busy)
+                    return
+                # check the device status - if it's failed, then short-circuit
+                # to failed_bad_device
+                state = self.db.devices.get_machine_state(request['requested_device'])
+                if state.startswith('failed_'):
+                    self.machine.goto_state(failed_bad_device)
 
 
 @RequestStateMachine.state_class
@@ -232,7 +238,7 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
     def on_timeout(self):
         if self.machine.increment_counter(self.state_name) >= self.PERMANENT_FAILURE_COUNT:
             self.machine.clear_counter(self.state_name)
-            self.machine.goto_state(device_not_found)
+            self.machine.goto_state(failed_device_not_found)
         else:
             self.machine.goto_state(contacting_lifeguard)
 
@@ -279,10 +285,15 @@ class pending(Closable, Expirable, statemachine.State):
             if self.machine.increment_counter('bad-images') < self.BAD_IMAGE_FAILURE_COUNT:
                 self.machine.goto_state(finding_device)
             else:
-                self.machine.goto_state(bad_image)
+                self.machine.goto_state(failed_bad_image)
         elif imaging_result == 'failed-bad-device':
-            # if the device was responsible for the failure, try another one.
-            self.machine.goto_state(finding_device)
+            request = self.db.requests.get_info(self.machine.request_id)
+            if request['requested_device'] == 'any':
+                # try another device if possible
+                self.machine.goto_state(finding_device)
+            else:
+                # otherwise indicate that this device is bad
+                self.machine.goto_state(failed_bad_device)
         else:
             self.logger.warn('unknown imaging result %s' % imaging_result)
             self.machine.goto_state(finding_device)
@@ -295,17 +306,22 @@ class ready(Closable, Expirable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class device_not_found(ClearDeviceRequests, Expirable, statemachine.State):
+class failed_device_not_found(ClearDeviceRequests, Expirable, statemachine.State):
     "No working unassigned device could be found."
 
 
 @RequestStateMachine.state_class
-class bad_image(ClearDeviceRequests, Expirable, statemachine.State):
+class failed_bad_image(ClearDeviceRequests, Expirable, statemachine.State):
     "Installing the image on the device failed in such a way that it is likely a bad image."
 
 
 @RequestStateMachine.state_class
-class device_busy(ClearDeviceRequests, Expirable, statemachine.State):
+class failed_bad_device(ClearDeviceRequests, Expirable, statemachine.State):
+    "The requested device has failed."
+
+
+@RequestStateMachine.state_class
+class failed_device_busy(ClearDeviceRequests, Expirable, statemachine.State):
     "The requested device is already assigned."
 
 
