@@ -337,7 +337,7 @@ class pc_power_cycling(PowerCycleMixin, statemachine.State):
         # verify SUT if this device has it; otherwise wait for it to
         # reboot and then ping it
         if self.db.devices.has_sut_agent(self.machine.device_name):
-            self.machine.goto_state(sut_verifying)
+            self.machine.goto_state(pc_sut_rebooting)
         else:
             self.machine.goto_state(pc_rebooting)
 
@@ -358,6 +358,21 @@ class pc_rebooting(statemachine.State):
 
     def on_timeout(self):
         self.machine.goto_state(pc_pinging)
+
+
+@DeviceStateMachine.state_class
+class pc_sut_rebooting(statemachine.State):
+    """
+    We have rebooted the device via SUT.  The effect isn't immediate, though, so
+    we give the device a short time to shut itself down.  Without this, it's possible
+    to successfully run a SUT verify *before* the device reboots, which is not what
+    we want!
+    """
+
+    TIMEOUT = 10
+
+    def on_timeout(self):
+        self.machine.goto_state(sut_verifying)
 
 
 @DeviceStateMachine.state_class
