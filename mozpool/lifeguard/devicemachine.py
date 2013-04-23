@@ -281,7 +281,7 @@ class ready(AcceptPleaseRequests, statemachine.State):
     """
 
     # this must be greater than both the ping timeout (10s) and the sut_verify
-    # timeout (195s).  It should be large, too, to keep load on the imaging server
+    # timeout (30s).  It should be large, too, to keep load on the imaging server
     # to a reasonable level
     TIMEOUT = 600
 
@@ -731,8 +731,8 @@ class sut_sdcard_verifying(statemachine.State):
     """
 
     PERMANENT_FAILURE_COUNT = 2
-    # this should be greater than the sdcard timeout (30s)
-    TIMEOUT = 60
+    # this should be greater than the sdcard timeout (195s)
+    TIMEOUT = 200
 
     def on_entry(self):
         def sdcard_verified(success):
