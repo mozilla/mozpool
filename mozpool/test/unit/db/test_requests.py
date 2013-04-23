@@ -45,13 +45,14 @@ class Tests(DBMixin, ConfigMixin, TestCase):
                     state=state)
         req_ids = [
             mkreq(-1, 'pending', 'my_fqdn'), # good
+            mkreq(-1, 'expired', 'my_fqdn'), # expired state (convert to closed for compatibility)
             mkreq(10, 'pending', 'my_fqdn'), # not expired
             mkreq(-1, 'closed', 'my_fqdn'), # closed state
-            mkreq(-1, 'expired', 'my_fqdn'), # expired state
+            mkreq(-1, 'failed_borked', 'my_fqdn'), # failed state
             mkreq(-1, 'pending', 'server'), # other server
         ]
         self.assertEqual(self.db.requests.list_expired(self.server_id, _now=now),
-                         [req_ids[0]])
+                         req_ids[:2])
 
     def test_get_imaging_server(self):
         self.assertEqual(self.db.requests.get_imaging_server(self.req_id), 'my_fqdn')

@@ -249,7 +249,9 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
- * Bug 856733: the Mozpool layer's failure states have been renamed to begin with `failure`.
+ * Bug 863511: Requests no longer have an `expired` state.  Requests are marked as closed when
+   they expire.
+ * Bug 856733: The Mozpool layer's failure states have been renamed to begin with `failure`.
    The states are now defined as part of the API.
 
 3.0.1

@@ -79,12 +79,9 @@ class Closable(object):
         self.logger.info('Request closed.')
         self.machine.goto_state(closed)
 
-
-class Expirable(object):
-
     def on_expire(self, args):
         self.logger.info('Request expired.')
-        self.machine.goto_state(expired)
+        self.machine.goto_state(closed)
 
 
 class ClearDeviceRequests(object):
@@ -97,7 +94,7 @@ class ClearDeviceRequests(object):
 
 
 @RequestStateMachine.state_class
-class new(Closable, Expirable, statemachine.State):
+class new(Closable, statemachine.State):
     "New request; no action taken yet."
 
     def on_find_device(self, args):
@@ -105,7 +102,7 @@ class new(Closable, Expirable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class finding_device(Closable, Expirable, statemachine.State):
+class finding_device(Closable, statemachine.State):
     """
     Assign a device. If this is a request for a specific device,
     fail immediately if the device is busy. If a request for 'any',
@@ -175,7 +172,7 @@ class finding_device(Closable, Expirable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class contacting_lifeguard(Closable, Expirable, statemachine.State):
+class contacting_lifeguard(Closable, statemachine.State):
     "Contacting device's lifeguard server to request reimage/reboot."
 
     TIMEOUT = 30
@@ -245,7 +242,7 @@ class contacting_lifeguard(Closable, Expirable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class pending(Closable, Expirable, statemachine.State):
+class pending(Closable, statemachine.State):
     "Request is pending while a device is located and prepared."
 
     # wait a total of 10m for the device to be prepared.  This may be a little
@@ -301,32 +298,33 @@ class pending(Closable, Expirable, statemachine.State):
 
 
 @RequestStateMachine.state_class
-class ready(Closable, Expirable, statemachine.State):
+class ready(Closable, statemachine.State):
     "Device has been prepared and is ready for use."
 
 
 @RequestStateMachine.state_class
-class failed_device_not_found(ClearDeviceRequests, Expirable, statemachine.State):
+class failed_device_not_found(ClearDeviceRequests, statemachine.State):
     "No working unassigned device could be found."
 
 
 @RequestStateMachine.state_class
-class failed_bad_image(ClearDeviceRequests, Expirable, statemachine.State):
+class failed_bad_image(ClearDeviceRequests, statemachine.State):
     "Installing the image on the device failed in such a way that it is likely a bad image."
 
 
 @RequestStateMachine.state_class
-class failed_bad_device(ClearDeviceRequests, Expirable, statemachine.State):
+class failed_bad_device(ClearDeviceRequests, statemachine.State):
     "The requested device has failed."
 
 
 @RequestStateMachine.state_class
-class failed_device_busy(ClearDeviceRequests, Expirable, statemachine.State):
+class failed_device_busy(ClearDeviceRequests, statemachine.State):
     "The requested device is already assigned."
 
 
 @RequestStateMachine.state_class
-class expired(ClearDeviceRequests, statemachine.State):
+class expired(ClearDeviceRequests, Closable, statemachine.State):
+    # kept here for migration from Mozpool-3.0.1; expired requests will be closed.
     "Request has expired."
 
 

@@ -241,11 +241,12 @@ compatibility-breaking change.
 Each request is modeled as a state machine by Mozpool.  Each request will go
 through a sequence of transient states before entering either the `ready`
 state or one of the failure states.  From the `ready` state it will go to the
-`closed` state if it is explicitly returned or the `expired` state if its
-duration expires.
+`closed` state when it is explicitly returned or when the duration expires.
+If the duration expires before the device becomes ready, then it may never
+enter the `ready` state.
 
 After submitting a request, clients should poll the request status waiting for
-`ready` or `expired` (in case a request expires before it is ready) or one of
+`ready` or `closed` (in case a request expires before it is ready) or one of
 the failed states below.
 
 === Failed States ===

@@ -5,7 +5,7 @@
 import datetime
 import json
 import sqlalchemy
-from sqlalchemy.sql import select
+from sqlalchemy.sql import select, not_
 from mozpool.db import model, base, exceptions
 from mozpool import config
 
@@ -57,14 +57,14 @@ class Methods(base.MethodsBase,
     def list_expired(self, imaging_server_id, _now=datetime.datetime.utcnow):
         """
         Get a list of all requests whose 'expires' timestamp is in the past,
-        are not in the 'expired' or 'closed' state, and which belong to this
+        are not in the 'closed' state or failed, and which belong to this
         imaging server.
         """
         res = self.db.execute(select(
                 [model.requests.c.id],
                 (model.requests.c.expires < _now())
-                & (model.requests.c.state != 'expired')
                 & (model.requests.c.state != 'closed')
+                & not_(model.requests.c.state.like('failed_%'))
                 & (model.requests.c.imaging_server_id == imaging_server_id)))
         return self.column(res)
 
