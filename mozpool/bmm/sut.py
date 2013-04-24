@@ -5,7 +5,6 @@
 import logging
 import posixpath
 import tempfile
-import traceback
 from mozdevice import DeviceManagerSUT, DMError
 
 logger = logging.getLogger('sut.cli')
@@ -17,9 +16,8 @@ def sut_verify(device_fqdn):
     DeviceManagerSUT.default_timeout = 15
     try:
         DeviceManagerSUT(device_fqdn, retryLimit=1)
-    except DMError:
-        logger.error('Exception initiating DeviceManager!')
-        logger.error(traceback.format_exc())
+    except DMError, e:
+        logger.error('Exception initiating DeviceManager!: %s' % str(e))
         return False
     logger.info('Successfully connected to SUT agent.')
     return True
@@ -53,9 +51,8 @@ def check_sdcard(device_fqdn):
         else:
             logger.error('Invalid device root.')
             success = False
-    except DMError:
-        logger.error('Exception while checking SD card!')
-        logger.error(traceback.format_exc())
+    except DMError, e:
+        logger.error('Exception while checking SD card!: %s' % str(e))
         success = False
     return success
 
@@ -68,7 +65,7 @@ def reboot(device_fqdn):
     try:
         dm = DeviceManagerSUT(device_fqdn, retryLimit=1)
         dm.reboot()
-    except DMError:
-        logger.error('Reboot failed: %s' % traceback.format_exc())
+    except DMError, e:
+        logger.error('Reboot failed: %s' % str(e))
         return False
     return True

@@ -249,6 +249,7 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+ * Bug 863513: DMErrors no longer display tracebacks in the Mozpool log.
  * Bug 864488: Lifeguard now waits a short time after doing a SUT reboot to give the device time to shut down.
  * Bug 863511: Requests no longer have an `expired` state.  Requests are marked as closed when
    they expire.
