@@ -255,6 +255,7 @@ NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
    they expire.
  * Bug 856733: The Mozpool layer's failure states have been renamed to begin with `failure`.
    The states are now defined as part of the API.
+ * Bug 856111: The file components for building preseed images are now included with the mozpool source
 
 3.0.1
 =====

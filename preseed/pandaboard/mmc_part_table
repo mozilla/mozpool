@@ -1,0 +1,8 @@
+# partition table of /dev/mmcblk0
+unit: sectors
+/dev/mmcblk0p1 : start=       63, size=   131073, Id= c, bootable
+/dev/mmcblk0p2 : start=   131136, size=  1048577, Id=83
+/dev/mmcblk0p3 : start=  1179713, size=   524289, Id=83
+/dev/mmcblk0p4 : start=  1704002, size= 29412286, Id= 5
+/dev/mmcblk0p5 : start=  1704065, size=  1048577, Id=83
+/dev/mmcblk0p6 : start=  2752705, size= 16777217, Id=83
