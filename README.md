@@ -249,13 +249,17 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+4.0.0
+=====
+
+ * Bug 856111: The file components for building preseed images are now included with the mozpool source
  * Bug 863513: DMErrors no longer display tracebacks in the Mozpool log.
  * Bug 864488: Lifeguard now waits a short time after doing a SUT reboot to give the device time to shut down.
+ * Bug 864908: SUT verifies following a SUT reboot no longer unintentionally verify before the reboot completes.
  * Bug 863511: Requests no longer have an `expired` state.  Requests are marked as closed when
    they expire.
  * Bug 856733: The Mozpool layer's failure states have been renamed to begin with `failure`.
    The states are now defined as part of the API.
- * Bug 856111: The file components for building preseed images are now included with the mozpool source
 
 3.0.1
 =====
