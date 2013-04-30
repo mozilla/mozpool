@@ -1,0 +1,4 @@
+setenv bootargs "console=ttyO2,115200n8 rootwait ro earlyprintk fixrtc nocompcache vram=48M omapfb.vram=0:24M,1:24M mem=456M@0x80000000 mem=512M@0xA0000000 init=/init androidboot.console=ttyO2 omapdss.def_disp=dvi omapdss.hdmimode=0 omapdss.mode=dvi:640x480MR-24@60 consoleblank=0"
+setenv bootandroid "echo Booting Android from SDcard; fatload mmc 0:1 0x80200000 uImage; fatload mmc 0:1 0x81600000 uInitrd; bootm 0x80200000 0x81600000"
+setenv bootpxefirst "echo Launching PXE boot... ; if usb start; then set autoload no; bootp; if pxe get; then pxe boot; fi; fi; usb stop; run bootandroid"
+run bootpxefirst
