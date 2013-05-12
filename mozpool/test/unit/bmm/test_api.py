@@ -15,6 +15,7 @@ class Tests(DBMixin, ConfigMixin, TestCase):
         self.add_server('server')
         self.add_device('dev1', relayinfo='rly:bank1:relay2',
                 mac_address='aabbccddeeff')
+        self.add_relay_board('relay1', server='server')
         self.api = api.API(self.db)
 
     @mock.patch('mozpool.bmm.relay.powercycle')
@@ -53,3 +54,7 @@ class Tests(DBMixin, ConfigMixin, TestCase):
         self.api.check_sdcard.run('dev1')
         check_sdcard.assert_called_with('dev1.example.com')
 
+    @mock.patch('mozpool.bmm.relay.test_two_way_comms')
+    def test_two_way_comms(self, test_two_way_comms):
+        self.api.test_two_way_comms.run('relay1')
+        test_two_way_comms.assert_called_with('relay1.example.com', 10)

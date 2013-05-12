@@ -61,6 +61,20 @@ def requestredirect(function):
         return function(self, id, *args)
     return wrapped
 
+def relayredirect(function):
+    """
+    Generate a redirect when a request is made for a relay board that is not
+    managed by this instance of the service.
+    """
+    def wrapped(self, id, *args):
+        try:
+            server = self.db.relay_boards.get_imaging_server(id)
+        except exceptions.NotFound:
+            raise web.notfound()
+        if server != config.get('server', 'fqdn'):
+            raise web.found("http://%s%s" % (server, web.ctx.path))
+        return function(self, id, *args)
+    return wrapped
 
 class Handler(object):
     """

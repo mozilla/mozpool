@@ -67,6 +67,49 @@ class Methods(base.MethodsBase):
 
         self.db.execute(model.devices.update(whereclause=(model.devices.c.id==id)), **values)
 
+    def dump_relays(self):
+        """
+        Dump relay_board data from DB.  This returns a list of dictionaries with keys id, name,
+        fqdn, and imaging server.
+        """
+        relay_boards = model.relay_boards
+        img_svrs = model.imaging_servers
+        stmt = sqlalchemy.select(
+            [relay_boards.c.id, relay_boards.c.name, relay_boards.c.fqdn,
+            img_svrs.c.fqdn.label('imaging_server')],
+            from_obj=[relay_boards.join(img_svrs)])
+        res = self.db.execute(stmt)
+        return self.dict_list(res)
+
+    def insert_relay_board(self, values, _now=None):
+        """Insert a new relay_board into the DB.  VALUES should be in the dictionary
+        format used for inventorysync - see inventorysync.py"""
+        values = values.copy()
+
+        # convert imaging_server to its ID, and add a default state and counters
+        values['imaging_server_id'] = self._find_imaging_server_id(values.pop('imaging_server'))
+        values['state'] = 'ready'
+        values['state_timeout'] = _now or datetime.datetime.now()
+        values['state_counters'] = '{}'
+
+        self.db.execute(model.relay_boards.insert(), [ values ])
+
+    def delete_relay_board(self, id):
+        """Delete the relay_board with the given ID"""
+        self.db.execute(model.relay_boards.delete(whereclause=(model.relay_boards.c.id==id)))
+
+    def update_relay_board(self, id, values):
+        """Update an existing relay_board with ID into the DB.  VALUES should be in
+        the dictionary format used for inventorysync - see inventorysync.py"""
+        values = values.copy()
+
+        # convert imaging_server to its ID, and strip the id
+        values['imaging_server_id'] = self._find_imaging_server_id(values.pop('imaging_server'))
+        if 'id' in values:
+            values.pop('id')
+
+        self.db.execute(model.relay_boards.update(whereclause=(model.relay_boards.c.id==id)), **values)
+
     # utility methods
 
     def _find_imaging_server_id(self, name):

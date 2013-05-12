@@ -126,3 +126,16 @@ request_logs = sa.Table('request_logs', metadata,
     sa.Column('source', sa.String(32), nullable=False),
     sa.Column('message', sa.Text, nullable=False),
 )
+
+relay_boards = sa.Table('relay_boards', metadata,
+    sa.Column('id', sa.Integer(unsigned=True), primary_key=True, nullable=False),
+    sa.Column('name', sa.String(32), unique=True, nullable=False),
+    sa.Column('fqdn', sa.String(256), unique=True, nullable=False),
+    sa.Column('imaging_server_id', sa.Integer(unsigned=True),
+        sa.ForeignKey('imaging_servers.id', ondelete='RESTRICT'),
+        nullable=False),
+    # state machine variables are for future implementation
+    sa.Column('state', sa.String(32), nullable=False),
+    sa.Column('state_counters', sa.Text, nullable=False),
+    sa.Column('state_timeout', sa.DateTime, nullable=True),
+)

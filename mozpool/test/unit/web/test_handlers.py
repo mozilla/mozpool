@@ -28,6 +28,13 @@ class ReqTestHandler(handlers.Handler):
         web.header('Content-Type', 'text/plain')
         return "hi"
 
+class RelayTestHandler(handlers.Handler):
+
+    @handlers.relayredirect
+    def GET(self, request_id):
+        web.header('Content-Type', 'text/plain')
+        return "hi"
+
 
 class CachedHandler(handlers.InMemCacheMixin, handlers.Handler):
 
@@ -81,11 +88,14 @@ class RedirectTests(DBMixin, ConfigMixin, TestCase):
         self.add_image('b2g')
         self.add_request(server='thisserver', no_assign=True) # id=1
         self.add_request(server='otherserver', no_assign=True) # id=2
+        self.add_relay_board(relay_board='relay1', server='thisserver')
+        self.add_relay_board(relay_board='relay2', server='otherserver')
 
         handlers.Handler.db = self.db
         loaded_urls = templeton.handlers.load_urls([
             '/device/([^/]+)/test/?', 'DevTestHandler',
             '/request/([^/]+)/test/?', 'ReqTestHandler',
+            '/relay/([^/]+)/test/?', 'RelayTestHandler',
         ])
         webapp = web.application(loaded_urls, globals())
         self.app = TestApp(webapp.wsgifunc())
@@ -123,4 +133,17 @@ class RedirectTests(DBMixin, ConfigMixin, TestCase):
 
     def test_requestredirect_404(self):
         r = self.app.get('/api/request/99/test/', expect_errors=True)
+        self.assertEqual(r.status, 404)
+
+    def test_relayredirect_thisserver(self):
+        r = self.app.get('/api/relay/relay1/test/')
+        self.assertEqual(r.status, 200)
+
+    def test_relayredirect_302(self):
+        r = self.app.get('/api/relay/relay2/test/')
+        self.assertEqual(r.status, 302)
+        self.assertEqual(r.header('Location'), 'http://otherserver/api/relay/relay2/test/')
+
+    def test_relayredirect_404(self):
+        r = self.app.get('/api/relay/relay99/test/', expect_errors=True)
         self.assertEqual(r.status, 404)

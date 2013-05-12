@@ -103,6 +103,65 @@ class Tests(DBMixin, TestCase):
              u'hardware_type_id': 1},
         ])
 
+    def test_dump_relays(self):
+        self.add_server('server')
+        self.add_relay_board('relay1')
+        self.add_relay_board('relay2')
+        self.assertEqual(sorted(self.db.inventorysync.dump_relays()), sorted([
+               {u'fqdn': u'relay1.example.com',
+                u'id': 1,
+                u'imaging_server': u'server',
+                u'name': u'relay1'},
+               {u'fqdn': u'relay2.example.com',
+                u'id': 2,
+                u'imaging_server': u'server',
+                u'name': u'relay2'}
+            ]))
+
+    def test_insert_relay_board(self):
+        now = datetime.datetime(2013, 1, 1)
+        self.add_server('server1')
+        self.db.inventorysync.insert_relay_board(dict(
+                name='relay2', fqdn='relay2.fqdn',
+                imaging_server='server2'),
+                _now=now)
+        # device with existing imaging_server and new hardware type to test the
+        # insert-if-not-found behavior
+        self.db.inventorysync.insert_relay_board(dict(
+                name='relay3', fqdn='relay3.fqdn',
+                imaging_server='server1'),
+                _now=now)
+        res = self.db.execute(model.relay_boards.select())
+        self.assertEquals(sorted([ dict(r) for r in res.fetchall() ]),
+        sorted([
+            {u'state': u'ready', u'state_counters': u'{}', u'state_timeout': now,
+             u'name': u'relay2', u'fqdn': u'relay2.fqdn',
+             u'imaging_server_id': 2, u'id': 1},
+            {u'state': u'ready', u'state_counters': u'{}', u'state_timeout': now,
+             u'name': u'relay3', u'fqdn': u'relay3.fqdn',
+             u'imaging_server_id': 1, u'id': 2},
+            ]))
+
+    def test_delete_relay_board(self):
+        now = datetime.datetime.now()
+        self.add_server('server1')
+        id = self.add_relay_board("relay1", server="server1")
+        self.add_relay_board("relay2", server="server1")
+        self.db.inventorysync.delete_relay_board(id)
+        res = self.db.execute(sa.select([model.relay_boards.c.name]))
+        self.assertEquals(res.fetchall(), [('relay2',)])
+
+    def test_update_relay_board(self):
+        self.add_server("server1")
+        self.add_relay_board("relay1", server="server1")
+        self.db.inventorysync.update_relay_board(1, dict(fqdn='relay1.fqdn', imaging_server='server4'))
+        res = self.db.execute(sa.select([model.relay_boards.c.state, model.relay_boards.c.fqdn,
+                                         model.relay_boards.c.imaging_server_id]))
+        self.assertEquals([ dict(r) for r in res.fetchall() ], [
+            {u'state': u'offline', u'fqdn': u'relay1.fqdn',
+             u'imaging_server_id': 2},
+        ])
+
     def test_update_device_hardware_type(self):
         self.add_server("server1")
         self.add_hardware_type("htyp", "hmod")

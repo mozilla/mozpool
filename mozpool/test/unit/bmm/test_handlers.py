@@ -16,6 +16,7 @@ class Tests(AppMixin, DBMixin, ConfigMixin, PatchMixin, TestCase):
         ('poweroff', 'mozpool.bmm.api.API.poweroff'),
         ('ping', 'mozpool.bmm.api.API.ping'),
         ('get_logs', 'mozpool.db.base.ObjectLogsMethodsMixin.get_logs'),
+        ('test_two_way_comms', 'mozpool.bmm.api.API.test_two_way_comms'),
     ]
 
     def setUp(self):
@@ -24,6 +25,7 @@ class Tests(AppMixin, DBMixin, ConfigMixin, PatchMixin, TestCase):
         self.add_server('server')
         img_id = self.add_image('img1')
         self.dev_id = self.add_device('dev1', environment='abc', next_image_id=img_id)
+        self.add_relay_board('relay1', server='server')
 
     def test_device_power_cycle(self):
         self.check_json_result(self.post_json('/api/device/dev1/power-cycle/', {}))
@@ -121,3 +123,14 @@ class Tests(AppMixin, DBMixin, ConfigMixin, PatchMixin, TestCase):
                                             'contents': u'C',
                                             'description': u'D',
                                             'name': u'pxe1'}})
+
+    def test_test_two_way_comms(self):
+        self.test_two_way_comms.run.return_value = True
+        body = self.check_json_result(self.app.get('/api/relay/relay1/test/'))
+        self.test_two_way_comms.run.assert_called_with('relay1')
+        self.assertEqual(body, {'success': True})
+
+    def test_test_two_way_comms_fails(self):
+        self.test_two_way_comms.run.return_value = False
+        body = self.check_json_result(self.app.get('/api/relay/relay1/test/'))
+        self.assertEqual(body, {'success': False})
