@@ -5,7 +5,7 @@
 import datetime
 import web
 import templeton
-from mozpool.web.handlers import deviceredirect, Handler
+from mozpool.web.handlers import deviceredirect, relayredirect, Handler
 from mozpool.bmm import api
 
 # URLs go here. "/api/" will be automatically prepended to each.
@@ -21,7 +21,16 @@ urls = (
   "/environment/list/?", "environment_list",
   "/bmm/pxe_config/list/?", "pxe_config_list",
   "/bmm/pxe_config/([^/]+)/details/?", "pxe_config_details",
+  "/relay/([^/]+)/test/?", "test_two_way_comms",
 )
+
+class test_two_way_comms(Handler):
+    @relayredirect
+    @templeton.handlers.json_response
+    def GET(self, relay_name):
+        a = api.API(self.db)
+        # starts a comm check and return the results
+        return { 'success' : a.test_two_way_comms.run(relay_name)}
 
 class power_cycle(Handler):
     @deviceredirect

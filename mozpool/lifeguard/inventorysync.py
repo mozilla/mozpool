@@ -96,6 +96,51 @@ def merge_devices(from_db, from_inv):
         if db_row != inv_row:
             yield ('update', id, inv_row)
 
+def get_relay_boards(from_inv):
+    """
+    Returns a list of dictionaries containing relay_boards derived from a
+    list of device retrieved from inventory.  Since we make the assumtion
+    each unique relay board can only have one imaging_system assosiated to it,
+    we check for this and raise an AssertionError otherwise.
+    """
+    relay_list = []
+    test_dict = {}
+    for device in from_inv:
+        fqdn = device['relay_info'].split(':', 1)[0]
+        name = fqdn.split('.', 1)[0]
+        imaging_server = device['imaging_server']
+        if not fqdn in test_dict:
+            test_dict[fqdn] = imaging_server
+            relay_list.append(dict(name=name,fqdn=fqdn,imaging_server=imaging_server))
+        elif test_dict[fqdn] != imaging_server:
+            raise RuntimeError("relay '%s' is associated with multiple imaging servers (%r)" % (fqdn, [imaging_server, test_dict[fqdn]]))
+    return relay_list
+
+def merge_relay_boards(relay_boards_from_db, relay_boards_from_inv):
+    """
+    Merge a list of relay_boards in the DB with those in from inventory.  This yields a
+    list of instructions of the form ('insert', dict), ('delete', id, dict), or
+    ('update', id, dict).
+    """
+
+    # first, key everything by fqdn
+    relay_boards_from_db = dict([ (r['fqdn'], r) for r in relay_boards_from_db ])
+    relay_boards_from_inv = dict([ (r['fqdn'], r) for r in relay_boards_from_inv ])
+
+    # get the insert and deletes out of the way
+    for row in set(relay_boards_from_db) - set(relay_boards_from_inv):
+        yield ('delete', relay_boards_from_db[row]['id'], relay_boards_from_db[row])
+    for row in set(relay_boards_from_inv) - set(relay_boards_from_db):
+        yield ('insert', relay_boards_from_inv[row])
+
+    # now figure out any updates that are required
+    for row in set(relay_boards_from_inv) & set(relay_boards_from_db):
+        db_row = relay_boards_from_db[row].copy()
+        id = db_row.pop('id')
+        relay_boards_inv_row = relay_boards_from_inv[row]
+        if db_row != relay_boards_inv_row:
+            yield ('update', id, relay_boards_inv_row)
+
 def sync(db, verbose=False):
     ignore_devices_on_servers_re = None
     if config.has_option('inventory', 'ignore_devices_on_servers_re'):
@@ -111,6 +156,12 @@ def sync(db, verbose=False):
     # get_devices is still running, which is no fun
     from_db = db.inventorysync.dump_devices()
 
+    ## get a list of relay_boards derived from the inventory dump
+    relay_boards_from_inv = get_relay_boards(from_inv)
+    ## get existing relay_board list from DB
+    relay_boards_from_db = db.inventorysync.dump_relays()
+
+    # start merging devices
     for task in merge_devices(from_db, from_inv):
         if task[0] == 'insert':
             if verbose: print "insert device", task[1]['fqdn']
@@ -122,7 +173,21 @@ def sync(db, verbose=False):
             if verbose: print "update device", task[2]
             db.inventorysync.update_device(task[1], task[2])
         else:
-            raise AssertionError('%s is not a task' % task[0])
+            raise RuntimeError('%s is not a task' % task[0])
+
+    # start merging relay_boards
+    for task in merge_relay_boards(relay_boards_from_db, relay_boards_from_inv):
+        if task[0] == 'insert':
+            if verbose: print "insert relay_board", task[1]['fqdn']
+            db.inventorysync.insert_relay_board(task[1])
+        elif task[0] == 'delete':
+            if verbose: print "delete relay_board", task[2]
+            db.inventorysync.delete_relay_board(task[1])
+        elif task[0] == 'update':
+            if verbose: print "update relay_board", task[2]
+            db.inventorysync.update_relay_board(task[1], task[2])
+        else:
+            raise RuntimeError('%s is not a task' % task[0])
 
 def main():
     parser = argparse.ArgumentParser(description='Sync BMM with inventory.')

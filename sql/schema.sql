@@ -102,6 +102,7 @@ DROP TABLE IF EXISTS images;
 DROP TABLE IF EXISTS hardware_types;
 DROP TABLE IF EXISTS device_logs;
 DROP TABLE IF EXISTS request_logs;
+DROP TABLE IF EXISTS relay_boards;
 
 CREATE TABLE imaging_servers (
   id integer UNSIGNED not null primary key auto_increment,
@@ -268,6 +269,21 @@ CREATE TABLE device_requests (
   unique index device_id_idx (device_id)
 );
 
+CREATE TABLE relay_boards (
+  id integer unsigned not null primary key auto_increment,
+  name varchar(32) not null,
+  fqdn varchar(256) not null,
+  imaging_server_id integer unsigned not null,
+  foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
+  -- state machine variables are for future implementation
+  state varchar(32) not null,
+  state_counters text not null,
+  state_timeout datetime,
+
+  unique index name_idx (name),
+  unique index fqdn_idx (fqdn),
+  index imaging_server_id (imaging_server_id)
+);
 
 --
 -- Maintenance

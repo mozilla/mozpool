@@ -179,6 +179,10 @@ results, since lifeguard expects to be controlling the devices.
   value true or false.  The ping happens synchronously, and takes around a
   half-second.
 
+/api/relay/{id}/test/
+* GET to test the two way comms of this relay board.  Returns a JSON object with a `success` key, and
+  value true or false.  The test happens synchronously per relay board, and times out after about 10 secs.
+
 ==== Information ====
 
 /api/device/{id}/log/

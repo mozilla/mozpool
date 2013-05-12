@@ -48,6 +48,9 @@ COMMAND_OK = chr(85)
 # Enter command mode.
 START_COMMAND = chr(254)
 
+# Two-way comms check command
+TEST_2_WAY_COMMS = chr(33)
+
 def READ_RELAY_N_AT_BANK(N):
     """
     Return command code for reading status of relay N in a bank.
@@ -141,6 +144,18 @@ def log_errors(on_error):
     return wrap
 
 ## external API (but internal to BMM)
+
+@log_errors(on_error=False)
+def test_two_way_comms(relay_board_name, timeout):
+    """
+    Test the two way communications between the ProXR microcontroller and the Digi Connect network module.
+    This simply sends a NOOP command to the controler which expects an OK(85) reply.  False on errors.
+    """
+    before = time.time() + timeout
+    with connected_socket(relay_board_name, before) as sock:
+        timed_write(sock, START_COMMAND + TEST_2_WAY_COMMS, before)
+        res = timed_read(sock, before)
+        return res2status(res)
 
 @log_errors(on_error=None)
 def get_status(relay_board_name, bank, relay, timeout):

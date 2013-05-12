@@ -4,7 +4,7 @@
 
 from  mozpool import config
 from . import pool, inventorysync, imaging_servers, requests, devices
-from . import device_requests, pxe_configs, environments, images
+from . import device_requests, pxe_configs, environments, images, relay_boards
 
 class DB(object):
 
@@ -24,6 +24,7 @@ class DB(object):
         self.environments = environments.Methods(self)
         self.pxe_configs = pxe_configs.Methods(self)
         self.inventorysync = inventorysync.Methods(self)
+        self.relay_boards = relay_boards.Methods(self)
 
 def setup(db_url=None):
     if not db_url:

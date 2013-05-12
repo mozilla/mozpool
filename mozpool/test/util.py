@@ -232,6 +232,21 @@ class DBMixin(DirMixin):
                 source=source,
                 ts=ts)
 
+    def add_relay_board(self, relay_board, server="server", dn='.example.com',
+                state="offline", state_timeout=None, state_counters='{}'):
+        id = self.db.execute(select([model.imaging_servers.c.id],
+                                model.imaging_servers.c.fqdn==server)).fetchone()[0]
+        if id is None:
+            raise exceptions.NotFound
+        res = self.db.execute(model.relay_boards.insert(),
+                    name=relay_board,
+                    fqdn=relay_board + dn,
+                    state=state,
+                    state_counters=state_counters,
+                    state_timeout=state_timeout,
+                    imaging_server_id=id)
+        return res.lastrowid
+
 
 class ScriptMixin(object):
     """

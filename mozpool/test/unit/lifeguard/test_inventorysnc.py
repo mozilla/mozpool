@@ -17,6 +17,10 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
         ('insert_device', 'mozpool.db.inventorysync.Methods.insert_device'),
         ('update_device', 'mozpool.db.inventorysync.Methods.update_device'),
         ('delete_device', 'mozpool.db.inventorysync.Methods.delete_device'),
+        ('dump_relays', 'mozpool.db.inventorysync.Methods.dump_relays'),
+        ('insert_relay_board', 'mozpool.db.inventorysync.Methods.insert_relay_board'),
+        ('update_relay_board', 'mozpool.db.inventorysync.Methods.update_relay_board'),
+        ('delete_relay_board', 'mozpool.db.inventorysync.Methods.delete_relay_board'),
     ]
 
     # test merge_devices
@@ -38,9 +42,19 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
             inventory_id=202,
             mac_address='112233445566',
             imaging_server='mobile-services2',
-            relay_info="relay-1:bank2:relay2")
+            relay_info="relay-2.fqdn:bank2:relay2")
         self.panda2_db = self.panda2_inv.copy()
         self.panda2_db['id'] = 402
+
+        self.panda3_inv = dict(
+            name='panda-0003',
+            fqdn='panda-0003.r402-4.scl3.mozilla.com',
+            inventory_id=203,
+            mac_address='ffeeddccbbaa',
+            imaging_server='mobile-services2',
+            relay_info="relay-1:bank3:relay3")
+        self.panda3_db = self.panda3_inv.copy()
+        self.panda3_db['id'] = 403
 
     def test_merge_devices_no_change(self):
         self.make_pandas()
@@ -87,6 +101,87 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
             ('delete', 401, self.panda1_db),
             ('update', 402, self.panda2_inv),
         ])
+
+    # test merge_relay_boards
+
+    def make_relay_boards(self):
+        self.relay1_inv = dict(
+            name='relay-001',
+            fqdn='relay-001.r402-4.scl3.mozilla.com',
+            imaging_server='mobile-services1')
+        self.relay1_db = self.relay1_inv.copy()
+        self.relay1_db['id'] = 123
+
+        self.relay2_inv = dict(
+            name='relay-002',
+            fqdn='relay-002.r402-4.scl3.mozilla.com',
+            imaging_server='mobile-services2')
+        self.relay2_db = self.relay2_inv.copy()
+        self.relay2_db['id'] = 321
+
+    def test_merge_relay_boards_no_change(self):
+        self.make_relay_boards()
+        commands = list(inventorysync.merge_relay_boards(
+            [self.relay1_db, self.relay2_db],
+            [self.relay1_inv, self.relay2_inv]))
+        self.assertEqual(commands, [])
+
+    def test_merge_relay_boards_insert(self):
+        self.make_relay_boards()
+        commands = list(inventorysync.merge_relay_boards(
+            [self.relay1_db],
+            [self.relay1_inv, self.relay2_inv]))
+        self.assertEqual(commands, [
+            ('insert', self.relay2_inv),
+        ])
+
+    def test_merge_relay_boards_delete(self):
+        self.make_relay_boards()
+        commands = list(inventorysync.merge_relay_boards(
+            [self.relay1_db, self.relay2_db],
+            [self.relay2_inv]))
+        self.assertEqual(sorted(commands), [
+            ('delete', self.relay1_db['id'], self.relay1_db),
+        ])
+
+    def test_merge_relay_boards_update(self):
+        self.make_relay_boards()
+        self.relay2_inv['imaging_server'] = 'mobile-services1'
+        commands = list(inventorysync.merge_relay_boards(
+            [self.relay1_db, self.relay2_db],
+            [self.relay1_inv, self.relay2_inv]))
+        self.assertEqual(sorted(commands), [
+            ('update', self.relay2_db['id'], self.relay2_inv),
+        ])
+
+    def test_merge_relay_boards_combo(self):
+        self.make_relay_boards()
+        self.relay2_inv['imaging_server'] = 'mobile-services'
+        commands = list(inventorysync.merge_relay_boards(
+            [self.relay1_db, self.relay2_db],
+            [self.relay2_inv]))
+        self.assertEqual(sorted(commands), [
+            ('delete', self.relay1_db['id'], self.relay1_db),
+            ('update', self.relay2_db['id'], self.relay2_inv),
+        ])
+
+    # test get_relay_boards
+
+    def test_get_relay_boards(self):
+        self.make_pandas()
+        device_list_from_inv = [self.panda1_inv, self.panda2_inv]
+        relay_board_list = inventorysync.get_relay_boards(device_list_from_inv)
+        self.assertEqual( sorted(relay_board_list), sorted([{'fqdn': 'relay-2.fqdn',
+                                            'imaging_server': 'mobile-services2',
+                                            'name': 'relay-2'},
+                                            {'fqdn': 'relay-1',
+                                            'imaging_server': 'mobile-services1',
+                                            'name': 'relay-1'}]))
+
+    def test_get_relay_boards_raise_runtime_error(self):
+        self.make_pandas()
+        self.assertRaises(RuntimeError, lambda: inventorysync.get_relay_boards([self.panda1_inv,
+                                                                                self.panda3_inv]))
 
     # test get_devices
 
@@ -200,9 +295,11 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
 
     # test sync
 
+    @mock.patch('mozpool.lifeguard.inventorysync.merge_relay_boards')
+    @mock.patch('mozpool.lifeguard.inventorysync.get_relay_boards')
     @mock.patch('mozpool.lifeguard.inventorysync.get_devices')
     @mock.patch('mozpool.lifeguard.inventorysync.merge_devices')
-    def test_sync(self, merge_devices, get_devices):
+    def test_sync(self, merge_devices, get_devices, get_relay_boards, merge_relay_boards):
         config.set('inventory', 'url', 'http://foo/')
         config.set('inventory', 'filter', 'hostname__startswith=panda-')
         config.set('inventory', 'username', 'u')
@@ -210,6 +307,13 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
         self.dump_devices.return_value = 'dumped devices'
         get_devices.return_value = 'gotten devices'
         merge_devices.return_value = [
+            ('insert', dict(insert=1)),
+            ('delete', 10, dict(delete=2)),
+            ('update', 11, dict(update=3)),
+        ]
+        get_relay_boards.return_value = 'gotten relay_boards'
+        self.dump_relays.return_value = 'dumped relays'
+        merge_relay_boards.return_value = [
             ('insert', dict(insert=1)),
             ('delete', 10, dict(delete=2)),
             ('update', 11, dict(update=3)),
@@ -222,10 +326,18 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
         self.insert_device.assert_called_with(dict(insert=1))
         self.delete_device.assert_called_with(10)
         self.update_device.assert_called_with(11, dict(update=3))
+        get_relay_boards.assert_called_with(get_devices.return_value)
+        self.dump_relays.assert_called_with()
+        merge_relay_boards.assert_called_with(self.dump_relays.return_value, get_relay_boards.return_value)
+        self.insert_relay_board.assert_called_with(dict(insert=1))
+        self.delete_relay_board.assert_called_with(10)
+        self.update_relay_board.assert_called_with(11, dict(update=3))
 
+    @mock.patch('mozpool.lifeguard.inventorysync.merge_relay_boards')
+    @mock.patch('mozpool.lifeguard.inventorysync.get_relay_boards')
     @mock.patch('mozpool.lifeguard.inventorysync.get_devices')
     @mock.patch('mozpool.lifeguard.inventorysync.merge_devices')
-    def test_sync_with_res(self, merge_devices, get_devices):
+    def test_sync_with_res(self, merge_devices, get_devices, get_relay_boards, merge_relay_boards):
         config.set('inventory', 'url', 'http://foo/')
         config.set('inventory', 'filter', 'hostname__startswith=panda-')
         config.set('inventory', 'username', 'u')
@@ -238,6 +350,13 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
             ('delete', 10, dict(delete=2)),
             ('update', 11, dict(update=3)),
         ]
+        get_relay_boards.return_value = 'gotten relay_boards'
+        self.dump_relays.return_value = 'dumped relays'
+        merge_relay_boards.return_value = [
+            ('insert', dict(insert=1)),
+            ('delete', 10, dict(delete=2)),
+            ('update', 11, dict(update=3)),
+        ]
         inventorysync.sync(self.db)
         self.dump_devices.assert_called_with()
         get_devices.assert_called_with('http://foo/', 'hostname__startswith=panda-', 'u', 'p', 're',
@@ -246,6 +365,12 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
         self.insert_device.assert_called_with(dict(insert=1))
         self.delete_device.assert_called_with(10)
         self.update_device.assert_called_with(11, dict(update=3))
+        get_relay_boards.assert_called_with(get_devices.return_value)
+        self.dump_relays.assert_called_with()
+        merge_relay_boards.assert_called_with(self.dump_relays.return_value, get_relay_boards.return_value)
+        self.insert_relay_board.assert_called_with(dict(insert=1))
+        self.delete_relay_board.assert_called_with(10)
+        self.update_relay_board.assert_called_with(11, dict(update=3))
 
     # test the script
 

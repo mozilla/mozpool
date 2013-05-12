@@ -121,7 +121,7 @@ class RelayBoard(object):
         data = ''
         while True:
             try:
-                b = sock.recv(3)
+                b = sock.recv(1)
             except socket.error, e:
                 if e.errno == errno.ECONNRESET:
                     return # ignore connection reset
@@ -131,12 +131,17 @@ class RelayBoard(object):
             if not len(b):
                 return
             data = data + b
-            if len(data) < 3:
+            if len(data) < 2:
                 continue
-            _, cmd, bank = data[:3]
-            data = data[3:]
-            cmd = ord(cmd)
-            bank = ord(bank)
+            elif len(data) < 3 and ord(data[1]) != 33:
+                continue
+            cmd = ord(data[1])
+            if cmd != 33:
+                bank = ord(data[2])
+                data = data[3:]
+            else:
+                data = data[2:]
+
             if cmd >= 116 and cmd <= 123:
                 # read status
                 relay = cmd - 115
@@ -166,6 +171,9 @@ class RelayBoard(object):
                     return
                 self._record_action(('set', 'panda-on', bank, relay))
                 relay_obj.set_status(0)
+                sock.sendall(COMMAND_OK)
+            elif cmd == 33:
+                # NOOP cmd
                 sock.sendall(COMMAND_OK)
             else:
                 self.logger.warning("Unknown command %d" % cmd)

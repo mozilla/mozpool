@@ -61,3 +61,12 @@ class Tests(TestCase):
         self.relayboard.delay = 0.06
         self.relayboard.skip_final_1s = True
         self.assertEqual(relay.powercycle(self.relay_host, 2, 2, 0.1), False)
+
+    @mock.patch('time.sleep')
+    def test_test_two_way_comms(self, sleep):
+        self.assertEqual(relay.test_two_way_comms(self.relay_host, 10), True)
+
+    def test_test_two_way_comms_timeout(self):
+        self.relayboard.delay = 0.12
+        self.relayboard.skip_final_1s = True
+        self.assertEqual(relay.test_two_way_comms(self.relay_host, 0.1), False)

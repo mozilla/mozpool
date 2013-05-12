@@ -30,6 +30,15 @@ class API(object):
     def __init__(self, db):
         self.db = db
 
+    @async_operation(max_time=11)
+    def test_two_way_comms(self, relay_name):
+        """
+        Initiate a two way comms test operation for RELAY_NAME.  Returns True on success
+        and False on error.
+        """
+        hostname = self.db.relay_boards.get_fqdn(relay_name)
+        return relay.test_two_way_comms(hostname, 10)
+
     @async_operation(max_time=30)
     def powercycle(self, device_name):
         """

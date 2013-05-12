@@ -1,3 +1,27 @@
+
+4.0.1
+=====
+
+Schema Upgrade
+--------------
+
+You will need to create a new table for storing relay board information.
+Once the table is created, run inventorysync.py to populate it.
+
+CREATE TABLE relay_boards (
+  id integer unsigned not null primary key auto_increment,
+  name varchar(32) not null,
+  fqdn varchar(256) not null,
+  imaging_server_id integer unsigned not null,
+  foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
+  state varchar(32) not null,
+  state_counters text not null,
+  state_timeout datetime,
+  unique index name_idx (name),
+  unique index fqdn_idx (fqdn),
+  index imaging_server_id (imaging_server_id)
+);
+
 3.0.0
 =====
 
