@@ -249,7 +249,11 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+4.1.0
+=====
+
 * Bug 835420: `/api/relay/{id}/test/` has been added for testing two-way communications with ProXR relay boards
+  Note that this requires schema changes, detailed in `UPGRADING.md`.
 
 4.0.0
 =====
