@@ -272,7 +272,7 @@ CREATE TABLE device_requests (
 CREATE TABLE relay_boards (
   id integer unsigned not null primary key auto_increment,
   name varchar(32) not null,
-  fqdn varchar(256) not null,
+  fqdn varchar(255) not null,
   imaging_server_id integer unsigned not null,
   foreign key (imaging_server_id) references imaging_servers(id) on delete restrict,
   -- state machine variables are for future implementation
