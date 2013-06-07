@@ -245,10 +245,16 @@ class contacting_lifeguard(Closable, statemachine.State):
 class pending(Closable, statemachine.State):
     "Request is pending while a device is located and prepared."
 
-    # wait a total of 10m for the device to be prepared.  This may be a little
-    # tight!
+    # This is used as a polling interval, in case we miss a notification from
+    # lifeguard that the operation is finished.
     TIMEOUT = 60
-    PERMANENT_FAILURE_COUNT = 10
+
+    # wait a total of 20m for the device to be prepared, but only if the
+    # request is not for a specific device; see on_timeout, below.  This is
+    # only to account for e.g., a lifeguard failure.  If the device fails but
+    # lifeguard is still OK, then lifeguard will tell us with an imaging
+    # result.
+    PERMANENT_FAILURE_COUNT = 20
 
     # retry bad images this many times, just to be sure
     BAD_IMAGE_FAILURE_COUNT = 2
@@ -257,10 +263,20 @@ class pending(Closable, statemachine.State):
         # poll first, and if that works, nothing more to do
         if self.check_imaging_result():
             return
+
+        # if this request is for a specific device, then keep waiting until the request
+        request = self.db.requests.get_info(self.machine.request_id)
+        if request['requested_device'] != 'any':
+            self.logger.warning('HERE')
+            self.machine.goto_state(pending)
+            return
+
+        # otherwise, wait until PERMANENT_FAILURE_COUNT, and then assume that something has
+        # failed in lifeguard (e.g., imaging server failure)
         if self.machine.increment_counter(self.state_name) < self.PERMANENT_FAILURE_COUNT:
             self.machine.goto_state(pending)
         else:
-            # lifeguard appears to have forgotten about us..
+            self.logger.warning('THERE')
             self.machine.goto_state(finding_device)
 
     def on_lifeguard_finished(self, args):

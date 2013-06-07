@@ -140,13 +140,14 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.assertEqual(self.db.device_requests.get_by_device('dev1'), None)
 
     def test_pending_result_timeout_failed(self):
+        # in this case, the request is for 'any', so it times out
         self.set_state('pending')
         self.add_device_request(self.req_id, 'dev1')
         self.db.devices.set_machine_state('dev1', 'busy', None)
         self.add_device('dev2', state='ready')
 
-        # time out 10 times before finally heading back to try a new device
-        for _ in range(10):
+        # time out 20 times before finally heading back to try a new device
+        for _ in range(20):
             self.assert_state('pending')
             self.driver.handle_timeout(self.req_id)
 
@@ -154,3 +155,19 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         # lifeguard.  This is contacting lifegaurd about dev2, since it's ready.
         self.assert_state('contacting_lifeguard')
         self.assertEqual(self.db.device_requests.get_by_device('dev1'), None)
+
+    def test_pending_result_timeout_failed_specific_device(self):
+        # in this case, the request is for 'a specific device', so it never
+        # times out (and would rely on the request being closed in practice)
+        self.req_id = self.add_request(image='img1', device='dev1')
+
+        self.set_state('pending')
+        self.db.devices.set_machine_state('dev1', 'busy', None)
+        self.add_device('dev2', state='ready')
+
+        # run for more iterations than the state would otherwise, and see that
+        # it doesn't ever go to contacting_lifeguard
+        iters = requestmachine.pending.PERMANENT_FAILURE_COUNT + 5
+        for _ in range(iters):
+            self.assert_state('pending')
+            self.driver.handle_timeout(self.req_id)
