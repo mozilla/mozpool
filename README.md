@@ -249,6 +249,12 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+4.1.1
+=====
+
+* [Bug 878880](https://bugzilla.mozilla.org/show_bug.cgi?id=878880): Requests' `pending` state will now wait longer to hear back from Lifeguard, waiting forever (until the request expires) in the case where a specific device was requested.
+* Debugging changes for [bug 817762](https://bugzilla.mozilla.org/show_bug.cgi?id=817762), including heartbeat and extra logging, removed.
+
 4.1.0
 =====
 
