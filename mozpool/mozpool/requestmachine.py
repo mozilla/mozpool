@@ -267,7 +267,6 @@ class pending(Closable, statemachine.State):
         # if this request is for a specific device, then keep waiting until the request
         request = self.db.requests.get_info(self.machine.request_id)
         if request['requested_device'] != 'any':
-            self.logger.warning('HERE')
             self.machine.goto_state(pending)
             return
 
@@ -276,7 +275,6 @@ class pending(Closable, statemachine.State):
         if self.machine.increment_counter(self.state_name) < self.PERMANENT_FAILURE_COUNT:
             self.machine.goto_state(pending)
         else:
-            self.logger.warning('THERE')
             self.machine.goto_state(finding_device)
 
     def on_lifeguard_finished(self, args):
