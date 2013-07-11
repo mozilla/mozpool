@@ -128,25 +128,33 @@ var TableView = Backbone.View.extend({
                 this.lastClickedTr) {
             var target = e.target;
 
-            var from_pos = this.getTablePositionFromTrElement(tr);
-            var to_pos = this.getTablePositionFromTrElement(this.lastClickedTr);
+            // get the data index of the two table rows
+            var from_idx = this.dataTable.fnGetPosition(tr);
+            var to_idx = this.dataTable.fnGetPosition(this.lastClickedTr);
 
-            // sort the two
-            if (from_pos > to_pos) {
-                var t;
-                t = from_pos;
-                from_pos = to_pos;
-                to_pos = t;
-            }
+            // turn that into indexes in aiDisplay, which contains only *visible* elements,
+            // in display order
+            var aiDisplay = this.dataTable.fnSettings().aiDisplay;
+            var from_dispidx = aiDisplay.indexOf(from_idx);
+            var to_dispidx = aiDisplay.indexOf(to_idx);
 
-            // check everything between from and to
-            var aiDisplayMaster = this.dataTable.fnSettings().aiDisplayMaster;
-            while (from_pos <= to_pos) {
-                // convert the table position to a model
-                var data_idx = aiDisplayMaster[from_pos];
-                var id = this.dataTable.fnGetData(data_idx, 0);
-                this.collection.get(id).set('selected', 1);
-                from_pos++;
+            // if either is not visible (-1), there's nothing to do
+            if (to_dispidx >= 0 && from_dispidx >= 0) {
+                // sort the two indexes so we can iterate from one to the other
+                if (from_dispidx > to_dispidx) {
+                    var t = from_dispidx;
+                    from_dispidx = to_dispidx;
+                    to_dispidx = t;
+                }
+
+                // check everything between from and to
+                while (from_dispidx <= to_dispidx) {
+                    // convert the table position to a model
+                    var data_idx = aiDisplay[from_dispidx];
+                    var id = this.dataTable.fnGetData(data_idx, 0);
+                    this.collection.get(id).set('selected', 1);
+                    from_dispidx++;
+                }
             }
         }
 
