@@ -136,43 +136,20 @@ class PowerCycleMixin(object):
 
     TIMEOUT = 60                    # must be greater than 42s; see above
     PERMANENT_FAILURE_COUNT = 200
-    TRY_RELAY_AFTER_SUT_COUNT = 5
 
     def setup_pxe(self):
         # hook for subclasses
         self.machine.api.clear_pxe.run(self.machine.device_name)
 
     def on_entry(self):
-        has_sut_agent = self.db.devices.has_sut_agent(self.machine.device_name)
+        # note that we do not try to use sut_reboot, as it is not reliable.
+        # see bug 890933.
         has_relay = self.db.devices.get_relay_info(self.machine.device_name)
-        if has_sut_agent and (not has_relay or
-                              (self.machine.increment_counter('sut_attempts') <=
-                               self.TRY_RELAY_AFTER_SUT_COUNT)):
-            self.sut_reboot()
-            return
-
         if has_relay:
             self.relay_powercycle()
         else:
-            if has_sut_agent:
-                self.logger.error('cannot power-cycle device: SUT reboot '
-                                  'failed and no relay')
-            else:
-                self.logger.error('cannot power-cycle device: no relay nor '
-                                  'SUT agent')
+            self.logger.error('cannot power-cycle device: no relay')
             self.machine.goto_state(failed_power_cycling)
-
-    def sut_reboot(self):
-        def reboot_initiated(success):
-            if success:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
-                                                      'power_cycle_ok', {})
-            else:
-                mozpool.lifeguard.driver.handle_event(self.machine.device_name,
-                                                      'power_cycle_failed', {})
-        self.setup_pxe()
-        self.logger.info("starting SUT reboot")
-        self.machine.api.sut_reboot.start(reboot_initiated, self.machine.device_name)
 
     def relay_powercycle(self):
         # kick off a power cycle on entry
@@ -196,7 +173,6 @@ class PowerCycleMixin(object):
 
     def on_power_cycle_ok(self, args):
         self.machine.clear_counter('power_cycling')
-        self.machine.clear_counter('sut_attempts')
         self.power_cycle_complete()
 
     def power_cycle_complete(self):
@@ -330,16 +306,11 @@ class ready(AcceptPleaseRequests, statemachine.State):
 class pc_power_cycling(PowerCycleMixin, statemachine.State):
     """
     A reboot has been requested, and the device is being power-cycled.  Once
-    the power cycle is successful, go to state 'sut_verifying'.
+    the power cycle is successful, go to state 'pc_rebooting'.
     """
 
     def power_cycle_complete(self):
-        # verify SUT if this device has it; otherwise wait for it to
-        # reboot and then ping it
-        if self.db.devices.has_sut_agent(self.machine.device_name):
-            self.machine.goto_state(pc_sut_rebooting)
-        else:
-            self.machine.goto_state(pc_rebooting)
+        self.machine.goto_state(pc_rebooting)
 
 
 @DeviceStateMachine.state_class
