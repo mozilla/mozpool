@@ -2,11 +2,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import os
 import abc
 import time
+import signal
 import threading
 import logging
-import config
 
 ####
 # Driver
@@ -59,13 +60,24 @@ class StateDriver(threading.Thread):
 
                 time.sleep(self.poll_frequency)
 
-                # if the thread is still alive now, we have a problem
+                # if the thread is still alive now, we have a problem.  This is bug 817762.  It
+                # happens when the DB server goes away.
                 delay = 1
                 while polling_thd.isAlive():
                     elapsed = time.time() - started_at
+                    # Commit suicide after 10 minutes.  The PuppetAgain
+                    # configuration runs mozpool from supervisord, which will
+                    # helpfully restart the process as long as it doesn't quit
+                    # too frequently.
+                    if elapsed > 600:
+                        # touch a file to indicate the process suicided
+                        open("/tmp/mozpool-suicide", "w")
+                        self.logger.warning(
+                                "polling thread still running at %ds; committing suicide" % elapsed)
+                        os.kill(0, signal.SIGTERM)
                     # TCP connection hangs can push this up to about 90s, so only start
                     # logging near the end of that time
-                    if elapsed > 80:
+                    elif elapsed > 80:
                         self.logger.warning(
                                 "polling thread still running at %ds; not starting another" % elapsed)
                     time.sleep(delay)
