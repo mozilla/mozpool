@@ -90,7 +90,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.sut_verify.start.assert_called_with(mock.ANY, 'dev1')
         self.invoke_callback(self.sut_verify.start, False) # sut fails
         self.set_pxe.run.assert_called_with('dev1', 'selftest')
-        self.sut_reboot.start.assert_called_with(mock.ANY, 'dev1')
+        self.powercycle.start.assert_called_with(mock.ANY, 'dev1')
         self.assert_state('pxe_power_cycling')
 
     def test_ready_no_next_image(self):
