@@ -249,6 +249,14 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+4.1.2
+=====
+
+* [Bug 892651](https://bugzilla.mozilla.org/show_bug.cgi?id=892651): don't shift-select hidden rows in the table views
+* [Bug 817762](https://bugzilla.mozilla.org/show_bug.cgi?id=817762): terminate the process after 10m of a stuck thread
+* [Bug 890933](https://bugzilla.mozilla.org/show_bug.cgi?id=890933): don't use `sut_reboot` to reboot devices, as it's unreliable
+* [Bug 878880](https://bugzilla.mozilla.org/show_bug.cgi?id=878880): remove debug logging (trivial)
+
 4.1.1
 =====
 
