@@ -806,6 +806,9 @@ class self_test_running(AcceptBasicPleaseRequests, statemachine.State):
     def on_self_test_ok(self, args):
         self.machine.goto_state(ready)
 
+    def on_failed_self_test(self, args):
+        self.machine.goto_state(failed_self_test)
+
 ####
 # Failure states
 
