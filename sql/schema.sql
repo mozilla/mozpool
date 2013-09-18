@@ -319,8 +319,12 @@ BEGIN
     DECLARE deviceid integer;
     SELECT id from devices where name=device INTO deviceid;
     IF deviceid is not NULL THEN BEGIN
-        -- note that we ignore the time specified by the device and just use the current time
-        INSERT INTO device_logs (device_id, ts, source, message) values (deviceid, NOW(), source, ltrim(message));
+        -- 1526 occurs when there's no matching partition; in this case, use NOW() instead of the timestamp
+        DECLARE CONTINUE HANDLER FOR 1526 BEGIN
+            INSERT INTO device_logs (device_id, ts, source, message) values (deviceid, NOW(), source, ltrim(message));
+        END;
+        -- trim the message since rsyslogd prepends a space
+        INSERT INTO device_logs (device_id, ts, source, message) values (deviceid, ts, source, ltrim(message));
     END;
     END IF;
 END $$

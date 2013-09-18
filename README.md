@@ -249,6 +249,7 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+* [Bug 916414](https://bugzilla.mozilla.org/show_bug.cgi?id=916414): SQL Schema change; revert to using source timestamps instead of database localtime
 * [Bug 856123](https://bugzilla.mozilla.org/show_bug.cgi?id=856123): New `selftest.py` script and sample config json included for better hardware failure detection
 * [Bug 914347](https://bugzilla.mozilla.org/show_bug.cgi?id=914347): accept event call `failed_self_test` while in `self_test_running`
 
