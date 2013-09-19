@@ -161,7 +161,7 @@ class finding_device(Closable, statemachine.State):
             else:
                 if count >= self.MAX_SPECIFIC_REQUESTS:
                     self.logger.warn('Requested device %s is busy.' %
-                                     device_name)
+                                     request['requested_device'])
                     self.machine.goto_state(failed_device_busy)
                     return
                 # check the device status - if it's failed, then short-circuit
