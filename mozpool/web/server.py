@@ -35,7 +35,7 @@ def get_app(db):
     loaded_urls = templeton.handlers.load_urls(urls)
     return web.application(loaded_urls, handlers)
 
-def main():
+def main(run=True):
     # templeton uses $PWD/../html to serve /, so put PWD in a subdirectory of
     # the directory containing our html data.  Easiest is to just change the the
     # html directory itself
@@ -71,7 +71,8 @@ def main():
     mozpool.mozpool.driver.start()
 
     app = get_app(db)
-    app.run()
+    if run:
+        app.run()
 
 if __name__ == '__main__':
     main()

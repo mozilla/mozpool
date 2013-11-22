@@ -59,8 +59,7 @@ class MozpoolDriver(statedriver.StateDriver):
 
     def __init__(self, db, poll_frequency=statedriver.POLL_FREQUENCY):
         statedriver.StateDriver.__init__(self, db, poll_frequency)
-        self.imaging_server_id = self.db.imaging_servers.get_id(
-            config.get('server', 'fqdn'))
+        self._imaging_server_id = None
 
     def _get_timed_out_machine_names(self):
         return self.db.requests.list_timed_out(self.imaging_server_id)
@@ -69,6 +68,11 @@ class MozpoolDriver(statedriver.StateDriver):
         for request_id in self.db.requests.list_expired(self.imaging_server_id):
             self.handle_event(request_id, 'expire', None)
 
+    @property
+    def imaging_server_id(self):
+        if self._imaging_server_id is None:
+            self._imaging_server_id = self.db.imaging_servers.get_id(config.get('server', 'fqdn'))
+        return self._imaging_server_id
 
 ####
 # Mixins
