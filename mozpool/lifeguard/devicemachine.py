@@ -246,7 +246,7 @@ class locked_out(statemachine.State):
     The device must be forced out of this state."""
 
 @DeviceStateMachine.state_class
-class troubleshooting(AcceptBasicPleaseRequests, statemachine.State):
+class troubleshooting(AcceptPleaseRequests, statemachine.State):
     """
     This device is in a troubleshooting state and will not timeout.
     A 'please_' event or force state must be used to move the device
