@@ -249,13 +249,16 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+4.1.3
+-----
+
 * [Bug 916414](https://bugzilla.mozilla.org/show_bug.cgi?id=916414): SQL Schema change; revert to using source timestamps instead of database localtime
 * [Bug 856123](https://bugzilla.mozilla.org/show_bug.cgi?id=856123): New `selftest.py` script and sample config json included for better hardware failure detection
 * [Bug 914347](https://bugzilla.mozilla.org/show_bug.cgi?id=914347): accept event call `failed_self_test` while in `self_test_running`
 * Troubleshooting state allows image requests as originally intended in [Bug 836013](https://bugzilla.mozilla.org/show_bug.cgi?id=836013)
 
 4.1.2
-=====
+-----
 
 * [Bug 892651](https://bugzilla.mozilla.org/show_bug.cgi?id=892651): don't shift-select hidden rows in the table views
 * [Bug 817762](https://bugzilla.mozilla.org/show_bug.cgi?id=817762): terminate the process after 10m of a stuck thread
@@ -263,19 +266,19 @@ NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 * [Bug 878880](https://bugzilla.mozilla.org/show_bug.cgi?id=878880): remove debug logging (trivial)
 
 4.1.1
-=====
+-----
 
 * [Bug 878880](https://bugzilla.mozilla.org/show_bug.cgi?id=878880): Requests' `pending` state will now wait longer to hear back from Lifeguard, waiting forever (until the request expires) in the case where a specific device was requested.
 * Debugging changes for [bug 817762](https://bugzilla.mozilla.org/show_bug.cgi?id=817762), including heartbeat and extra logging, removed.
 
 4.1.0
-=====
+-----
 
 * Bug 835420: `/api/relay/{id}/test/` has been added for testing two-way communications with ProXR relay boards
   Note that this requires schema changes, detailed in `UPGRADING.md`.
 
 4.0.0
-=====
+-----
 
  * Bug 856111: The file components for building preseed images are now included with the mozpool source
  * Bug 863513: DMErrors no longer display tracebacks in the Mozpool log.
@@ -287,13 +290,13 @@ NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
    The states are now defined as part of the API.
 
 3.0.1
-=====
+-----
 
  * Bug 817762: log `sys._current_frames` whenever a timeout occurs
  * Bug 836013: Devices can be forced into a 'troubleshooting' state which doesn't timeout and accepts PleaseRequests
 
 3.0.0
-=====
+-----
 
  * The ``/api/image/list?details=1`` endpoint now returns a `request_id` column for each device.
  * Bug 826065: The database interface layer was completely rewritten for better hackability and testability.
@@ -310,13 +313,13 @@ NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
  * Bug 845428: Bmm now sends ProXR commands in a single sock.send to accommodate the new ProXR firmware (v3.2).  This is backwards compatible with previous firmware versions.
 
 2.0.3
-=====
+-----
 
  * Mozpool now sets `SO_KEEPALIVE` on all MySQL sockets, only when using the PyMySQL driver.
    See [bug 817762](https://bugzilla.mozilla.org/show_bug.cgi?id=817762) for details.
 
 2.0.2
-=====
+-----
 
 This is a bug-fix release.
 
@@ -324,7 +327,7 @@ This is a bug-fix release.
  * Bug 836065: fix errors in logging implementation in 2.0.1
 
 2.0.1
-=====
+-----
 
 This is a bug-fix release, with no schema changes or upgrade issues.
 
@@ -334,7 +337,7 @@ This is a bug-fix release, with no schema changes or upgrade issues.
  * Bug 834246: log the Mozpool version number at startup
 
 2.0.0
-=====
+-----
 
  * Bug 819197: improve device-selection implementation
  * Bug 819350: Add `mobile_init_started` state
@@ -355,7 +358,7 @@ Upgrade notes:
  * The `mobile-init.sh` script must send a `mobile_init_started` event.
 
 1.2.0
-=====
+-----
 
  * Bug 819081: Added assignee to requests table
  * Bug 818953: Fix request logging
@@ -365,12 +368,12 @@ Upgrade notes:
  * Bug 819576: Store image data in db and verify request data against it
 
 1.1.1
-=====
+-----
 
  * Bug 817762: run state timeout handlers in threads, and log if they run for too long
 
 1.1.0
-=====
+-----
 
  * Bug 817035: Add comments for devices and a `/device/{id}/set-comments/` API call to set them
  * Bug 817035: add a `locked_out` state
@@ -385,6 +388,6 @@ Upgrade notes:
  * Bug 817035: Add environments and allow requests to specify one
 
 1.0.0
-=====
+-----
 
 First release following http://semver.org
