@@ -249,6 +249,8 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+* [Bug 948244](https://bugzilla.mozilla.org/show_bug.cgi?id=948244): Return earlier from finding a device, meaning the REST call to create a request is less likely to time out
+
 4.1.3
 -----
 

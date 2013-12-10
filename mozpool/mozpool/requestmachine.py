@@ -154,7 +154,7 @@ class finding_device(Closable, statemachine.State):
             if self.db.device_requests.add(self.machine.request_id,
                                                 device_name):
                 self.logger.info('Request succeeded.')
-                self.machine.goto_state(contacting_lifeguard)
+                self.machine.goto_state(contact_lifeguard)
         else:
             self.logger.warn('Request failed!')
             if request['requested_device'] == 'any':
@@ -173,6 +173,18 @@ class finding_device(Closable, statemachine.State):
                 state = self.db.devices.get_machine_state(request['requested_device'])
                 if state.startswith('failed_'):
                     self.machine.goto_state(failed_bad_device)
+
+
+@RequestStateMachine.state_class
+class contact_lifeguard(Closable, statemachine.State):
+    """About to contact lifeguard, after a timeout.  This allows find_device to
+    return before beginning to contact lifeguard, which can take a while when
+    the DB is slow."""
+
+    TIMEOUT = 0
+
+    def on_timeout(self):
+        self.machine.goto_state(contacting_lifeguard)
 
 
 @RequestStateMachine.state_class

@@ -46,7 +46,10 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         # the finding_device state assigns a device..
         dev = self.db.requests.get_assigned_device(self.req_id)
         self.assertEqual(dev, 'dev1')
-        # the contacting_lifeguard state contacts lifeguard..
+        # the contact(ing)_lifeguard states contact lifeguard..
+        self.assert_state('contact_lifeguard')
+        self.driver.handle_timeout(self.req_id)
+        self.assert_state('contacting_lifeguard')
         self.requests_post.start.assert_called_with(mock.ANY,
                 'http://server/api/device/dev1/event/please_image/',
                 data='{"image": "img1", "boot_config": "{}"}')
@@ -60,6 +63,9 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         # the finding_device state assigns a device..
         dev = self.db.requests.get_assigned_device(self.req_id)
         self.assertEqual(dev, 'dev1')
+        self.assert_state('contact_lifeguard')
+        self.driver.handle_timeout(self.req_id)
+        self.assert_state('contacting_lifeguard')
         # the contacting_lifeguard state contacts lifeguard, failing repeatedly
         for _ in range(5):
             self.requests_post.start.assert_called_with(mock.ANY,
@@ -103,6 +109,8 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.driver.handle_event(self.req_id, 'find_device', {})
         for _ in range(num_tries):
             assigned_dev = self.db.requests.get_assigned_device(self.req_id)
+            self.assert_state('contact_lifeguard')
+            self.driver.handle_timeout(self.req_id)
             self.assert_state('contacting_lifeguard')
             self.db.devices.set_machine_state(assigned_dev, 'busy', None)
             self.requests_result(self.requests_post, 200)
@@ -124,7 +132,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
 
         # device is released and we're back to looking for a device and contacting
         # lifeguard.  This is contacting lifegaurd about dev2, since it's ready.
-        self.assert_state('contacting_lifeguard')
+        self.assert_state('contact_lifeguard')
         self.assertEqual(self.db.device_requests.get_by_device('dev1'), None)
         self.assertEqual(self.db.device_requests.get_by_device('dev2'), self.req_id)
 
@@ -153,7 +161,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
 
         # device is released and we're back to looking for a device and contacting
         # lifeguard.  This is contacting lifegaurd about dev2, since it's ready.
-        self.assert_state('contacting_lifeguard')
+        self.assert_state('contact_lifeguard')
         self.assertEqual(self.db.device_requests.get_by_device('dev1'), None)
 
     def test_pending_result_timeout_failed_specific_device(self):
@@ -166,7 +174,7 @@ class Tests(StateDriverMixin, DBMixin, PatchMixin, TestCase):
         self.add_device('dev2', state='ready')
 
         # run for more iterations than the state would otherwise, and see that
-        # it doesn't ever go to contacting_lifeguard
+        # it doesn't ever go to contact_lifeguard
         iters = requestmachine.pending.PERMANENT_FAILURE_COUNT + 5
         for _ in range(iters):
             self.assert_state('pending')
