@@ -58,9 +58,16 @@ class device_state(Handler, InMemCacheMixin):
 
     @templeton.handlers.json_response
     def GET(self, device_name):
-        state = self.cache_get()[device_name]
-        ttl = self.cache_expires - time.time()
-        web.expires(datetime.timedelta(seconds=ttl))
-        web.header('Cache-Control', 'public, max-age=%d' % int(ttl+1))
+        args, _ = templeton.handlers.get_request_parms()
+        if args.get('cache'):
+            # get state from a cache of all devices' state; this is used
+            # for monitoring devices, so we don't pound the DB
+            state = self.cache_get()[device_name]
+            ttl = self.cache_expires - time.time()
+            web.expires(datetime.timedelta(seconds=ttl))
+            web.header('Cache-Control', 'public, max-age=%d' % int(ttl+1))
+        else:
+            # get the fresh state
+            state = self.db.devices.get_machine_state(device_name)
         return { 'state' : state }
 

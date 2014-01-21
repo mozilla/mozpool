@@ -48,6 +48,10 @@ class Tests(AppMixin, DBMixin, ConfigMixin, TestCase):
             'state': 'offline'})
 
     def test_state(self):
-        # note that the caching is tested elsewhere
         body = self.check_json_result(self.app.get('/api/device/dev1/state/'))
+        self.assertEqual(body, { 'state': 'offline' })
+
+    def test_state_cached(self):
+        # note that the caching itself is tested elsewhere
+        body = self.check_json_result(self.app.get('/api/device/dev1/state/?cache=1'))
         self.assertEqual(body, { 'state': 'offline' })
