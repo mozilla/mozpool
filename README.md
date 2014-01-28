@@ -249,6 +249,11 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+4.1.5
+-----
+
+* [Bug 964960](https://bugzilla.mozilla.org/show_bug.cgi?id=964960): Fix TIMEOUT=0 to mean 'now' and not 'never'
+
 4.1.4
 -----
 
