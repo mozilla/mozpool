@@ -23,11 +23,10 @@ class RequestStateMachine(statemachine.StateMachine):
         return self.db.requests.get_machine_state(self.request_id)
 
     def write_state(self, new_state, timeout_duration):
-        if timeout_duration:
-            state_timeout = (datetime.datetime.now() +
-                             datetime.timedelta(seconds=timeout_duration))
-        else:
+        if timeout_duration is None:
             state_timeout = None
+        else:
+            state_timeout = datetime.datetime.now() + datetime.timedelta(seconds=timeout_duration)
         self.db.requests.set_machine_state(self.request_id,
                                            new_state, state_timeout)
 
