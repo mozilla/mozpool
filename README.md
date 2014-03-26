@@ -249,6 +249,7 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+* [Bug 988321](https://bugzilla.mozilla.org/show_bug.cgi?id=988321): Bail out if there are too many changes in an inventory sync
 * [Bug 988306](https://bugzilla.mozilla.org/show_bug.cgi?id=988306): Synchronize from SREGs in inventory
 
 4.1.5

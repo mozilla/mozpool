@@ -178,7 +178,7 @@ def merge_relay_boards(relay_boards_from_db, relay_boards_from_inv):
         if db_row != relay_boards_inv_row:
             yield ('update', id, relay_boards_inv_row)
 
-def sync(db, verbose=False):
+def sync(db, verbose=False, ship_it=False):
     ignore_devices_on_servers_re = None
     if config.has_option('inventory', 'ignore_devices_on_servers_re'):
         ignore_devices_on_servers_re = config.get('inventory', 'ignore_devices_on_servers_re')
@@ -198,8 +198,19 @@ def sync(db, verbose=False):
     ## get existing relay_board list from DB
     relay_boards_from_db = db.inventorysync.dump_relays()
 
+    # get the list of changes that need to be made
+    tasks = list(merge_devices(from_db, from_inv))
+
+    # If there are too many changes, bail out and await human interaction.
+    # "Too many" means more than 5 and more than a tenth of the larger of the
+    # set of devices currently in inventory and the set in the DB.  This is a
+    # failsafe to keep the inventory sync from unexpectedly erasing all
+    # devices.
+    if len(tasks) > max(5, len(from_db) / 10, len(from_inv) / 10) and not ship_it:
+        raise RuntimeError("%d changes: pass --ship-it to make these changes" % len(tasks))
+
     # start merging devices
-    for task in merge_devices(from_db, from_inv):
+    for task in tasks:
         if task[0] == 'insert':
             if verbose: print "insert device", task[1]['fqdn']
             db.inventorysync.insert_device(task[1])
@@ -231,6 +242,9 @@ def main():
     parser.add_argument('--verbose', action='store_true',
                         default=False,
                         help='verbose output')
+    parser.add_argument('--ship-it', action='store_true',
+                        default=False,
+                        help="Make large changes; don't use this flag in a crontask!")
     args = parser.parse_args()
 
     db = setup()
