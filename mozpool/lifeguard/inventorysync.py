@@ -20,54 +20,91 @@ from mozpool import config
 #  - hardware_type (default value used for now)
 #  - hardware_model (default value used for now)
 
-def get_devices(url, filter, username, password, ignore_devices_on_servers_re=None, verbose=False):
+_servermodel_cache = {}
+def get_servermodel(url, username, password, pk):
     """
-    Return a list of hosts from inventory.  FILTER is a tastypie-style filter
-    for the desired hosts.  Any hosts without 'system.relay.0' or the other
-    required inventory keys are ignored.  Any hosts with imaging servers
-    matching ignore_devices_on_servers_re are ignored.
+    Look up a server model by its primary key, as available in the bulk view
+    used by get_devices.  The result is a dictionary with keys 'model' and
+    'vendor'.
     """
-    # limit=100 selects 100 results at a time
-    path = '/en-US/tasty/v3/system/?limit=100&' + filter
-    rv = []
-    while path:
+    if pk not in _servermodel_cache:
+        path = '/en-US/core/api/v1_core/servermodel/%d/' % pk
         r = requests.get(url + path, auth=(username, password))
         if r.status_code != requests.codes.ok:
             raise RuntimeError('got status code %s from inventory' % r.status_code)
+        _servermodel_cache[pk] = r.json()
+    return _servermodel_cache[pk]
 
-        for o in r.json()['objects']:
-            hostname = o['hostname']
 
-            kv = dict([ (kv['key'], kv['value']) for kv in o['key_value'] ])
-            required_keys = 'system.relay.0', 'nic.0.mac_address.0', 'system.imaging_server.0'
-            missing = [ k for k in required_keys if k not in kv ]
-            if missing:
-                if verbose: print hostname, 'SKIPPED - missing k/v value(s)', ' '.join(missing)
-                continue
+_systemstatus_cache = {}
+def get_systemstatus(url, username, password, pk):
+    """
+    Look up a system status by its primary key, as available in the bulk view
+    used by get_devices.  The result is the string status.
+    """
+    if pk not in _systemstatus_cache:
+        path = '/en-US/core/api/v1_core/systemstatus/%d/' % pk
+        r = requests.get(url + path, auth=(username, password))
+        if r.status_code != requests.codes.ok:
+            raise RuntimeError('got status code %s from inventory' % r.status_code)
+        _systemstatus_cache[pk] = r.json()['status']
+    return _systemstatus_cache[pk]
 
-            name = hostname.split('.', 1)[0]
-            mac_address = kv['nic.0.mac_address.0'].replace(':', '').lower()
 
-            if ignore_devices_on_servers_re and \
-               re.match(ignore_devices_on_servers_re, kv['system.imaging_server.0']):
-                if verbose: print hostname, 'SKIPPED - ignored imaging server'
-                continue
+def get_devices(url, filter, username, password, ignore_devices_on_servers_re=None, verbose=False):
+    """
+    Return a list of hosts from inventory.  FILTER is an inventory-style filter
+    for the desired hosts; for a regular expression prefix it with '/'.  Any
+    hosts without 'system.relay.0' or the other required inventory keys are
+    ignored.  Any hosts without an sreg are ignored.  Any hosts with imaging
+    servers matching ignore_devices_on_servers_re are ignored.
+    """
+    # bulk_export can't paginate, unfortunately
+    path = '/en-US/bulk_action/export/?q=' + filter
+    rv = []
+    r = requests.get(url + path, auth=(username, password))
+    if r.status_code != requests.codes.ok:
+        raise RuntimeError('got status code %s from inventory' % r.status_code)
 
-            type, model = o['server_model']['vendor'], o['server_model']['model']
-            rv.append(dict(
-                name=name,
-                fqdn=hostname,
-                inventory_id=o['id'],
-                mac_address=mac_address,
-                imaging_server=kv['system.imaging_server.0'],
-                relay_info=kv['system.relay.0'],
-                hardware_type=type,
-                hardware_model=model))
+    required_keys = 'system.relay.0', 'system.imaging_server.0'
+    for hostname, o in r.json()['systems'].iteritems():
+        if get_systemstatus(url, username, password, o['system_status']) == "decommissioned":
+            if verbose: print hostname, 'SKIPPED - decommissioned'
+            continue
 
-            if verbose: print hostname, 'downloaded.'
+        kv = dict([ (k, vv['value']) for k, vv in o['keyvalue_set'].iteritems() ])
+        missing = [ k for k in required_keys if k not in kv ]
+        if missing:
+            if verbose: print hostname, 'SKIPPED - missing k/v value(s)', ' '.join(missing)
+            continue
 
-        # go on to the next set of hosts
-        path = r.json()['meta']['next']
+        name = hostname.split('.', 1)[0]
+
+        try:
+            mac_address = o['staticreg_set']['nic0']['hwadapter_set']['hw0']['mac']
+        except KeyError:
+            if verbose: print hostname, 'SKIPPED - no MAC address (looking for SREG "nic0" with adapter "hw0")'
+        mac_address = mac_address.replace(':', '').lower()
+
+        if ignore_devices_on_servers_re and \
+           re.match(ignore_devices_on_servers_re, kv['system.imaging_server.0']):
+            if verbose: print hostname, 'SKIPPED - ignored imaging server'
+            continue
+
+        # look up the server_model
+        servermodel = get_servermodel(url, username, password, o['server_model'])
+        type, model = servermodel['vendor'], servermodel['model']
+        rv.append(dict(
+            name=name,
+            fqdn=hostname,
+            inventory_id=o['pk'],
+            mac_address=mac_address,
+            imaging_server=kv['system.imaging_server.0'],
+            relay_info=kv['system.relay.0'],
+            hardware_type=type,
+            hardware_model=model))
+
+        if verbose: print hostname, 'downloaded.'
 
     return rv
 
