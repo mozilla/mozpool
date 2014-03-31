@@ -84,6 +84,7 @@ def get_devices(url, filter, username, password, ignore_devices_on_servers_re=No
             mac_address = o['staticreg_set']['nic0']['hwadapter_set']['hw0']['mac']
         except KeyError:
             if verbose: print hostname, 'SKIPPED - no MAC address (looking for SREG "nic0" with adapter "hw0")'
+            continue
         mac_address = mac_address.replace(':', '').lower()
 
         if ignore_devices_on_servers_re and \
