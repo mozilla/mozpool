@@ -249,6 +249,7 @@ Release Notes
 
 NOTE: see `UPGRADING.md` for instructions to upgrade from version to version.
 
+* No bug: pass `ship_it` to the inventorysync `sync` function
 * [Bug 988306](https://bugzilla.mozilla.org/show_bug.cgi?id=988306): Add a missing `continue`
 
 4.2.0

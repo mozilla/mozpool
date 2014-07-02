@@ -249,4 +249,4 @@ def main():
     args = parser.parse_args()
 
     db = setup()
-    sync(db, verbose=args.verbose)
+    sync(db, verbose=args.verbose, ship_it=args.ship_it)
