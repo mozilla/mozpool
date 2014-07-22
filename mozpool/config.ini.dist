@@ -13,7 +13,7 @@ password =
 
 # The filter expression to use with inventory, expressed as &-separated query parameters.
 # TODO: use a better filter that can look for k/v entries indicating systems are managed by an imaging server
-filter = hostname__startswith=panda-
+filter = sys.hostname=/^panda-
 
 # optional, if specified, this is a regexp for imaging servers whose devices should be
 # omitted.  This is used to split pools roughly by imaging server (bug 815758)
