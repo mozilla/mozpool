@@ -28,7 +28,7 @@ def get_app(db):
     # merge handlers and URLs from all layers
     urls = ()
     handlers = dict()
-    for mod in lifeguard_handlers, bmm_handlers, mozpool_handlers:
+    for mod in lifeguard_handlers, bmm_handlers, mozpool_handlers, web_handlers:
         urls = urls + mod.urls
         handlers.update(mod.__dict__)
 

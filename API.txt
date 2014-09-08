@@ -10,6 +10,11 @@ All resources are accessed under paths starting with /api/.
 This is the central, public interface to request, return, and operate on
 devices.
 
+==== Top-Level ====
+
+/api/version/
+* GET returns a JSON response with a 'version' key giving the Mozpool version.
+
 ==== Devices ====
 
 /api/device/list/

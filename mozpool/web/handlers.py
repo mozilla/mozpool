@@ -9,10 +9,16 @@ import time
 import threading
 import datetime
 import web.webapi
+import templeton
+import mozpool
 from mozpool import config
 from mozpool.db import exceptions
 
 nocontent = NoContent = web.webapi._status_code("204 No Content")
+
+urls = (
+  "/version/?", "mozpool_version",
+)
 
 class DateTimeJSONEncoder(json.JSONEncoder):
     """Encodes datetime objects as ISO strings."""
@@ -129,3 +135,8 @@ class ConflictJSON(web.HTTPError):
         web.HTTPError.__init__(self, status, headers, body)
 
 
+class mozpool_version(Handler):
+    """Get the mozpool version"""
+    @templeton.handlers.json_response
+    def GET(self):
+        return dict(version=mozpool.version)

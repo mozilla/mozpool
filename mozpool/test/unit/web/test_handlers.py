@@ -7,11 +7,12 @@ import time
 import json
 import datetime
 import web
+import mozpool
 import templeton.handlers
 from paste.fixture import TestApp
 from mozpool.web import handlers
 from mozpool import config
-from mozpool.test.util import TestCase, DBMixin, ConfigMixin
+from mozpool.test.util import TestCase, DBMixin, ConfigMixin, AppMixin
 
 class DevTestHandler(handlers.Handler):
 
@@ -147,3 +148,9 @@ class RedirectTests(DBMixin, ConfigMixin, TestCase):
     def test_relayredirect_404(self):
         r = self.app.get('/api/relay/relay99/test/', expect_errors=True)
         self.assertEqual(r.status, 404)
+
+class Tests(AppMixin, DBMixin, ConfigMixin, TestCase):
+
+    def test_version(self):
+        body = self.check_json_result(self.app.get('/api/version'))
+        self.assertEqual(body, {'version': mozpool.version})
