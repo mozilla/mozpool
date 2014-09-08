@@ -3,11 +3,18 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import mock
+import re
 import requests
 import hashlib
 from mozpool.lifeguard import inventorysync
 from mozpool import config
 from mozpool.test.util import TestCase, PatchMixin, DBMixin, ConfigMixin, ScriptMixin
+
+PRODUCTION = 1
+SPARE = 2
+DECOMMISSIONED = 3
+
+PANDABOARD = 529
 
 class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
 
@@ -185,50 +192,72 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
 
     # test get_devices
 
-    def set_responses(self, chunks, status_code=200):
-        # patch out requests.get to keep the urls it was called with,
-        # and to return responses of hosts as set with addChunk
-        paths = [ '/path%d' % i for i in range(len(chunks)) ]
+    def set_inventory_response(self, hosts, status_code=200):
+        inventorysync._systemstatus_cache = {}
+        system_status_re = re.compile('/systemstatus/([0-9]+)/')
+        system_status = {
+            PRODUCTION: {u'status': u'production', u'pk': PRODUCTION},
+            SPARE: {u'status': u'spare', u'pk': SPARE},
+            DECOMMISSIONED: {u'status': u'decommissioned', u'pk': DECOMMISSIONED},
+        }
+
+        inventorysync._servermodel_cache = {}
+        server_model_re = re.compile('/servermodel/([0-9]+)/')
+        server_model = {
+            PANDABOARD: {u'vendor': u'PandaBoard', u'description': u'', u'part_number': u'',
+                         u'pk': PANDABOARD, u'model': u'ES'},
+        }
+
         def get(url, auth):
-            chunk = chunks.pop(0)
-            paths.pop(0)
+            resp_json = None
+            mo = system_status_re.search(url)
+            if mo:
+                ssid = int(mo.group(1))
+                resp_json = system_status[ssid]
+            mo = server_model_re.search(url)
+            if mo:
+                htid = int(mo.group(1))
+                resp_json = server_model[htid]
+            if not resp_json:
+                resp_json = dict(systems=dict((h['hostname'], h) for h in hosts))
             r = mock.Mock(spec=requests.Response)
             r.status_code = status_code
-            r.json = lambda : dict(
-                meta=dict(next=paths[0] if paths else None),
-                objects=chunk)
+            r.json = lambda : resp_json
             return r
         self.requests_get.configure_mock(side_effect=get)
 
     def make_host(self, name, want_mac_address=True, want_imaging_server=True, want_relay_info=True,
-            server_model_vendor='PandaBoard', server_model_model='ES'):
+                server_model=PANDABOARD, system_status=1):
         # make deterministic values
         fqdn = '%s.vlan.dc.mozilla.com' % name
         inventory_id = hash(fqdn) % 100
-        kv = []
+        kv = {}
+        staticreg_set = {}
         if want_mac_address:
             mac_address = hashlib.md5(fqdn).digest()[:6]
             mac_address = ':'.join([ '%02x' % ord(b) for b in mac_address ])
-            kv.append(dict(key='nic.0.mac_address.0', value=mac_address))
+            staticreg_set['nic0'] = dict(hwadapter_set=dict(hw0=dict(mac=mac_address)))
         if want_imaging_server:
             imaging_server = 'img%d' % ((hash(fqdn) / 100) % 10)
-            kv.append(dict(key='system.imaging_server.0', value=imaging_server))
+            kv['system.imaging_server.0'] = imaging_server
         if want_relay_info:
             relay_info = 'relay%d' % ((hash(fqdn) / 1000) % 10)
-            kv.append(dict(key='system.relay.0', value=relay_info))
-        server_model = {'model' : server_model_model, 'vendor' : server_model_vendor}
+            kv['system.relay.0'] = relay_info
         return dict(
             hostname=fqdn,
-            id=inventory_id,
-            key_value=kv,
-            server_model=server_model)
+            pk=inventory_id,
+            keyvalue_set=dict((k, dict(key=k, value=v)) for k, v in kv.iteritems()),
+            server_model=server_model,
+            staticreg_set=staticreg_set,
+            system_status=system_status)
 
     def test_one_response(self):
-        self.set_responses([
-            [ self.make_host('panda-001'), self.make_host('panda-002') ],
+        self.set_inventory_response([
+            self.make_host('panda-001'),
+            self.make_host('panda-002'),
         ])
         hosts = inventorysync.get_devices('https://inv', 'filter', 'me', 'pass', None)
-        self.assertEqual(hosts, [
+        self.assertEqual(sorted(hosts), sorted([
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
              'fqdn': 'panda-001.vlan.dc.mozilla.com', 'hardware_type': 'PandaBoard',
@@ -237,14 +266,17 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
              'imaging_server': 'img1', 'mac_address': '86a1c8ce6ea2',
              'fqdn': 'panda-002.vlan.dc.mozilla.com', 'hardware_type': 'PandaBoard',
              'hardware_model': 'ES'},
-        ])
+        ]))
         self.assertEqual(self.requests_get.call_args_list, [
-            mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/bulk_action/export/?q=filter', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/core/api/v1_core/systemstatus/1/', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/core/api/v1_core/servermodel/529/', auth=('me', 'pass')),
         ])
 
     def test_re_filter(self):
-        self.set_responses([
-            [ self.make_host('panda-001'), self.make_host('panda-002') ],
+        self.set_inventory_response([
+            self.make_host('panda-001'),
+            self.make_host('panda-002'),
         ])
         hosts = inventorysync.get_devices('https://inv', 'filter', 'me', 'pass', '.*9')
         self.assertEqual(hosts, [
@@ -255,17 +287,22 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
              'hardware_model': 'ES'},
         ])
         self.assertEqual(self.requests_get.call_args_list, [
-            mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/bulk_action/export/?q=filter', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/core/api/v1_core/systemstatus/1/', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/core/api/v1_core/servermodel/529/', auth=('me', 'pass')),
         ])
 
     def test_loop_and_filtering(self):
-        self.set_responses([
-            [ self.make_host('panda-001'), self.make_host('panda-002', want_imaging_server=False) ],
-            [ self.make_host('panda-003'), self.make_host('panda-004', want_relay_info=False) ],
-            [ self.make_host('panda-005'), self.make_host('panda-006', want_mac_address=False) ],
+        self.set_inventory_response([
+            self.make_host('panda-001'),
+            self.make_host('panda-002', want_imaging_server=False),
+            self.make_host('panda-003'),
+            self.make_host('panda-004', want_relay_info=False),
+            self.make_host('panda-005'),
+            self.make_host('panda-006', want_mac_address=False),
         ])
         hosts = inventorysync.get_devices('https://inv', 'filter', 'me', 'pass', None, verbose=True)
-        self.assertEqual(hosts, [
+        self.assertEqual(sorted(hosts), sorted([
             {'inventory_id': 90, 'relay_info': 'relay7', 'name': 'panda-001',
              'imaging_server': 'img9', 'mac_address': '6a3d0c52ae9b',
              'fqdn': 'panda-001.vlan.dc.mozilla.com', 'hardware_type': 'PandaBoard',
@@ -281,15 +318,15 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
              'fqdn': 'panda-005.vlan.dc.mozilla.com', 'hardware_type': 'PandaBoard',
              'hardware_model': 'ES'}
             # panda-006 was skipped
-        ])
+        ]))
         self.assertEqual(self.requests_get.call_args_list, [
-            mock.call('https://inv/en-US/tasty/v3/system/?limit=100&filter', auth=('me', 'pass')),
-            mock.call('https://inv/path1', auth=('me', 'pass')),
-            mock.call('https://inv/path2', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/bulk_action/export/?q=filter', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/core/api/v1_core/systemstatus/1/', auth=('me', 'pass')),
+            mock.call('https://inv/en-US/core/api/v1_core/servermodel/529/', auth=('me', 'pass'))
         ])
 
     def test_get_devices_requests_error(self):
-        self.set_responses([[]], status_code=500)
+        self.set_inventory_response([], status_code=500)
         self.assertRaises(RuntimeError, lambda :
             inventorysync.get_devices('https://inv', 'filter', 'me', 'pass', None))
 
@@ -378,4 +415,4 @@ class Tests(DBMixin, ConfigMixin, PatchMixin, ScriptMixin, TestCase):
     def test_script(self, sync):
         inventorysync.setup = lambda : self.db
         self.assertEqual(self.run_script(inventorysync.main, []), None)
-        sync.assert_called_with(self.db, verbose=False)
+        sync.assert_called_with(self.db, ship_it=False, verbose=False)
